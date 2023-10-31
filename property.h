@@ -1,25 +1,47 @@
-#include <atomic>
 #include <functional>
-#include <vector>
+#include <set>
 
 #include "raii.h"
 
 namespace pro {
 	namespace detail {
+		struct Property_base;
+		struct Binding_set {
+			bool has(Property_base *) const;
+			std::size_t count() const;
+			void add(Property_base *);
+			void remove(Property_base *);
+			void clear();
+			std::set<Property_base *>::iterator begin();
+			std::set<Property_base *>::iterator end();
+			std::set<Property_base *>::const_iterator begin() const;
+			std::set<Property_base *>::const_iterator end() const;
+			std::set<Property_base *>::const_iterator cbegin() const;
+			std::set<Property_base *>::const_iterator cend() const;
+			std::set<Property_base *> set; //TODO: Try out flat_set or something to save some nanoseconds
+		};
+
 		struct Property_base {
 			virtual void update();
 			void read_notify() const;
-			static void read_notify(Property_base *base);
+			void read_notify();
 			void write_notify();
-			void unbind();
 			void update_start();
 			void update_complete();
 
-			std::vector<Property_base *> dependents;
-			std::vector<Property_base *> dependencies;
+			Property_base() = default;
+			Property_base(const Property_base &) {}
+			void operator=(const Property_base &) {}
+			~Property_base();
+
+			Binding_set dependents;
+			Binding_set dependencies;
 			bool need_update = false;
-			static inline std::vector<Property_base *> *current_binding;
-			std::vector<Property_base *> *previous_binding = nullptr;
+			static inline Property_base *current_binding;
+			Property_base *previous_binding = nullptr;
+
+			private:
+			void clear_dependencies();
 		};
 	} // namespace detail
 
@@ -27,9 +49,6 @@ namespace pro {
 	class Property : detail::Property_base {
 		public:
 		Property() = default;
-		Property(T &&t);
-		Property(const T &t);
-		Property(std::function<T()> f);
 		template <class U>
 		Property(U &&u);
 		template <class U>
@@ -39,8 +58,7 @@ namespace pro {
 		private:
 		void update_source(std::function<T()> f);
 		void update() override final;
-		template <class U>
-		Property &assign(U &&rhs);
+
 		T value;
 		std::function<T()> source;
 	};
@@ -61,44 +79,82 @@ namespace pro {
 			return false;
 		}
 
-		template <class T, class U>
-		auto isPropertyCompatible(Property<T> &&p, U &&u) -> decltype(p.assign(u), std::true_type{});
-		template <class T, class U>
-		std::false_type isPropertyCompatible(...);
-		template <class T, class U>
-		constexpr bool isPropertyCompatible_v = decltype(isPropertyCompatible(std::declval<T>, std::declval<U>))::value;
+		template <class T>
+		auto inner_value_type(Property<T> &&) -> T;
+		template <class T>
+		T inner_value_type(T &&t);
+
+		template <class T>
+		using inner_value_type_t =
+			std::remove_cvref_t<decltype(inner_value_type(std::declval<std::remove_cvref_t<T>>()))>;
+
+		template <class T>
+		using inner_function_type_t = inner_value_type_t<decltype(std::declval<T>()())>;
+
+		template <class T>
+		auto inner_type(std::true_type) -> inner_function_type_t<T>;
+		template <class T>
+		inner_value_type_t<T> inner_type(std::false_type);
+
+		template <class T>
+		auto is_function_type(T &&) -> decltype(std::declval<T>()(), std::true_type{});
+		std::false_type is_function_type(...);
+
+		template <class T>
+		constexpr bool is_function_type_v = decltype(is_function_type(std::declval<T>()))::value;
+
+		template <class T>
+		using inner_type_t = decltype(inner_type<T>(is_function_type(std::declval<T>())));
 
 	} // namespace detail
 
 	template <class T>
-	Property<T>::Property(T &&t)
-		: value{std::move(t)} {}
-
-	template <class T>
-	Property<T>::Property(const T &t)
-		: value{t} {}
-
-	template <class T>
-	Property<T>::Property(std::function<T()> f) {
-		update_source(std::move(f));
-	}
-
-	template <class T>
 	template <class U>
 	Property<T>::Property(U &&u)
-		: Property(std::function<T()>(std::forward<U>(u))) {}
+		: value{[&u, this]() -> T {
+			//function binding
+			if constexpr (detail::is_function_type_v<U>) {
+				detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
+				return static_cast<T>(u());
+			}
+			//value assignments
+			else if constexpr (std::is_convertible_v<decltype(std::forward<U>(u)), T>) {
+				return std::forward<U>(u);
+			}
+			//error
+			else {
+				static_assert(decltype(u, std::false_type{})::value, "Invalid assignment");
+			}
+		}()}
+		, source{[&]() -> std::function<T()> {
+			//function binding
+			if constexpr (detail::is_function_type_v<U>) {
+				return static_cast<std::function<T()>>(std::forward<U>(u)());
+			}
+			//value assignments
+			else if constexpr (std::is_convertible_v<decltype(std::forward<U>(u)), T>) {
+				return std::function<T()>{nullptr};
+			}
+			//error
+			else {
+				static_assert(decltype(u, std::false_type{})::value, "Invalid assignment");
+			}
+		}()} {}
 
 	template <class T>
 	template <class U>
 	Property<T> &Property<T>::operator=(U &&rhs) {
 		//function assignments
-		if constexpr (std::is_convertible_v<decltype(std::forward<U>(rhs)), std::function<T()>>) {
-			update_source(std::forward<U>(rhs));
-		} else if constexpr (std::is_invocable_r_v<T, U>) {
+		if constexpr (detail::is_function_type_v<U>) {
 			update_source(std::forward<U>(rhs));
 		}
 		//value assignments
 		else if constexpr (std::is_convertible_v<decltype(std::forward<U>(rhs)), T>) {
+			if (source) {
+				update_start();
+				source = nullptr;
+				update_complete();
+			}
 			if constexpr (detail::is_equal_comparable_v<T>) {
 				T t(std::forward<U>(rhs));
 				if (!detail::is_equal(t, value)) {
@@ -107,8 +163,11 @@ namespace pro {
 				}
 			} else {
 				value = std::forward<U>(rhs);
+				write_notify();
 			}
-		} else {
+		}
+		//error
+		else {
 			static_assert(decltype(rhs, std::false_type{})::value, "Invalid assignment");
 		}
 		return *this;
@@ -131,19 +190,20 @@ namespace pro {
 		detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
 		if constexpr (detail::is_equal_comparable_v<T>) {
 			T t = source();
+			updater.early_exit();
 			if (!detail::is_equal(t, value)) {
 				value = std::move(t);
 				write_notify();
 			}
 		} else {
 			value = source();
+			updater.early_exit();
 		}
-		Property_base::update();
+		need_update = false;
 	}
 
 	template <class T>
-	Property(T t)
-		-> Property<std::conditional_t<std::is_convertible_v<T, std::function<decltype(t())()>>, decltype(t()), T>>;
+	Property(T &&t) -> Property<detail::inner_type_t<T>>;
 
 	//template <class T, class U>
 	//auto operator<=>(Property<T> &&lhs, U &&rhs) {
