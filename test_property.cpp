@@ -59,9 +59,9 @@ TEST_CASE("Basic Property tests") {
 	p3 = [&] {
 		call_counter++;
 		if (p) {
-			return +p;
+			return p;
 		}
-		return +p2;
+		return p2;
 	};
 	REQUIRE(p3 == 1);
 	REQUIRE(call_counter == 1);

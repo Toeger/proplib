@@ -1,7 +1,13 @@
+#include "raii.h"
+
 #include <functional>
 #include <set>
 
-#include "raii.h"
+//#define PROPERTY_DEBUG
+
+#ifdef PROPERTY_DEBUG
+#include <string>
+#endif
 
 namespace pro {
 	namespace detail {
@@ -29,9 +35,9 @@ namespace pro {
 			void update_start();
 			void update_complete();
 
-			Property_base() = default;
-			Property_base(const Property_base &) {}
-			void operator=(const Property_base &) {}
+			Property_base();
+			Property_base(const Property_base &) = delete;
+			void operator=(const Property_base &) = delete;
 			~Property_base();
 
 			Binding_set dependents;
@@ -39,6 +45,10 @@ namespace pro {
 			bool need_update = false;
 			static inline Property_base *current_binding;
 			Property_base *previous_binding = nullptr;
+			Property_base *creation_binding = current_binding;
+#ifdef PROPERTY_DEBUG
+			std::string name;
+#endif
 
 			private:
 			void clear_dependencies();
@@ -54,7 +64,9 @@ namespace pro {
 		template <class U>
 		Property &operator=(U &&rhs);
 		operator const T &() const;
-
+#ifdef PROPERTY_DEBUG
+		using detail::Property_base::name;
+#endif
 		private:
 		void update_source(std::function<T()> f);
 		void update() override final;

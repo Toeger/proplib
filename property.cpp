@@ -3,9 +3,10 @@
 #include <cassert>
 #include <stdexcept>
 
-#if 0
+#ifdef PROPERTY_DEBUG
 #include <iostream>
 #define TRACE(...) std::clog << __FILE__ << ' ' << __PRETTY_FUNCTION__ << ':' << __LINE__ << " " << __VA_ARGS__ << '\n'
+static int property_base_counter;
 #else
 #define TRACE(...)
 #endif
@@ -38,21 +39,39 @@ void pro::detail::Property_base::write_notify() {
 }
 
 void pro::detail::Property_base::update_start() {
-	TRACE(this);
+	TRACE(this << " " << name);
 	previous_binding = current_binding;
 	clear_dependencies();
 	current_binding = this;
 }
 
 void pro::detail::Property_base::update_complete() {
-	TRACE(this);
+	TRACE(this << " " << name);
 	current_binding = previous_binding;
 }
 
+pro::detail::Property_base::Property_base()
+#ifdef PROPERTY_DEBUG
+	: name("p" + std::to_string(++property_base_counter))
+#endif
+{
+	TRACE(this << " " << name << " with creation binding " << creation_binding << " "
+			   << (creation_binding ? creation_binding->name : ""));
+}
+
 pro::detail::Property_base::~Property_base() {
+	TRACE(this << " " << name);
 	clear_dependencies();
+	if (dependents.has(creation_binding)) {
+		dependents.remove(creation_binding);
+		creation_binding->dependencies.remove(this);
+	}
 	assert(dependents.count() == 0);
 	if (dependents.count() != 0) {
+		TRACE(dependents.count());
+		for (const auto &d : dependents) {
+			TRACE(this << " " << name << " depends on " << d << " " << d->name);
+		}
 		throw std::runtime_error{"Dangling reference"};
 	}
 }
