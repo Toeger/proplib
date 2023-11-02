@@ -3,7 +3,7 @@
 
 #include <utility>
 
-namespace pro::detail {
+namespace prop::detail {
 	template <class Init_function, class Exit_function>
 	struct RAII {
 		RAII(Init_function init_function, Exit_function p_exit_function)
@@ -35,6 +35,6 @@ namespace pro::detail {
 	RAII(Init_function, Exit_function) -> RAII<Init_function, Exit_function>;
 	template <class Exit_function>
 	RAII(Exit_function) -> RAII<void(), Exit_function>;
-} // namespace pro::detail
+} // namespace prop::detail
 
 #endif

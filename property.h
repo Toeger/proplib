@@ -9,7 +9,7 @@
 #include <string>
 #endif
 
-namespace pro {
+namespace prop {
 	namespace detail {
 		struct Property_base;
 		struct Binding_set {
@@ -38,7 +38,7 @@ namespace pro {
 			Property_base();
 			Property_base(const Property_base &) = delete;
 			void operator=(const Property_base &) = delete;
-			~Property_base();
+			~Property_base() noexcept(false);
 
 			Binding_set dependents;
 			Binding_set dependencies;
@@ -46,13 +46,17 @@ namespace pro {
 			static inline Property_base *current_binding;
 			Property_base *previous_binding = nullptr;
 			Property_base *creation_binding = current_binding;
+			void clear_dependencies();
 #ifdef PROPERTY_DEBUG
 			std::string name;
 #endif
-
-			private:
-			void clear_dependencies();
 		};
+
+		template <class T>
+		auto is_dereferenceable(T &&t) -> decltype(*std::declval<T>(), std::true_type{});
+		std::false_type is_dereferenceable(...);
+		template <class T>
+		constexpr bool is_dereferenceable_v = decltype(is_dereferenceable(std::declval<T>()))::value;
 	} // namespace detail
 
 	template <class T>
@@ -64,6 +68,15 @@ namespace pro {
 		template <class U>
 		Property &operator=(U &&rhs);
 		operator const T &() const;
+		void set(T t);
+		const T &get() const;
+		template <class U>
+		void bind(const Property<U> &other);
+		void bind(std::function<T()>);
+		void unbind();
+		template <class Functor>
+		void apply(Functor &&f);
+
 #ifdef PROPERTY_DEBUG
 		using detail::Property_base::name;
 #endif
@@ -76,14 +89,15 @@ namespace pro {
 	};
 
 	namespace detail {
-		template <class T>
-		auto is_equal_comparable(T &&t) -> decltype(t == t, std::true_type{});
+		template <class T, class U>
+		auto is_equal_comparable(T &&t, U &&u) -> decltype(t == u, std::true_type{});
 		std::false_type is_equal_comparable(...);
-		template <class T>
-		constexpr bool is_equal_comparable_v = decltype(is_equal_comparable(std::declval<T>))::value;
+		template <class T, class U = T>
+		constexpr bool is_equal_comparable_v =
+			decltype(is_equal_comparable(std::declval<T>(), std::declval<U>()))::value;
 
 		template <class T>
-		bool is_equal(const T &lhs, const T &rhs) {
+		constexpr bool is_equal(const T &lhs, const T &rhs) {
 			if constexpr (is_equal_comparable_v<T>) {
 				return lhs == rhs;
 			}
@@ -162,20 +176,17 @@ namespace pro {
 		}
 		//value assignments
 		else if constexpr (std::is_convertible_v<decltype(std::forward<U>(rhs)), T>) {
-			if (source) {
-				update_start();
-				source = nullptr;
-				update_complete();
-			}
+			unbind();
+			detail::RAII notifier{[this] { write_notify(); }};
 			if constexpr (detail::is_equal_comparable_v<T>) {
 				T t(std::forward<U>(rhs));
 				if (!detail::is_equal(t, value)) {
 					value = std::move(t);
-					write_notify();
+				} else {
+					notifier.cancel();
 				}
 			} else {
 				value = std::forward<U>(rhs);
-				write_notify();
 			}
 		}
 		//error
@@ -187,8 +198,65 @@ namespace pro {
 
 	template <class T>
 	Property<T>::operator const T &() const {
+		return get();
+	}
+
+	template <class T>
+	void Property<T>::set(T t) {
+		unbind();
+		if (!detail::is_equal(value, t)) {
+			detail::RAII notifier{[this] { write_notify(); }};
+			value = std::move(t);
+		}
+	}
+
+	template <class T>
+	const T &Property<T>::get() const {
 		read_notify();
 		return value;
+	}
+
+	template <class T>
+	template <class U>
+	void Property<T>::bind(const Property<U> &other) {
+		bind([&other] { return other.get(); });
+	}
+
+	template <class T>
+	void Property<T>::bind(std::function<T()> f) {
+		update_source(std::move(f));
+	}
+
+	template <class T>
+	void Property<T>::unbind() {
+		source = nullptr;
+		clear_dependencies();
+	}
+
+	template <class T>
+	template <class Functor>
+	void Property<T>::apply(Functor &&f) {
+		/* We need to judge if we want to copy value and check if value has changed or avoid the copy and
+		 * write_notify even though the value may not have changed. We want to do whichever costs less.
+		 * TODO: Figure out a better way to detect cheap to copy types.
+		 */
+		detail::RAII notifier{[this] { write_notify(); }};
+		if constexpr (std::is_fundamental_v<T> || std::is_pointer_v<T>) {
+			T t = value;
+			try {
+				f(value);
+			} catch (...) {
+				if (t == value) {
+					notifier.cancel();
+				}
+				throw;
+			}
+			if (t == value) {
+				notifier.cancel();
+			}
+		} else {
+			f(value);
+		}
 	}
 
 	template <class T>
@@ -203,22 +271,42 @@ namespace pro {
 		if constexpr (detail::is_equal_comparable_v<T>) {
 			T t = source();
 			updater.early_exit();
+			need_update = false;
 			if (!detail::is_equal(t, value)) {
+				detail::RAII notifier{[this] { write_notify(); }};
 				value = std::move(t);
-				write_notify();
 			}
 		} else {
-			value = source();
+			detail::RAII notifier{[this] { write_notify(); }};
+			value = [this, &notifier] {
+				try {
+					return source();
+				} catch (...) {
+					notifier.cancel();
+					throw;
+				}
+			}();
 			updater.early_exit();
+			need_update = false;
 		}
-		need_update = false;
 	}
 
 	template <class T>
 	Property(T &&t) -> Property<detail::inner_type_t<T>>;
 
-	//template <class T, class U>
-	//auto operator<=>(Property<T> &&lhs, U &&rhs) {
-	//	return static_cast<T>(lhs) <=> rhs;
-	//}
-} // namespace pro
+#define PROP_BINOPS PROP_X(<=>) PROP_X(==) PROP_X(!=) PROP_X(<) PROP_X(<=) PROP_X(>) PROP_X(>=)
+#define PROP_X(OP)                                                                                                     \
+	template <class T, class U>                                                                                        \
+	auto operator OP(const Property<T> &lhs, const U &rhs) {                                                           \
+		return lhs.get() OP rhs;                                                                                       \
+	}                                                                                                                  \
+	template <class T, class U>                                                                                        \
+	auto operator OP(const U &lhs, const Property<T> &rhs) {                                                           \
+		return lhs OP rhs.get();                                                                                       \
+	}
+
+	PROP_BINOPS
+#undef PROP_X
+#undef PRO_BINOPS
+
+} // namespace prop
