@@ -304,9 +304,8 @@ namespace prop {
 	auto operator OP(const U &lhs, const Property<T> &rhs) {                                                           \
 		return lhs OP rhs.get();                                                                                       \
 	}
-
 	PROP_BINOPS
 #undef PROP_X
-#undef PRO_BINOPS
+#undef PROP_BINOPS
 
 } // namespace prop
