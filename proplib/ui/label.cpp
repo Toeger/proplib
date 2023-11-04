@@ -18,7 +18,10 @@ void prop::Label::update() {
 	if (!drawer) {
 		return;
 	}
+
 	sf::Text sftext;
+	sftext.setOrigin(prop::Widget::privates->offset);
+	sftext.setPosition(x, y);
 	sftext.setFont(font.get().font_privates->font);
 	sftext.setString(text.get());
 	sftext.setCharacterSize(24); // in pixels, not points!
