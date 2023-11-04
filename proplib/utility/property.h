@@ -1,4 +1,7 @@
+#pragma once
+
 #include "raii.h"
+#include "type_traits.h"
 
 #include <functional>
 #include <set>
@@ -15,6 +18,7 @@ namespace prop {
 		struct Binding_set {
 			bool has(Property_base *) const;
 			std::size_t count() const;
+			bool is_empty() const;
 			void add(Property_base *);
 			void remove(Property_base *);
 			void clear();
@@ -75,7 +79,7 @@ namespace prop {
 		void bind(std::function<T()>);
 		void unbind();
 		template <class Functor>
-		void apply(Functor &&f);
+		std::invoke_result_t<Functor, T &> apply(Functor &&f);
 
 #ifdef PROPERTY_DEBUG
 		using detail::Property_base::name;
@@ -141,11 +145,18 @@ namespace prop {
 			//function binding
 			if constexpr (detail::is_function_type_v<U>) {
 				detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
-				return static_cast<T>(u());
+				return u();
 			}
 			//value assignments
 			else if constexpr (std::is_convertible_v<decltype(std::forward<U>(u)), T>) {
 				return std::forward<U>(u);
+			} else if constexpr (prop::is_template_specialization_v<std::remove_cvref_t<U>, prop::Property>) {
+				if constexpr (std::is_rvalue_reference_v<U &&>) {
+					u.read_notify();
+					return std::move(u.value);
+				} else {
+					return u.value;
+				}
 			}
 			//error
 			else {
@@ -155,10 +166,16 @@ namespace prop {
 		, source{[&]() -> std::function<T()> {
 			//function binding
 			if constexpr (detail::is_function_type_v<U>) {
-				return static_cast<std::function<T()>>(std::forward<U>(u)());
+				if constexpr (std::is_convertible_v<std::invoke_result_t<U>, T>) {
+					return std::forward<U>(u);
+				} else {
+					static_assert(decltype(u, std::false_type{})::value,
+								  "Invalid assignment: Function return type not convertible to property value type");
+				}
 			}
 			//value assignments
-			else if constexpr (std::is_convertible_v<decltype(std::forward<U>(u)), T>) {
+			else if constexpr (std::is_convertible_v<decltype(std::forward<U>(u)), T> ||
+							   prop::is_template_specialization_v<U, prop::Property>) {
 				return std::function<T()>{nullptr};
 			}
 			//error
@@ -235,7 +252,7 @@ namespace prop {
 
 	template <class T>
 	template <class Functor>
-	void Property<T>::apply(Functor &&f) {
+	std::invoke_result_t<Functor, T &> Property<T>::apply(Functor &&f) {
 		/* We need to judge if we want to copy value and check if value has changed or avoid the copy and
 		 * write_notify even though the value may not have changed. We want to do whichever costs less.
 		 * TODO: Figure out a better way to detect cheap to copy types.
@@ -244,18 +261,19 @@ namespace prop {
 		if constexpr (std::is_fundamental_v<T> || std::is_pointer_v<T>) {
 			T t = value;
 			try {
-				f(value);
+				auto retval = f(value);
+				if (t == value) {
+					notifier.cancel();
+				}
+				return retval;
 			} catch (...) {
 				if (t == value) {
 					notifier.cancel();
 				}
 				throw;
 			}
-			if (t == value) {
-				notifier.cancel();
-			}
 		} else {
-			f(value);
+			return f(value);
 		}
 	}
 
@@ -278,7 +296,7 @@ namespace prop {
 			}
 		} else {
 			detail::RAII notifier{[this] { write_notify(); }};
-			value = [this, &notifier] {
+			T t = [this, &notifier]() -> T {
 				try {
 					return source();
 				} catch (...) {
@@ -286,6 +304,7 @@ namespace prop {
 					throw;
 				}
 			}();
+			value = std::move(t);
 			updater.early_exit();
 			need_update = false;
 		}

@@ -1,5 +1,4 @@
-#ifndef RAII_H
-#define RAII_H
+#pragma once
 
 #include <utility>
 
@@ -36,5 +35,3 @@ namespace prop::detail {
 	template <class Exit_function>
 	RAII(Exit_function) -> RAII<void(), Exit_function>;
 } // namespace prop::detail
-
-#endif

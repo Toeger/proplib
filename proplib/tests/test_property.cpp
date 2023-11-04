@@ -1,4 +1,4 @@
-#include "property.h"
+#include "../utility/property.h"
 
 #include <catch2/catch.hpp>
 #include <memory>

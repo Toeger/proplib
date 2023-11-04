@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.12)
 
-project(Prop VERSION 0.1 LANGUAGES CXX)
+project(PropDemo VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,14 +8,49 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS} -ggdb -fno-omit-frame-pointer -fsanitize=undefined,address")
 set(CMAKE_LINKER_FLAGS_DEBUG  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined,address")
 
-set(PROJECT_SOURCES
-        main.cpp
-		property.cpp
-		raii.cpp
+#TODO: Make a prop library
+set(PROP_LIBRARY_SOURCES
+	proplib/ui/button.cpp
+	proplib/ui/label.cpp
+	proplib/ui/widget.cpp
+	proplib/ui/window.cpp
+	proplib/utility/binding.cpp
+	proplib/utility/font.cpp
+	proplib/utility/property.cpp
+	proplib/utility/raii.cpp
+	proplib/utility/style.cpp
+	proplib/utility/type_name.cpp
+	proplib/utility/type_traits.cpp
+)
+list(TRANSFORM PROP_LIBRARY_SOURCES REPLACE "\.cpp$" ".h" OUTPUT_VARIABLE PROP_LIBRARY_HEADERS)
+
+#demo
+find_package(SFML COMPONENTS window graphics system)
+add_executable(PropDemo
+	demo/main.cpp
+	${PROP_LIBRARY_SOURCES}
+	${PROP_LIBRARY_HEADERS}
+)
+target_link_libraries(PropDemo PRIVATE
+	sfml-graphics
+	sfml-system
+	sfml-window
 )
 
-add_executable(Prop ${PROJECT_SOURCES})
-
+#tests
 find_package(Catch2 2 REQUIRED)
-add_executable(tests test_property.cpp property.cpp)
-target_link_libraries(tests PRIVATE Catch2::Catch2WithMain)
+
+#property
+add_executable(Prop_test_property
+	proplib/tests/test_property.cpp
+	proplib/utility/property.cpp
+)
+target_link_libraries(Prop_test_property PRIVATE Catch2::Catch2WithMain)
+
+#binding
+add_executable(Prop_test_binding
+	proplib/tests/test_binding.cpp
+	proplib/utility/binding.cpp
+	proplib/utility/property.cpp
+)
+target_link_libraries(Prop_test_binding PRIVATE Catch2::Catch2WithMain)

@@ -25,7 +25,9 @@ static std::string propnames(const prop::detail::Binding_set &set) {
 void prop::detail::Property_base::update() {
 	if (need_update) {
 		need_update = false;
-		update();
+		if (this != current_binding) {
+			update();
+		}
 	}
 }
 
@@ -79,8 +81,8 @@ prop::detail::Property_base::~Property_base() noexcept(false) {
 		dependents.remove(creation_binding);
 		creation_binding->dependencies.remove(this);
 	}
-	assert(dependents.count() == 0);
-	if (dependents.count() != 0) {
+	assert(dependents.is_empty());
+	if (!dependents.is_empty()) {
 		TRACE(name << " is being destroyed but still has dependencies " << propnames(dependents));
 		throw std::runtime_error{"Dangling reference"};
 	}
@@ -104,6 +106,10 @@ bool prop::detail::Binding_set::has(Property_base *pb) const {
 
 std::size_t prop::detail::Binding_set::count() const {
 	return set.size();
+}
+
+bool prop::detail::Binding_set::is_empty() const {
+	return set.empty();
 }
 
 void prop::detail::Binding_set::add(Property_base *pb) {
