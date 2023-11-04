@@ -24,12 +24,20 @@ set(PROP_LIBRARY_SOURCES
 )
 list(TRANSFORM PROP_LIBRARY_SOURCES REPLACE "\.cpp$" ".h" OUTPUT_VARIABLE PROP_LIBRARY_HEADERS)
 
+list(TRANSFORM PROP_LIBRARY_SOURCES REPLACE "\.cpp$" ".privates.h" OUTPUT_VARIABLE PROP_LIBRARY_PRIVATE_CANDIDATES)
+foreach(PROP_LIBRARY_PRIVATES_FILE IN ITEMS ${PROP_LIBRARY_PRIVATE_CANDIDATES})
+	if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${PROP_LIBRARY_PRIVATES_FILE}")
+		set(PROP_LIBRARY_PRIVATES ${PROP_LIBRARY_PRIVATES} ${PROP_LIBRARY_PRIVATES_FILE})
+	endif()
+endforeach()
+
 #demo
 find_package(SFML COMPONENTS window graphics system)
 add_executable(PropDemo
 	demo/main.cpp
 	${PROP_LIBRARY_SOURCES}
 	${PROP_LIBRARY_HEADERS}
+	${PROP_LIBRARY_PRIVATES} #this doesn't belong to the demo, but it's easier to develop for now
 )
 target_link_libraries(PropDemo PRIVATE
 	sfml-graphics
