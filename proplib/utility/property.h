@@ -88,7 +88,7 @@ namespace prop {
 		void update_source(std::function<T()> f);
 		void update() override final;
 
-		T value;
+		T value{};
 		std::function<T()> source;
 	};
 
