@@ -16,20 +16,32 @@ namespace prop {
 	};
 } // namespace prop
 
+static auto get_widget_updater(prop::Window &window) {
+	return [&window, widget_privates = static_cast<prop::Widget_privates *>(nullptr)]() mutable {
+		auto new_widget_privates = window.widget.get() ? window.widget.get()->privates.get() : nullptr;
+		if (new_widget_privates == widget_privates) {
+			return;
+		}
+		if (widget_privates) {
+			widget_privates->window = nullptr;
+		}
+		widget_privates = new_widget_privates;
+		if (widget_privates) {
+			widget_privates->window = &window.privates->window;
+			widget_privates->offset = {0, 0};
+			window.widget.apply([window_privates = window.privates.get()](std::unique_ptr<prop::Widget> &widget) {
+				widget->privates->window = &window_privates->window;
+			});
+		}
+	};
+}
+
 prop::Window::Window(std::string title, int width, int height)
 	: width{width}
 	, height{height}
 	, title{title}
 	, privates{new Window_privates{.window{sf::VideoMode(width, height), title},
-								   .on_widget_update{[this] {
-									   widget.get();
-									   widget.apply([this](std::unique_ptr<prop::Widget> &widget) {
-										   if (!widget) {
-											   return;
-										   }
-										   widget->privates->window = &privates->window;
-									   });
-								   }}}} {
+								   .on_widget_update{get_widget_updater(*this)}}} {
 	windows.push_back(this);
 }
 

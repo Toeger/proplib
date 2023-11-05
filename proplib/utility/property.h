@@ -258,6 +258,7 @@ namespace prop {
 		 * TODO: Figure out a better way to detect cheap to copy types.
 		 */
 		detail::RAII notifier{[this] { write_notify(); }};
+		read_notify();
 		if constexpr (std::is_fundamental_v<T> || std::is_pointer_v<T>) {
 			T t = value;
 			try {
