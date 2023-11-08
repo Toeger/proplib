@@ -17,9 +17,8 @@ namespace prop {
 		struct Property_base;
 		struct Binding_set {
 			bool has(Property_base *) const;
-			std::size_t count() const;
 			bool is_empty() const;
-			void add(Property_base *);
+			bool add(Property_base *);
 			void remove(Property_base *);
 			void clear();
 			std::set<Property_base *>::iterator begin();
@@ -33,6 +32,8 @@ namespace prop {
 
 		struct Property_base {
 			virtual void update();
+			virtual void unbind();
+			void unbind_depends();
 			void read_notify() const;
 			void read_notify();
 			void write_notify();
@@ -44,16 +45,20 @@ namespace prop {
 			void operator=(const Property_base &) = delete;
 			~Property_base() noexcept(false);
 
-			Binding_set dependents;
-			Binding_set dependencies;
 			bool need_update = false;
 			static inline Property_base *current_binding;
 			Property_base *previous_binding = nullptr;
 			Property_base *creation_binding = current_binding;
-			void clear_dependencies();
+			void clear_implicit_dependencies();
+			void sever_implicit_dependents();
+			void take_explicit_dependents(Property_base &&source);
 #ifdef PROPERTY_DEBUG
 			std::string name;
 #endif
+			private:
+			std::vector<Property_base *> explicit_depenencies;
+			Binding_set implicit_dependencies;
+			Binding_set dependents;
 		};
 
 		template <class T>
@@ -62,6 +67,8 @@ namespace prop {
 		template <class T>
 		constexpr bool is_dereferenceable_v = decltype(is_dereferenceable(std::declval<T>()))::value;
 	} // namespace detail
+
+	extern void (*on_property_severed)(detail::Property_base *severed, detail::Property_base *reason);
 
 	template <class T>
 	class Property : detail::Property_base {
@@ -77,10 +84,9 @@ namespace prop {
 		template <class U>
 		void bind(const Property<U> &other);
 		void bind(std::function<T()>);
-		void unbind();
+		void unbind() final override;
 		template <class Functor>
 		std::invoke_result_t<Functor, T &> apply(Functor &&f);
-
 #ifdef PROPERTY_DEBUG
 		using detail::Property_base::name;
 #endif
@@ -142,8 +148,12 @@ namespace prop {
 	template <class U>
 	Property<T>::Property(U &&u)
 		: value{[&u, this]() -> T {
+			//move constructor //TODO: change this to std::is_move_assignable_v<base_of<U>, T>
+			if constexpr (std::is_same_v<decltype(u), Property<T> &&>) {
+				return std::move(u.value);
+			}
 			//function binding
-			if constexpr (detail::is_function_type_v<U>) {
+			else if constexpr (detail::is_function_type_v<U>) {
 				detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
 				return u();
 			}
@@ -164,6 +174,10 @@ namespace prop {
 			}
 		}()}
 		, source{[&]() -> std::function<T()> {
+			//move constructor //TODO: change this to std::is_move_assignable_v<base_of<U>, T>
+			if constexpr (std::is_same_v<decltype(u), Property<T> &&>) {
+				return std::move(u.source);
+			}
 			//function binding
 			if constexpr (detail::is_function_type_v<U>) {
 				if constexpr (std::is_convertible_v<std::invoke_result_t<U>, T>) {
@@ -182,7 +196,13 @@ namespace prop {
 			else {
 				static_assert(decltype(u, std::false_type{})::value, "Invalid assignment");
 			}
-		}()} {}
+		}()} {
+		//move constructor //TODO: change this to std::is_move_assignable_v<base_of<U>, T>
+		if constexpr (std::is_same_v<decltype(u), Property<T> &&>) {
+			take_explicit_dependents(std::move(u));
+			u.sever_implicit_dependents();
+		}
+	}
 
 	template <class T>
 	template <class U>
@@ -247,7 +267,7 @@ namespace prop {
 	template <class T>
 	void Property<T>::unbind() {
 		source = nullptr;
-		clear_dependencies();
+		Property_base::unbind();
 	}
 
 	template <class T>

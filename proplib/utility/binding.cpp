@@ -13,7 +13,7 @@ prop::Property<void> &prop::Property<void>::operator=(std::function<void()> sour
 
 void prop::Property<void>::unbind() {
 	source = nullptr;
-	clear_dependencies();
+	Property_base::unbind();
 }
 
 void prop::Property<void>::update() {
@@ -21,7 +21,6 @@ void prop::Property<void>::update() {
 		detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
 		source();
 	}
-	assert(dependents.is_empty());
 }
 
 void prop::Property<void>::update_source(std::function<void()> f) {
