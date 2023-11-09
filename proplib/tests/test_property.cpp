@@ -3,6 +3,16 @@
 #include <catch2/catch.hpp>
 #include <memory>
 
+#ifdef PROPERTY_DEBUG
+#include <iostream>
+#define RESET_COUNTER                                                                                                  \
+	extern int property_base_counter;                                                                                  \
+	property_base_counter = 0;                                                                                         \
+	std::clog << __LINE__ << '\n';
+#else
+#define RESET_COUNTER ;
+#endif
+
 TEST_CASE("Compile time checks") {
 	//Primitive types
 	static_assert(std::is_same_v<prop::detail::inner_value_type_t<int>, int>);
@@ -74,35 +84,38 @@ TEST_CASE("Basic Property tests") {
 }
 
 TEST_CASE("Property<Move_only>") {
-	prop::Property<std::unique_ptr<int>> p;
-	REQUIRE(p == nullptr);
-	p = std::make_unique<int>(42);
-	REQUIRE(p != nullptr);
-	REQUIRE(*p.get() == 42);
+	RESET_COUNTER
+	prop::Property<std::unique_ptr<int>> p1;
+	REQUIRE(p1 == nullptr);
+	p1 = std::make_unique<int>(42);
+	REQUIRE(p1 != nullptr);
+	REQUIRE(*p1.get() == 42);
 }
 
 TEST_CASE("Dereference") {
+	RESET_COUNTER
 	struct S {
 		int i = 42;
 	};
 	WHEN("Using a class") {
 		S s;
-		prop::Property p{s};
-		REQUIRE(p.get().i == 42);
+		prop::Property p1{s};
+		REQUIRE(p1.get().i == 42);
 	}
 	WHEN("Using a class pointer") {
 		S s;
-		prop::Property p = &s;
-		REQUIRE(p.get()->i == 42);
+		prop::Property p2 = &s;
+		REQUIRE(p2.get()->i == 42);
 	}
 
 	WHEN("Using unique_ptr") {
-		prop::Property p = std::make_unique<S>();
-		REQUIRE(p.get()->i == 42);
+		prop::Property p3 = std::make_unique<S>();
+		REQUIRE(p3.get()->i == 42);
 	}
 }
 
 TEST_CASE("Property assignment and binding") {
+	RESET_COUNTER
 	prop::Property p1 = 1;
 	prop::Property p2 = p1;
 	REQUIRE(p2 == 1);
@@ -112,4 +125,17 @@ TEST_CASE("Property assignment and binding") {
 	REQUIRE(p2 == 2);
 	p1 = 1;
 	REQUIRE(p2 == 1);
+}
+
+TEST_CASE("Moving properties while maintaining binding") {
+	RESET_COUNTER
+	prop::Property p1 = 1;
+	prop::Property<int> p2;
+	p2.bind(p1);
+	REQUIRE(p2 == 1);
+	p1 = 2;
+	REQUIRE(p2 == 2);
+	prop::Property p3 = std::move(p1);
+	p3 = 3;
+	REQUIRE(p2 == 3);
 }

@@ -60,12 +60,6 @@ namespace prop {
 			Binding_set implicit_dependencies;
 			Binding_set dependents;
 		};
-
-		template <class T>
-		auto is_dereferenceable(T &&t) -> decltype(*std::declval<T>(), std::true_type{});
-		std::false_type is_dereferenceable(...);
-		template <class T>
-		constexpr bool is_dereferenceable_v = decltype(is_dereferenceable(std::declval<T>()))::value;
 	} // namespace detail
 
 	extern void (*on_property_severed)(detail::Property_base *severed, detail::Property_base *reason);

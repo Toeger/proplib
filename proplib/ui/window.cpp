@@ -29,9 +29,14 @@ static auto get_widget_updater(prop::Window &window) {
 		if (widget_privates) {
 			widget_privates->window = &window.privates->window;
 			widget_privates->offset = {0, 0};
-			window.widget.apply([window_privates = window.privates.get()](std::unique_ptr<prop::Widget> &widget) {
-				widget->privates->window = &window_privates->window;
-			});
+			window.widget.apply(
+				[window_privates = window.privates.get(), &window](prop::Polywrap<prop::Widget> &widget) {
+					widget->privates->window = &window_privates->window;
+					widget->x = 0;
+					widget->y = 0;
+					widget->width.bind(window.width);
+					widget->height.bind(window.height);
+				});
 		}
 	};
 }
@@ -74,7 +79,7 @@ bool prop::Window_privates::pump(prop::Window &w) {
 	}
 	window.clear(sf::Color::White);
 	if (auto &wp = w.widget.get()) {
-		w.widget.get()->update();
+		w.widget.apply([](prop::Polywrap<Widget> &w) { w->update(); });
 	}
 	window.display();
 	return true;

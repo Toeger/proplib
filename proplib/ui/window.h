@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../utility/polywrap.h"
 #include "../utility/property.h"
 
 #include <memory>
@@ -15,7 +16,7 @@ namespace prop {
 		Property<int> width;
 		Property<int> height;
 		Property<std::string> title;
-		Property<std::unique_ptr<prop::Widget>> widget;
+		Property<prop::Polywrap<prop::Widget>> widget;
 
 		static void pump();
 		static void exec();
