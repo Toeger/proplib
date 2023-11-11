@@ -9,7 +9,7 @@ class prop::Property<void> : prop::detail::Property_base {
 	public:
 	Property(std::function<void()> source);
 	Property &operator=(std::function<void()> source);
-	void unbind();
+	void unbind() override;
 	void update() override final;
 
 	private:

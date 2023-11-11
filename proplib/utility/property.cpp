@@ -45,7 +45,7 @@ void prop::detail::Property_base::unbind_depends() {
 		if (dependent->implicit_dependencies.has(this)) {
 			dependent->unbind();
 		} else {
-			for (auto &explicit_dependency : dependent->explicit_depenencies) {
+			for (auto &explicit_dependency : dependent->explicit_dependencies) {
 				if (explicit_dependency == this) {
 					explicit_dependency = nullptr;
 				}
@@ -55,7 +55,7 @@ void prop::detail::Property_base::unbind_depends() {
 }
 
 void prop::detail::Property_base::read_notify() {
-	if (current_binding && !dependents.add(current_binding)) {
+	if (current_binding && dependents.add(current_binding)) {
 		TRACE("Added " << name << " as an implicit dependency of " << current_binding->name);
 		current_binding->implicit_dependencies.add(this);
 	}
@@ -70,7 +70,9 @@ void prop::detail::Property_base::write_notify() {
 	for (const auto &dependent : dependents) {
 		dependent->need_update = true;
 	}
-	for (const auto &dependent : dependents) {
+	for (auto it = std::begin(dependents); it != std::end(dependents);) {
+		auto &dependent = *it;
+		++it;
 		dependent->Property_base::update();
 	}
 }
@@ -95,6 +97,17 @@ prop::detail::Property_base::Property_base()
 	TRACE("Created " << name << (creation_binding ? " with creation binding " + creation_binding->name : ""));
 }
 
+prop::detail::Property_base::Property_base(Property_base &&other) {
+	using std::swap;
+	swap(explicit_dependencies, other.explicit_dependencies);
+	swap(implicit_dependencies, other.implicit_dependencies);
+	swap(dependents, other.dependents);
+	for (auto dependent : dependents) {
+		dependent->explicit_dependencies.replace(&other, this);
+		dependent->implicit_dependencies.replace(&other, this);
+	}
+}
+
 prop::detail::Property_base::~Property_base() noexcept(false) {
 	//clear implicit dependencies
 	clear_implicit_dependencies();
@@ -115,7 +128,7 @@ prop::detail::Property_base::~Property_base() noexcept(false) {
 		auto &dependent = *dep_it;
 		//unbind dependents
 		sever_implicit_dependents();
-		for (auto &explicit_dependency : dependent->explicit_depenencies) {
+		for (auto &explicit_dependency : dependent->explicit_dependencies) {
 #ifdef PROPERTY_DEBUG
 			if (explicit_dependency) {
 				TRACE("Explicit dependency " << name << " of " << explicit_dependency->name
@@ -135,6 +148,8 @@ void prop::detail::Property_base::clear_implicit_dependencies() {
 	}
 	TRACE(name);
 	for (const auto &dependency : implicit_dependencies) {
+		TRACE("Removed " << name << " from dependents of " << dependency->name);
+		assert(dependency->dependents.has(this));
 		dependency->dependents.remove(this);
 	}
 	implicit_dependencies.clear();
@@ -146,10 +161,14 @@ void prop::detail::Property_base::sever_implicit_dependents() {
 		++dep_it;
 		//unbind dependents
 		if (dependent->implicit_dependencies.has(this)) {
-			TRACE("Unbound " << dependent->name << " because it implicitly depends on " << name
-							 << " which is getting severed");
-			on_property_severed(dependent, this);
-			dependent->unbind();
+			if (dependent->explicit_dependencies.has(this)) {
+				dependent->implicit_dependencies.remove(this);
+			} else {
+				TRACE("Unbound " << dependent->name << " because it implicitly depends on " << name
+								 << " which is getting severed");
+				on_property_severed(dependent, this);
+				dependent->unbind();
+			}
 		}
 	}
 }
@@ -158,7 +177,7 @@ void prop::detail::Property_base::take_explicit_dependents(Property_base &&sourc
 	for (auto &dependent : source.dependents) {
 		if (!dependent->implicit_dependencies.has(&source)) {
 			TRACE(name << " adopting explicit dependent " << dependent << " from " << source.name);
-			for (auto &explicit_dependent : dependent->explicit_depenencies) {
+			for (auto &explicit_dependent : dependent->explicit_dependencies) {
 				if (explicit_dependent == &source) {
 					explicit_dependent = this;
 					dependents.add(explicit_dependent);
@@ -189,6 +208,13 @@ void prop::detail::Binding_set::clear() {
 	set.clear();
 }
 
+void prop::detail::Binding_set::replace(Property_base *old_value, Property_base *new_value) {
+	if (has(old_value)) {
+		remove(old_value);
+		add(new_value);
+	}
+}
+
 std::set<prop::detail::Property_base *>::iterator prop::detail::Binding_set::begin() {
 	return std::begin(set);
 }
@@ -211,4 +237,40 @@ std::set<prop::detail::Property_base *>::const_iterator prop::detail::Binding_se
 
 std::set<prop::detail::Property_base *>::const_iterator prop::detail::Binding_set::cend() const {
 	return std::cend(set);
+}
+
+bool prop::detail::Binding_list::has(Property_base *property) const {
+	return std::find(std::begin(list), std::end(list), property) != std::end(list);
+}
+
+std::size_t prop::detail::Binding_list::size() const {
+	return std::size(list);
+}
+
+void prop::detail::Binding_list::replace(Property_base *old_value, Property_base *new_value) {
+	for (auto &value : list) {
+		if (value == old_value) {
+			value = new_value;
+		}
+	}
+}
+
+prop::detail::Property_base *prop::detail::Binding_list::operator[](std::size_t index) const {
+	return list[index];
+}
+
+std::vector<prop::detail::Property_base *>::iterator prop::detail::Binding_list::begin() {
+	return std::begin(list);
+}
+
+std::vector<prop::detail::Property_base *>::iterator prop::detail::Binding_list::end() {
+	return std::end(list);
+}
+
+std::vector<prop::detail::Property_base *>::const_iterator prop::detail::Binding_list::begin() const {
+	return std::begin(list);
+}
+
+std::vector<prop::detail::Property_base *>::const_iterator prop::detail::Binding_list::end() const {
+	return std::end(list);
 }

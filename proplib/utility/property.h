@@ -1,10 +1,12 @@
 #pragma once
 
 #include "raii.h"
-#include "type_traits.h"
 
+#include <cassert>
+#include <concepts>
 #include <functional>
 #include <set>
+#include <tuple>
 
 //#define PROPERTY_DEBUG
 
@@ -21,6 +23,7 @@ namespace prop {
 			bool add(Property_base *);
 			void remove(Property_base *);
 			void clear();
+			void replace(Property_base *old_value, Property_base *new_value);
 			std::set<Property_base *>::iterator begin();
 			std::set<Property_base *>::iterator end();
 			std::set<Property_base *>::const_iterator begin() const;
@@ -30,6 +33,20 @@ namespace prop {
 			std::set<Property_base *> set; //TODO: Try out flat_set or something to save some nanoseconds
 		};
 
+		struct Binding_list {
+			bool has(Property_base *property) const;
+			std::size_t size() const;
+			void replace(Property_base *old_value, Property_base *new_value);
+			Property_base *operator[](std::size_t index) const;
+			std::vector<Property_base *>::iterator begin();
+			std::vector<Property_base *>::iterator end();
+			std::vector<Property_base *>::const_iterator begin() const;
+			std::vector<Property_base *>::const_iterator end() const;
+			std::vector<Property_base *> list; //TODO: Try out other things like std::forward_list
+		};
+
+		template <class T>
+		class Property;
 		struct Property_base {
 			virtual void update();
 			virtual void unbind();
@@ -41,6 +58,7 @@ namespace prop {
 			void update_complete();
 
 			Property_base();
+			Property_base(Property_base &&other);
 			Property_base(const Property_base &) = delete;
 			void operator=(const Property_base &) = delete;
 			~Property_base() noexcept(false);
@@ -55,11 +73,32 @@ namespace prop {
 #ifdef PROPERTY_DEBUG
 			std::string name;
 #endif
+			Binding_list explicit_dependencies;
+#ifndef PROPERTY_DEBUG
 			private:
-			std::vector<Property_base *> explicit_depenencies;
+#endif
 			Binding_set implicit_dependencies;
 			Binding_set dependents;
 		};
+
+		template <class T>
+		std::true_type is_property(Property<T>);
+		std::false_type is_property(...);
+		template <class T>
+		constexpr bool is_property_v = decltype(is_property(std::declval<std::remove_cvref_t<T>>()))::value;
+
+		template <class T, class U>
+		concept Is_compatible = std::convertible_to<T, U> && !
+		is_property_v<U>;
+
+		template <class Function, class T, class... Properties>
+		concept Function_binding = requires(Function &&f) {
+									   { f(std::declval<Properties>()...) } -> Is_compatible<T>;
+								   };
+		template <class U, class T>
+		concept Compatible_property = requires(Property<U> &&p) {
+										  { p.value } -> Is_compatible<T>;
+									  };
 	} // namespace detail
 
 	extern void (*on_property_severed)(detail::Property_base *severed, detail::Property_base *reason);
@@ -68,29 +107,53 @@ namespace prop {
 	class Property : detail::Property_base {
 		public:
 		Property() = default;
-		template <class U>
-		Property(U &&u);
-		template <class U>
-		Property &operator=(U &&rhs);
+		Property(const Property &other);
+		Property(Property &&other);
+		Property(detail::Function_binding<T> auto f);
+		Property(detail::Compatible_property<T> auto const &p);
+		Property(detail::Compatible_property<T> auto &&p);
+		Property(detail::Is_compatible<T> auto &&v);
+
+		Property &operator=(detail::Function_binding<T> auto f);
+		Property &operator=(detail::Compatible_property<T> auto &&p);
+		Property &operator=(detail::Is_compatible<T> auto &&v);
 		operator const T &() const;
 		void set(T t);
 		const T &get() const;
+		template <class... Property_types, detail::Function_binding<T, const Property<Property_types> *...> Function>
+		void bind(Function source, Property<Property_types> &...properties);
 		template <class U>
-		void bind(const Property<U> &other);
-		void bind(std::function<T()>);
+		auto bind(Property<U> &other) -> std::enable_if_t<std::is_assignable_v<T &, U>>;
 		void unbind() final override;
 		template <class Functor>
 		std::invoke_result_t<Functor, T &> apply(Functor &&f);
 #ifdef PROPERTY_DEBUG
-		using detail::Property_base::name;
+		detail::Property_base *base = this;
 #endif
 		private:
 		void update_source(std::function<T()> f);
 		void update() override final;
-
 		T value{};
 		std::function<T()> source;
+		template <class Functor, class... Args, std::size_t... Indexes>
+		static auto call_with_explicit_dependencies(Functor &f, std::tuple<Args...> *tuple,
+													detail::Binding_list &explicit_dependencies,
+													std::index_sequence<Indexes...>) {
+			assert(std::size(explicit_dependencies) == sizeof...(Indexes));
+			return f(static_cast<std::remove_reference_t<decltype(std::get<Indexes>(*tuple))>>(
+				explicit_dependencies[Indexes])...);
+		}
 	};
+
+	template <class T>
+	Property<T>::Property(const Property &other)
+		: value(other.value) {}
+
+	template <class T>
+	Property<T>::Property(Property &&other)
+		: detail::Property_base{std::move(static_cast<Property_base &>(other))}
+		, value{std::move(other.value)}
+		, source{std::move(other.source)} {}
 
 	namespace detail {
 		template <class T, class U>
@@ -110,13 +173,13 @@ namespace prop {
 		}
 
 		template <class T>
-		auto inner_value_type(Property<T> &&) -> T;
+		T inner_value_type(prop::Property<T> &&);
 		template <class T>
 		T inner_value_type(T &&t);
 
 		template <class T>
 		using inner_value_type_t =
-			std::remove_cvref_t<decltype(inner_value_type(std::declval<std::remove_cvref_t<T>>()))>;
+			std::remove_cvref_t<decltype(prop::detail::inner_value_type(std::declval<std::remove_cvref_t<T>>()))>;
 
 		template <class T>
 		using inner_function_type_t = inner_value_type_t<decltype(std::declval<T>()())>;
@@ -139,90 +202,63 @@ namespace prop {
 	} // namespace detail
 
 	template <class T>
-	template <class U>
-	Property<T>::Property(U &&u)
-		: value{[&u, this]() -> T {
-			//move constructor //TODO: change this to std::is_move_assignable_v<base_of<U>, T>
-			if constexpr (std::is_same_v<decltype(u), Property<T> &&>) {
-				return std::move(u.value);
-			}
-			//function binding
-			else if constexpr (detail::is_function_type_v<U>) {
-				detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
-				return u();
-			}
-			//value assignments
-			else if constexpr (std::is_convertible_v<decltype(std::forward<U>(u)), T>) {
-				return std::forward<U>(u);
-			} else if constexpr (prop::is_template_specialization_v<std::remove_cvref_t<U>, prop::Property>) {
-				if constexpr (std::is_rvalue_reference_v<U &&>) {
-					u.read_notify();
-					return std::move(u.value);
-				} else {
-					return u.value;
-				}
-			}
-			//error
-			else {
-				static_assert(decltype(u, std::false_type{})::value, "Invalid assignment");
-			}
+	Property<T>::Property(detail::Function_binding<T> auto f)
+		: value{[&f, this] {
+			detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
+			return f();
 		}()}
-		, source{[&]() -> std::function<T()> {
-			//move constructor //TODO: change this to std::is_move_assignable_v<base_of<U>, T>
-			if constexpr (std::is_same_v<decltype(u), Property<T> &&>) {
-				return std::move(u.source);
-			}
-			//function binding
-			if constexpr (detail::is_function_type_v<U>) {
-				if constexpr (std::is_convertible_v<std::invoke_result_t<U>, T>) {
-					return std::forward<U>(u);
-				} else {
-					static_assert(decltype(u, std::false_type{})::value,
-								  "Invalid assignment: Function return type not convertible to property value type");
-				}
-			}
-			//value assignments
-			else if constexpr (std::is_convertible_v<decltype(std::forward<U>(u)), T> ||
-							   prop::is_template_specialization_v<U, prop::Property>) {
-				return std::function<T()>{nullptr};
-			}
-			//error
-			else {
-				static_assert(decltype(u, std::false_type{})::value, "Invalid assignment");
-			}
-		}()} {
-		//move constructor //TODO: change this to std::is_move_assignable_v<base_of<U>, T>
-		if constexpr (std::is_same_v<decltype(u), Property<T> &&>) {
-			take_explicit_dependents(std::move(u));
-			u.sever_implicit_dependents();
-		}
+		, source{std::move(f)} {}
+
+	template <class T>
+	Property<T>::Property(detail::Compatible_property<T> auto const &p)
+		: value(p.value) {}
+
+	template <class T>
+	Property<T>::Property(detail::Compatible_property<T> auto &&p)
+		: detail::Property_base{std::move(static_cast<Property_base &>(p))}
+		, value(std::move(p.value))
+		, source{std::move(p.source)} {}
+
+	template <class T>
+	Property<T>::Property(detail::Is_compatible<T> auto &&v)
+		: value(std::forward<decltype(v)>(v)) {}
+
+	template <class T>
+	Property<T> &Property<T>::operator=(detail::Function_binding<T> auto f) {
+		update_source(std::move(f));
+		return *this;
 	}
 
 	template <class T>
-	template <class U>
-	Property<T> &Property<T>::operator=(U &&rhs) {
-		//function assignments
-		if constexpr (detail::is_function_type_v<U>) {
-			update_source(std::forward<U>(rhs));
-		}
-		//value assignments
-		else if constexpr (std::is_convertible_v<decltype(std::forward<U>(rhs)), T>) {
-			unbind();
-			detail::RAII notifier{[this] { write_notify(); }};
-			if constexpr (detail::is_equal_comparable_v<T>) {
-				T t(std::forward<U>(rhs));
-				if (!detail::is_equal(t, value)) {
-					value = std::move(t);
-				} else {
-					notifier.cancel();
-				}
+	Property<T> &Property<T>::operator=(detail::Compatible_property<T> auto &&p) {
+		unbind();
+		detail::RAII notifier{[this] { write_notify(); }};
+		if constexpr (detail::is_equal_comparable_v<T>) {
+			T t(std::forward<decltype(p)>(p).value);
+			if (!detail::is_equal(t, value)) {
+				value = std::move(t);
 			} else {
-				value = std::forward<U>(rhs);
+				notifier.cancel();
 			}
+		} else {
+			value = std::forward<decltype(p)>(p).value;
 		}
-		//error
-		else {
-			static_assert(decltype(rhs, std::false_type{})::value, "Invalid assignment");
+		return *this;
+	}
+
+	template <class T>
+	Property<T> &Property<T>::operator=(detail::Is_compatible<T> auto &&v) {
+		unbind();
+		detail::RAII notifier{[this] { write_notify(); }};
+		if constexpr (detail::is_equal_comparable_v<T>) {
+			T t(std::forward<decltype(v)>(v));
+			if (!detail::is_equal(t, value)) {
+				value = std::move(t);
+			} else {
+				notifier.cancel();
+			}
+		} else {
+			value = std::forward<decltype(v)>(v);
 		}
 		return *this;
 	}
@@ -248,14 +284,26 @@ namespace prop {
 	}
 
 	template <class T>
-	template <class U>
-	void Property<T>::bind(const Property<U> &other) {
-		bind([&other] { return other.get(); });
+	template <class... Property_types, detail::Function_binding<T, const Property<Property_types> *...> Function>
+	void Property<T>::bind(Function source, Property<Property_types> &...properties) {
+		explicit_dependencies = {{&properties...}};
+		update_source([this, source = std::move(source)] {
+			return call_with_explicit_dependencies(source, (std::tuple<const Property<Property_types> *...> *){},
+												   explicit_dependencies, std::index_sequence_for<Property_types...>());
+		});
 	}
 
 	template <class T>
-	void Property<T>::bind(std::function<T()> f) {
-		update_source(std::move(f));
+	template <class U>
+	auto Property<T>::bind(Property<U> &other) -> std::enable_if_t<std::is_assignable_v<T &, U>> {
+		bind(std::function<T(const Property<U> *)>{[this](const Property<U> *other) -> T {
+				 if (!other) {
+					 unbind();
+					 return value;
+				 }
+				 return other->get();
+			 }},
+			 other);
 	}
 
 	template <class T>
@@ -267,10 +315,6 @@ namespace prop {
 	template <class T>
 	template <class Functor>
 	std::invoke_result_t<Functor, T &> Property<T>::apply(Functor &&f) {
-		/* We need to judge if we want to copy value and check if value has changed or avoid the copy and
-		 * write_notify even though the value may not have changed. We want to do whichever costs less.
-		 * TODO: Figure out a better way to detect cheap to copy types.
-		 */
 		detail::RAII notifier{[this] { write_notify(); }};
 		read_notify();
 		if constexpr (std::is_fundamental_v<T> || std::is_pointer_v<T>) {

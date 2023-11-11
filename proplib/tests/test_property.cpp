@@ -9,8 +9,27 @@
 	extern int property_base_counter;                                                                                  \
 	property_base_counter = 0;                                                                                         \
 	std::clog << __LINE__ << '\n';
+template <class T>
+void print_status(const prop::Property<T> &p) {
+	auto print_list = [](auto container) {
+		const char *separator = "";
+		for (auto it = std::begin(container); it != std::end(container); ++it) {
+			std::clog << separator << (*it)->name;
+			separator = ", ";
+		}
+	};
+	std::clog << "Property " << p.base->name << '\n';
+	std::clog << "\tExplicit dependencies: [";
+	print_list(p.base->explicit_dependencies);
+	std::clog << "]\n\tImplicit dependencies: [";
+	print_list(p.base->implicit_dependencies);
+	std::clog << "]\n\tDependents: [";
+	print_list(p.base->dependents);
+	std::clog << "]\n";
+}
 #else
 #define RESET_COUNTER ;
+#define print_status(PROPERTY)
 #endif
 
 TEST_CASE("Compile time checks") {
@@ -66,6 +85,9 @@ TEST_CASE("Basic Property tests") {
 	p1 = 1;
 	REQUIRE(p2 == 4);
 
+	print_status(p1);
+	print_status(p2);
+
 	int call_counter = 0;
 	prop::Property<int> p3;
 	p3 = [&] {
@@ -75,12 +97,21 @@ TEST_CASE("Basic Property tests") {
 		}
 		return p2;
 	};
+
+	print_status(p1);
+	print_status(p2);
+	print_status(p3);
+
 	REQUIRE(p3 == 1);
 	REQUIRE(call_counter == 1);
 	p1 = 0;
 	REQUIRE(p2 == 3);
 	REQUIRE(p3 == 3);
 	REQUIRE(call_counter == 2);
+
+	print_status(p1);
+	print_status(p2);
+	print_status(p3);
 }
 
 TEST_CASE("Property<Move_only>") {
@@ -135,7 +166,21 @@ TEST_CASE("Moving properties while maintaining binding") {
 	REQUIRE(p2 == 1);
 	p1 = 2;
 	REQUIRE(p2 == 2);
+
+	print_status(p1);
+	print_status(p2);
+
 	prop::Property p3 = std::move(p1);
+
+	print_status(p1);
+	print_status(p2);
+	print_status(p3);
+
 	p3 = 3;
+
+	print_status(p1);
+	print_status(p2);
+	print_status(p3);
+
 	REQUIRE(p2 == 3);
 }
