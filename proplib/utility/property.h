@@ -15,6 +15,8 @@
 #endif
 
 namespace prop {
+	template <class T>
+	class Property;
 	namespace detail {
 		struct Property_base;
 		struct Binding_set {
@@ -45,8 +47,6 @@ namespace prop {
 			std::vector<Property_base *> list; //TODO: Try out other things like std::forward_list
 		};
 
-		template <class T>
-		class Property;
 		struct Property_base {
 			virtual void update();
 			virtual void unbind();
@@ -61,7 +61,7 @@ namespace prop {
 			Property_base(Property_base &&other);
 			Property_base(const Property_base &) = delete;
 			void operator=(const Property_base &) = delete;
-			~Property_base() noexcept(false);
+			~Property_base();
 
 			bool need_update = false;
 			static inline Property_base *current_binding;
@@ -82,23 +82,33 @@ namespace prop {
 		};
 
 		template <class T>
-		std::true_type is_property(Property<T>);
+		std::true_type is_property(prop::Property<T> &&);
 		std::false_type is_property(...);
 		template <class T>
 		constexpr bool is_property_v = decltype(is_property(std::declval<std::remove_cvref_t<T>>()))::value;
 
-		template <class T, class U>
-		concept Is_compatible = std::convertible_to<T, U> && !
+		template <class U, class T>
+		concept Property_value = std::convertible_to<U, T> && !
 		is_property_v<U>;
 
-		template <class Function, class T, class... Properties>
-		concept Function_binding = requires(Function &&f) {
-									   { f(std::declval<Properties>()...) } -> Is_compatible<T>;
-								   };
 		template <class U, class T>
-		concept Compatible_property = requires(Property<U> &&p) {
-										  { p.value } -> Is_compatible<T>;
-									  };
+		concept Compatible_property = is_property_v<U> && requires(U &&p) {
+															  { p.get() } -> Property_value<T>;
+														  };
+
+		namespace {
+			template <class Function, class T, class... Properties>
+			concept Property_value_function = requires(Function &&f) {
+												  { f(std::declval<Properties>()...) } -> Property_value<T>;
+											  };
+			template <class Function, class T, class... Properties>
+			concept Property_property_function = requires(Function &&f) {
+													 { f(std::declval<Properties>()...) } -> Compatible_property<T>;
+												 };
+		} // namespace
+		template <class Function, class T, class... Properties>
+		concept Property_function = Property_value_function<Function, T, Properties...> ||
+									Property_property_function<Function, T, Properties...>;
 	} // namespace detail
 
 	extern void (*on_property_severed)(detail::Property_base *severed, detail::Property_base *reason);
@@ -107,29 +117,26 @@ namespace prop {
 	class Property : detail::Property_base {
 		public:
 		Property() = default;
-		Property(const Property &other);
-		Property(Property &&other);
-		Property(detail::Function_binding<T> auto f);
+		Property(detail::Property_function<T> auto f);
 		Property(detail::Compatible_property<T> auto const &p);
+		Property(detail::Compatible_property<T> auto &p);
 		Property(detail::Compatible_property<T> auto &&p);
-		Property(detail::Is_compatible<T> auto &&v);
+		Property(detail::Property_value<T> auto &&v);
 
-		Property &operator=(detail::Function_binding<T> auto f);
+		Property &operator=(detail::Property_function<T> auto f);
 		Property &operator=(detail::Compatible_property<T> auto &&p);
-		Property &operator=(detail::Is_compatible<T> auto &&v);
+		Property &operator=(detail::Property_value<T> auto &&v);
 		operator const T &() const;
 		void set(T t);
 		const T &get() const;
-		template <class... Property_types, detail::Function_binding<T, const Property<Property_types> *...> Function>
+		template <class... Property_types, detail::Property_function<T, const Property<Property_types> *...> Function>
 		void bind(Function source, Property<Property_types> &...properties);
 		template <class U>
 		auto bind(Property<U> &other) -> std::enable_if_t<std::is_assignable_v<T &, U>>;
 		void unbind() final override;
 		template <class Functor>
 		std::invoke_result_t<Functor, T &> apply(Functor &&f);
-#ifdef PROPERTY_DEBUG
-		detail::Property_base *base = this;
-#endif
+
 		private:
 		void update_source(std::function<T()> f);
 		void update() override final;
@@ -144,16 +151,6 @@ namespace prop {
 				explicit_dependencies[Indexes])...);
 		}
 	};
-
-	template <class T>
-	Property<T>::Property(const Property &other)
-		: value(other.value) {}
-
-	template <class T>
-	Property<T>::Property(Property &&other)
-		: detail::Property_base{std::move(static_cast<Property_base &>(other))}
-		, value{std::move(other.value)}
-		, source{std::move(other.source)} {}
 
 	namespace detail {
 		template <class T, class U>
@@ -202,7 +199,7 @@ namespace prop {
 	} // namespace detail
 
 	template <class T>
-	Property<T>::Property(detail::Function_binding<T> auto f)
+	Property<T>::Property(detail::Property_function<T> auto f)
 		: value{[&f, this] {
 			detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
 			return f();
@@ -214,17 +211,21 @@ namespace prop {
 		: value(p.value) {}
 
 	template <class T>
+	Property<T>::Property(detail::Compatible_property<T> auto &p)
+		: value(p.value) {}
+
+	template <class T>
 	Property<T>::Property(detail::Compatible_property<T> auto &&p)
 		: detail::Property_base{std::move(static_cast<Property_base &>(p))}
 		, value(std::move(p.value))
 		, source{std::move(p.source)} {}
 
 	template <class T>
-	Property<T>::Property(detail::Is_compatible<T> auto &&v)
+	Property<T>::Property(detail::Property_value<T> auto &&v)
 		: value(std::forward<decltype(v)>(v)) {}
 
 	template <class T>
-	Property<T> &Property<T>::operator=(detail::Function_binding<T> auto f) {
+	Property<T> &Property<T>::operator=(detail::Property_function<T> auto f) {
 		update_source(std::move(f));
 		return *this;
 	}
@@ -247,7 +248,7 @@ namespace prop {
 	}
 
 	template <class T>
-	Property<T> &Property<T>::operator=(detail::Is_compatible<T> auto &&v) {
+	Property<T> &Property<T>::operator=(detail::Property_value<T> auto &&v) {
 		unbind();
 		detail::RAII notifier{[this] { write_notify(); }};
 		if constexpr (detail::is_equal_comparable_v<T>) {
@@ -284,7 +285,7 @@ namespace prop {
 	}
 
 	template <class T>
-	template <class... Property_types, detail::Function_binding<T, const Property<Property_types> *...> Function>
+	template <class... Property_types, detail::Property_function<T, const Property<Property_types> *...> Function>
 	void Property<T>::bind(Function source, Property<Property_types> &...properties) {
 		explicit_dependencies = {{&properties...}};
 		update_source([this, source = std::move(source)] {

@@ -18,13 +18,14 @@ void print_status(const prop::Property<T> &p) {
 			separator = ", ";
 		}
 	};
-	std::clog << "Property " << p.base->name << '\n';
+	auto &base = *reinterpret_cast<const prop::detail::Property_base *>(static_cast<const void *>(&p));
+	std::clog << "Property " << base.name << '\n';
 	std::clog << "\tExplicit dependencies: [";
-	print_list(p.base->explicit_dependencies);
+	print_list(base.explicit_dependencies);
 	std::clog << "]\n\tImplicit dependencies: [";
-	print_list(p.base->implicit_dependencies);
+	print_list(base.implicit_dependencies);
 	std::clog << "]\n\tDependents: [";
-	print_list(p.base->dependents);
+	print_list(base.dependents);
 	std::clog << "]\n";
 }
 #else
@@ -72,6 +73,19 @@ TEST_CASE("Compile time checks") {
 		std::is_same_v<prop::detail::inner_type_t<std::function<const volatile prop::Property<int> && ()>>, int>);
 	static_assert(std::is_same_v<prop::detail::inner_type_t<prop::Property<int> (*)()>, int>);
 	static_assert(std::is_same_v<prop::detail::inner_type_t<decltype([] { return prop::Property<int>(42); })>, int>);
+
+	//compatibility
+	struct Gen {
+		operator int() const;
+	};
+	static_assert(decltype(prop::detail::is_property(prop::Property<int>{}))::value);
+	static_assert(!prop::detail::is_property_v<int>);
+	static_assert(prop::detail::is_property_v<prop::Property<int>>);
+	static_assert(prop::detail::Property_value<Gen, int>);
+	static_assert(prop::detail::Compatible_property<prop::Property<Gen>, int>);
+	static_assert(prop::detail::Property_function<decltype([] { return Gen{}; }), int>);
+	static_assert(!prop::detail::Property_value<prop::Property<int>, int>);
+	static_assert(!prop::detail::Property_value<prop::Property<int> &, int>);
 }
 
 TEST_CASE("Basic Property tests") {

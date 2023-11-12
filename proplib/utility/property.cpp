@@ -5,7 +5,7 @@
 
 #ifdef PROPERTY_DEBUG
 #include <iostream>
-#define TRACE(...) std::clog << __FILE__ << ' ' << __PRETTY_FUNCTION__ << ':' << __LINE__ << " " << __VA_ARGS__ << '\n'
+#define TRACE(...) std::clog << __FILE__ << ':' << __LINE__ << ' ' << __PRETTY_FUNCTION__ << " " << __VA_ARGS__ << '\n'
 int property_base_counter;
 static std::string propnames(const prop::detail::Binding_set &set) {
 	std::string result{'['};
@@ -98,17 +98,25 @@ prop::detail::Property_base::Property_base()
 }
 
 prop::detail::Property_base::Property_base(Property_base &&other) {
+	TRACE(other.name << " split into "
+					 << "<" + other.name << " (moved from) and "
+					 << ">" + other.name << " (moved to)");
+#ifdef PROPERTY_DEBUG
+	name = ">" + other.name;
+	other.name = "<" + other.name;
+#endif
 	using std::swap;
 	swap(explicit_dependencies, other.explicit_dependencies);
 	swap(implicit_dependencies, other.implicit_dependencies);
 	swap(dependents, other.dependents);
+
 	for (auto dependent : dependents) {
 		dependent->explicit_dependencies.replace(&other, this);
 		dependent->implicit_dependencies.replace(&other, this);
 	}
 }
 
-prop::detail::Property_base::~Property_base() noexcept(false) {
+prop::detail::Property_base::~Property_base() {
 	//clear implicit dependencies
 	clear_implicit_dependencies();
 	//clear explicit dependencies
@@ -131,8 +139,7 @@ prop::detail::Property_base::~Property_base() noexcept(false) {
 		for (auto &explicit_dependency : dependent->explicit_dependencies) {
 #ifdef PROPERTY_DEBUG
 			if (explicit_dependency) {
-				TRACE("Explicit dependency " << name << " of " << explicit_dependency->name
-											 << " is no longer available");
+				TRACE("Explicit dependency " << name << " of " << dependent->name << " is no longer available");
 			}
 #endif
 			explicit_dependency = nullptr;
