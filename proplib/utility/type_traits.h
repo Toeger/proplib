@@ -30,4 +30,10 @@ namespace prop {
 	constexpr bool is_compatible_pointer_type_v =
 		decltype(is_compatible_pointer_type(std::declval<T>(), std::declval<U>()))::value;
 
+	template <class T, template <class...> class Template>
+	struct is_type_specialization : std::false_type {};
+	template <template <class...> class Template, class... Args>
+	struct is_type_specialization<Template<Args...>, Template> : std::true_type {};
+	template <class T, template <class...> class Template>
+	constexpr bool is_type_specialization_v = is_type_specialization<T, Template>::value;
 } // namespace prop
