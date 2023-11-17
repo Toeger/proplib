@@ -60,32 +60,16 @@ target_link_libraries(PropDemo PRIVATE
 )
 
 #tests
-#TODO: Collect all tests and run them all
 find_package(Catch2 2 REQUIRED)
-
-#Property
-add_executable(Prop_test_property
+add_executable(Prop_tests
 	proplib/tests/test_property.cpp
 	proplib/utility/property.cpp
 	proplib/utility/property.h
-)
-target_link_libraries(Prop_test_property PRIVATE Catch2::Catch2WithMain)
-
-#Binding
-add_executable(Prop_test_binding
 	proplib/tests/test_binding.cpp
 	proplib/utility/binding.cpp
 	proplib/utility/binding.h
-	proplib/utility/property.cpp
-	proplib/utility/property.h
-)
-target_link_libraries(Prop_test_binding PRIVATE Catch2::Catch2WithMain)
-
-#Polywrap
-add_executable(Prop_test_polywrap
 	proplib/tests/test_polywrap.cpp
 	proplib/utility/polywrap.cpp
 	proplib/utility/polywrap.h
 )
-target_link_libraries(Prop_test_polywrap PRIVATE Catch2::Catch2WithMain)
-
+target_link_libraries(Prop_tests PRIVATE Catch2::Catch2WithMain)
