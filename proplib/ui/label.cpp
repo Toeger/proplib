@@ -11,6 +11,15 @@ prop::Label::Label(std::string text)
 	, font{[] { return prop::default_style.font; }}
 	, privates{std::make_unique<Label_privates>()} {}
 
+prop::Label::Label(Label &&other) {
+	swap(*this, other);
+}
+
+prop::Label &prop::Label::operator=(Label &&other) {
+	swap(*this, other);
+	return *this;
+}
+
 prop::Label::~Label() {}
 
 void prop::Label::update() {
@@ -27,4 +36,12 @@ void prop::Label::update() {
 	sftext.setCharacterSize(24); // in pixels, not points!
 	sftext.setFillColor(sf::Color::Black);
 	drawer->draw(sftext);
+}
+
+void prop::swap(Label &lhs, Label &rhs) {
+	using std::swap;
+	swap(lhs.text, rhs.text);
+	swap(lhs.font, rhs.font);
+	swap(lhs.privates, rhs.privates);
+	swap(static_cast<Widget &>(lhs), static_cast<Widget &>(rhs));
 }

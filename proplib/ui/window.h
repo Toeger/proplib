@@ -2,13 +2,12 @@
 
 #include "../utility/polywrap.h"
 #include "../utility/property.h"
+#include "widget.h"
 
 #include <memory>
 #include <string>
 
 namespace prop {
-	class Widget;
-
 	class Window {
 		public:
 		Window(std::string title = {}, int width = 800, int height = 600);
