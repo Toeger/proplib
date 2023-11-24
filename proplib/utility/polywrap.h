@@ -18,6 +18,7 @@ Purpose 2:
 #include <type_traits>
 #include <utility>
 
+#include "exceptions.h"
 #include "type_name.h"
 #include "type_traits.h"
 
@@ -26,36 +27,40 @@ namespace prop {
 	class Polywrap;
 
 	namespace detail {
-		template <class T>
-		constexpr bool is_polywrap_v = is_type_specialization_v<std::remove_cvref_t<T>, prop::Polywrap>;
+		template <class Polywrap>
+		constexpr bool is_polywrap_v = is_type_specialization_v<std::remove_cvref_t<Polywrap>, prop::Polywrap>;
 
-		template <class U, class T>
-		concept Compatible_polywrap_value = std::convertible_to<U, T> && !
-		is_polywrap_v<U>;
+		template <class Compatible_type, class Polywrap_inner_type>
+		concept Compatible_polywrap_value =
+			std::convertible_to<Compatible_type, Polywrap_inner_type> && !is_polywrap_v<Compatible_type>;
 
-		template <class U, class T>
-		concept Compatible_polywrap_pointer = requires(U &&u) {
-												  { *u } -> Compatible_polywrap_value<T>;
-											  };
+		template <class Compatible_pointer, class Polywrap_inner_type>
+		concept Compatible_polywrap_pointer = !is_polywrap_v<Compatible_pointer> && requires(Compatible_pointer &&ptr) {
+			{ *ptr } -> Compatible_polywrap_value<Polywrap_inner_type>;
+		};
 
-		template <class U, class T>
-		concept Compatible_polywrap = is_polywrap_v<U> && requires(U &&u) {
-															  { *u.get() } -> Compatible_polywrap_value<T>;
-														  };
+		template <class Polywrap, class Polywrap_inner_type>
+		concept Compatible_polywrap =
+			is_polywrap_v<Polywrap> && (!std::is_lvalue_reference_v<Polywrap> || requires(Polywrap &&pw) {
+				{ *pw.get() } -> Compatible_polywrap_value<Polywrap_inner_type>;
+			});
 		template <class Settee_type, class Setter_type>
 		concept Settable = requires(Settee_type &&s) { std::declval<Setter_type>().set(std::forward<Settee_type>(s)); };
-
-		template <class Derived, class Base>
-		concept Has_slicing_problem =
-			std::is_convertible_v<Derived *, Base *> && std::is_copy_constructible_v<Base> && !
-		std::is_copy_constructible_v<Derived>;
 	} // namespace detail
 
 	template <class T>
 	class Polywrap {
 		public:
 		Polywrap() = default;
+		Polywrap(const Polywrap &other)
+			requires(std::is_copy_constructible_v<T>);
+		Polywrap(Polywrap &&other);
 		Polywrap(prop::detail::Settable<Polywrap<T>> auto &&u);
+
+		Polywrap &operator=(const Polywrap &other)
+			requires(std::is_copy_constructible_v<T>);
+		Polywrap &operator=(Polywrap &&other);
+		Polywrap &operator=(prop::detail::Settable<Polywrap<T>> auto &&u);
 
 		T *get();
 		const T *get() const;
@@ -70,14 +75,8 @@ namespace prop {
 		void set(detail::Compatible_polywrap<T> auto &&v);
 		void set(std::nullptr_t);
 
-		Polywrap &operator=(prop::detail::Settable<Polywrap<T>> auto &&u);
-
 		private:
 		std::shared_ptr<T> value_ptr;
-	};
-
-	struct Copy_error : std::runtime_error {
-		using std::runtime_error::runtime_error;
 	};
 
 	namespace detail {
@@ -85,7 +84,7 @@ namespace prop {
 		struct T_holder_base {
 			T_holder_base(T *ptr)
 				: ptr{ptr} {}
-			virtual T_holder_base *clone();
+			virtual T_holder_base<T> *clone();
 			virtual ~T_holder_base() = default;
 			T *ptr = nullptr;
 		};
@@ -103,7 +102,7 @@ namespace prop {
 				if constexpr (std::is_copy_constructible_v<U>) {
 					return new T_holder(value);
 				} else {
-					throw prop::Copy_error{"Attempt to copy a Polywrap<" + std::string{prop::type_name<T>()} +
+					throw prop::Copy_error{"Attempted to copy a prop::Polywrap<" + std::string{prop::type_name<T>()} +
 										   "> holding a " + std::string{prop::type_name<U>()} +
 										   " which is not copy-constructible"};
 				}
@@ -139,7 +138,13 @@ namespace prop {
 
 		template <class T>
 		T_holder_base<T> *T_holder_base<T>::clone() {
-			return new T_holder<T, T>(*ptr);
+			if constexpr (std::is_copy_constructible_v<T>) {
+				return new T_holder<T, T>(*ptr);
+			} else {
+				throw prop::Copy_error{"Attempted to copy a prop::Polywrap<" + std::string{prop::type_name<T>()} +
+									   "> holding a " + std::string{prop::type_name<T>()} +
+									   " which is not copy-constructible"};
+			}
 		}
 
 		template <class T>
@@ -179,8 +184,40 @@ namespace prop {
 //implementation
 namespace prop {
 	template <class T>
+	Polywrap<T>::Polywrap(const Polywrap &other)
+		requires(std::is_copy_constructible_v<T>)
+	{
+		set(other);
+	}
+
+	template <class T>
+	Polywrap<T>::Polywrap(Polywrap &&other) {
+		set(std::move(other));
+	}
+
+	template <class T>
 	Polywrap<T>::Polywrap(prop::detail::Settable<Polywrap<T>> auto &&u) {
 		set(std::forward<decltype(u)>(u));
+	}
+
+	template <class T>
+	Polywrap<T> &Polywrap<T>::operator=(const Polywrap<T> &other)
+		requires(std::is_copy_constructible_v<T>)
+	{
+		set(other);
+		return *this;
+	}
+
+	template <class T>
+	Polywrap<T> &Polywrap<T>::operator=(Polywrap<T> &&other) {
+		set(std::forward<decltype(other)>(other));
+		return *this;
+	}
+
+	template <class T>
+	Polywrap<T> &Polywrap<T>::operator=(prop::detail::Settable<Polywrap<T>> auto &&u) {
+		set(std::forward<decltype(u)>(u));
+		return *this;
 	}
 
 	template <class T>
@@ -214,10 +251,12 @@ namespace prop {
 		using U = std::remove_cvref_t<decltype(v)>;
 		if (value_ptr.use_count() == 1) { //attempt to avoid reallocation
 			if constexpr (std::is_polymorphic_v<T>) {
-				if (const auto deleter_ptr = std::get_deleter<prop::detail::T_deleter<T>>(value_ptr)) {
-					if (dynamic_cast<prop::detail::T_holder<T, U> *>(deleter_ptr->holder.get())) {
-						*value_ptr = std::forward<decltype(v)>(v);
-						return;
+				if constexpr (std::is_move_assignable_v<U>) {
+					if (const auto deleter_ptr = std::get_deleter<prop::detail::T_deleter<T>>(value_ptr)) {
+						if (dynamic_cast<prop::detail::T_holder<T, U> *>(deleter_ptr->holder.get())) {
+							*static_cast<U *>(value_ptr.get()) = std::forward<decltype(v)>(v);
+							return;
+						}
 					}
 				}
 			} else {
@@ -238,19 +277,39 @@ namespace prop {
 		if constexpr (prop::is_template_specialization_v<U, std::shared_ptr>) { //adopt shared_ptr
 			value_ptr = std::forward<decltype(p)>(p);
 		} else { //let original pointer handle ownership
-			value_ptr = std::shared_ptr<T>(&*p, prop::detail::T_adopter<T, U>{std::forward<decltype(p)>(p)});
+			T *ptr = &*p;
+			value_ptr = std::shared_ptr<T>(ptr, prop::detail::T_adopter<T, U>{std::forward<decltype(p)>(p)});
+		}
+	}
+
+	template <class T>
+	void Polywrap<T>::set(detail::Compatible_polywrap<T> auto &&v) {
+		if constexpr (std::is_rvalue_reference_v<decltype(v)>) {
+			std::swap(value_ptr, v.value_ptr);
+			return;
+		} else if constexpr (!std::is_polymorphic_v<T>) {
+			set(*v.value_ptr);
+			return;
+		} else {
+			using U = decltype(v.value_ptr)::element_type;
+			if (const auto deleter_ptr = std::get_deleter<prop::detail::T_deleter<T>>(v.value_ptr)) {
+				prop::detail::T_holder_base<T> *holder = deleter_ptr->holder->clone();
+				prop::detail::T_deleter<T> deleter{std::unique_ptr<prop::detail::T_holder_base<T>>(holder)};
+				T *ptr = deleter.holder->ptr;
+				value_ptr = std::shared_ptr<T>(ptr, std::move(deleter));
+				if (dynamic_cast<prop::detail::T_holder<T, U> *>(deleter_ptr->holder.get())) {
+					*value_ptr = *v.value_ptr;
+					return;
+				}
+			} else {
+				set(*v.value_ptr);
+			}
 		}
 	}
 
 	template <class T>
 	void Polywrap<T>::set(std::nullptr_t) {
 		value_ptr = nullptr;
-	}
-
-	template <class T>
-	Polywrap<T> &Polywrap<T>::operator=(prop::detail::Settable<Polywrap<T>> auto &&u) {
-		set(std::forward<decltype(u)>(u));
-		return *this;
 	}
 
 	template <class T>

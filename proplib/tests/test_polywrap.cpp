@@ -4,9 +4,61 @@
 #include <catch2/catch.hpp>
 #include <functional>
 
+static bool base_destroyed = false;
+static bool derived_destroyed = false;
+
+struct Base {
+	virtual const char *f() {
+		return "Base";
+	}
+	~Base() { //not virtual on purpose
+		base_destroyed = true;
+	}
+};
+static_assert(std::is_copy_constructible_v<Base> && std::is_copy_assignable_v<Base>);
+
+struct Copyable_Derived : Base {
+	std::function<void()> message = [] { derived_destroyed = true; };
+	const char *f() override {
+		return "Copyable_Derived";
+	}
+	Copyable_Derived() = default;
+	Copyable_Derived(Copyable_Derived &&) = default;
+	Copyable_Derived(const Copyable_Derived &) = default;
+	Copyable_Derived &operator=(Copyable_Derived &&) = default;
+	Copyable_Derived &operator=(const Copyable_Derived &) = default;
+	~Copyable_Derived() {
+		if (message) {
+			message();
+		}
+	}
+	Copyable_Derived(int id)
+		: id{id} {};
+	int id = 0;
+};
+static_assert(std::is_copy_constructible_v<Copyable_Derived> && std::is_copy_assignable_v<Copyable_Derived>);
+
+struct Non_copyable_Derived : Base {
+	std::unique_ptr<std::function<void()>> message =
+		std::make_unique<std::function<void()>>([] { derived_destroyed = true; });
+	const char *f() override {
+		return "Non_copyable_Derived";
+	}
+	Non_copyable_Derived() = default;
+	Non_copyable_Derived(Non_copyable_Derived &&) = default;
+	~Non_copyable_Derived() {
+		if (message) {
+			(*message)();
+		}
+	}
+};
+static_assert(!std::is_copy_constructible_v<Non_copyable_Derived> && !std::is_copy_assignable_v<Non_copyable_Derived>);
+
 TEST_CASE("Concepts") {
-	struct Base {};
-	struct Derived : Base {};
+	static_assert(std::is_convertible_v<int, int>);
+	static_assert(std::is_convertible_v<Non_copyable_Derived, Non_copyable_Derived>);
+	static_assert(std::is_convertible_v<Non_copyable_Derived, Base>);
+	static_assert(std::is_convertible_v<Non_copyable_Derived, prop::Polywrap<Base>>);
 
 	WHEN("Checking is_polywrap_v") {
 		//Compatible_polywrap_value<Parameter_type, Polywrap_type>
@@ -15,7 +67,7 @@ TEST_CASE("Concepts") {
 		static_assert(prop::detail::is_polywrap_v<const volatile prop::Polywrap<int> &&>);
 		static_assert(!prop::detail::is_polywrap_v<int>);
 		static_assert(!prop::detail::is_polywrap_v<Base>);
-		static_assert(!prop::detail::is_polywrap_v<Derived>);
+		static_assert(!prop::detail::is_polywrap_v<Copyable_Derived>);
 	}
 
 	WHEN("Checking Compatible_polywrap_value") {
@@ -23,8 +75,10 @@ TEST_CASE("Concepts") {
 		static_assert(prop::detail::Compatible_polywrap_value<int, int>);
 		static_assert(prop::detail::Compatible_polywrap_value<int, long>);
 		static_assert(prop::detail::Compatible_polywrap_value<long, int>);
-		static_assert(prop::detail::Compatible_polywrap_value<Derived, Base>);
-		static_assert(!prop::detail::Compatible_polywrap_value<Base, Derived>);
+		static_assert(prop::detail::Compatible_polywrap_value<Copyable_Derived, Base>);
+		static_assert(!prop::detail::Compatible_polywrap_value<Base, Copyable_Derived>);
+		static_assert(!prop::detail::Compatible_polywrap_value<Non_copyable_Derived &, Non_copyable_Derived>);
+		static_assert(prop::detail::Compatible_polywrap_value<Non_copyable_Derived &&, Non_copyable_Derived>);
 	}
 
 	WHEN("Checking Compatible_polywrap_pointer") {
@@ -36,11 +90,11 @@ TEST_CASE("Concepts") {
 		static_assert(prop::detail::Compatible_polywrap_pointer<int *, int>);
 		static_assert(prop::detail::Compatible_polywrap_pointer<int *, long>);
 		static_assert(prop::detail::Compatible_polywrap_pointer<long *, int>);
-		static_assert(prop::detail::Compatible_polywrap_pointer<Derived *, Base>);
-		static_assert(!prop::detail::Compatible_polywrap_pointer<Base *, Derived>);
-		static_assert(!prop::detail::Compatible_polywrap_pointer<std::unique_ptr<Base>, Derived>);
-		static_assert(!prop::detail::Compatible_polywrap_pointer<Pseudo_ptr, Derived>);
-		static_assert(prop::detail::Compatible_polywrap_pointer<std::unique_ptr<Derived>, Base>);
+		static_assert(prop::detail::Compatible_polywrap_pointer<Copyable_Derived *, Base>);
+		static_assert(!prop::detail::Compatible_polywrap_pointer<Base *, Copyable_Derived>);
+		static_assert(!prop::detail::Compatible_polywrap_pointer<std::unique_ptr<Base>, Copyable_Derived>);
+		static_assert(!prop::detail::Compatible_polywrap_pointer<Pseudo_ptr, Copyable_Derived>);
+		static_assert(prop::detail::Compatible_polywrap_pointer<std::unique_ptr<Copyable_Derived>, Base>);
 		static_assert(prop::detail::Compatible_polywrap_pointer<Pseudo_ptr, Base>);
 	}
 
@@ -48,7 +102,10 @@ TEST_CASE("Concepts") {
 		//Compatible_polywrap_pointer<Parameter_type, Polywrap_type>
 		static_assert(prop::detail::Compatible_polywrap<prop::Polywrap<int>, int>);
 		static_assert(!prop::detail::Compatible_polywrap<int, int>);
-		static_assert(prop::detail::Compatible_polywrap<prop::Polywrap<Derived>, Base>);
+		static_assert(prop::detail::Compatible_polywrap<prop::Polywrap<Copyable_Derived>, Base>);
+		static_assert(prop::detail::Compatible_polywrap<prop::Polywrap<Non_copyable_Derived>, Base>);
+		static_assert(!prop::detail::Compatible_polywrap<prop::Polywrap<Non_copyable_Derived> &, Non_copyable_Derived>);
+		static_assert(prop::detail::Compatible_polywrap<prop::Polywrap<Non_copyable_Derived> &&, Non_copyable_Derived>);
 	}
 
 	WHEN("Checking Polywrap_settable") {
@@ -58,13 +115,13 @@ TEST_CASE("Concepts") {
 		static_assert(prop::detail::Settable<int, prop::Polywrap<int>>);
 		static_assert(prop::detail::Settable<int, prop::Polywrap<long>>);
 		static_assert(prop::detail::Settable<long, prop::Polywrap<int>>);
-		static_assert(prop::detail::Settable<Derived, prop::Polywrap<Base>>);
-		static_assert(!prop::detail::Settable<Base, prop::Polywrap<Derived>>);
+		static_assert(prop::detail::Settable<Copyable_Derived, prop::Polywrap<Base>>);
+		static_assert(!prop::detail::Settable<Base, prop::Polywrap<Copyable_Derived>>);
 		static_assert(prop::detail::Settable<int *, prop::Polywrap<int>>);
 		static_assert(prop::detail::Settable<int *, prop::Polywrap<long>>);
 		static_assert(prop::detail::Settable<long *, prop::Polywrap<int>>);
-		static_assert(prop::detail::Settable<Derived *, prop::Polywrap<Base>>);
-		static_assert(!prop::detail::Settable<Base *, prop::Polywrap<Derived>>);
+		static_assert(prop::detail::Settable<Copyable_Derived *, prop::Polywrap<Base>>);
+		static_assert(!prop::detail::Settable<Base *, prop::Polywrap<Copyable_Derived>>);
 	}
 }
 
@@ -124,34 +181,10 @@ TEST_CASE("Moving Polywraps") {
 }
 
 TEST_CASE("Polymorphism") {
-	static bool base_destroyed = false;
-	static bool derived_destroyed = false;
-	struct Base {
-		virtual const char *f() {
-			return "Base";
-		}
-		~Base() { //not virtual on purpose
-			base_destroyed = true;
-		}
-	};
-	struct Derived : Base {
-		std::unique_ptr<std::function<void()>> message =
-			std::make_unique<std::function<void()>>([] { derived_destroyed = true; });
-		const char *f() override {
-			return "Derived";
-		}
-		Derived() = default;
-		Derived(Derived &&) = default;
-		~Derived() {
-			if (message) {
-				(*message)();
-			}
-		}
-	};
 	WHEN("Using unique_ptr") {
 		prop::Polywrap<Base> pb;
-		pb = std::make_unique<Derived>();
-		REQUIRE(*pb->f() == 'D');
+		pb = std::make_unique<Copyable_Derived>();
+		REQUIRE(*pb->f() == 'C');
 		REQUIRE_FALSE(base_destroyed);
 		REQUIRE_FALSE(derived_destroyed);
 		pb = nullptr;
@@ -160,14 +193,48 @@ TEST_CASE("Polymorphism") {
 	}
 
 	WHEN("Using direct values") {
-		prop::Polywrap<Base> pb = Derived{};
-		REQUIRE(*pb->f() == 'D');
-		pb.set(Derived{});
-		pb = Derived{};
-		REQUIRE(*pb->f() == 'D');
+		prop::Polywrap<Base> pb = Copyable_Derived{};
+		REQUIRE(*pb->f() == 'C');
+		pb.set(Copyable_Derived{});
+		pb = Copyable_Derived{};
+		REQUIRE(*pb->f() == 'C');
 		base_destroyed = derived_destroyed = false;
 		pb = nullptr;
 		REQUIRE(base_destroyed);
 		REQUIRE(derived_destroyed);
 	}
+
+	WHEN("Trying to copy a copyable derived") {
+		prop::Polywrap<Base> p = Copyable_Derived{};
+		auto copy = p;
+		REQUIRE(*copy->f() == 'C');
+		REQUIRE(p.get() != copy.get());
+	}
+
+	WHEN("Assigning a derived") {
+		prop::Polywrap<Base> p = Copyable_Derived{1};
+		REQUIRE(static_cast<Copyable_Derived *>(p.get())->id == 1);
+		p = Copyable_Derived{2};
+		REQUIRE(static_cast<Copyable_Derived *>(p.get())->id == 2);
+	}
+
+	WHEN("Trying to copy a non-copyable derived") {
+		prop::Polywrap<Base> p = Non_copyable_Derived{};
+		REQUIRE_THROWS_WITH(
+			[&] { auto copy = p; }(),
+			"Attempted to copy a prop::Polywrap<Base> holding a Non_copyable_Derived which is not copy-constructible");
+	}
+}
+
+TEST_CASE("Copying non-copyable objects") {
+	static_assert(!std::is_copy_constructible_v<Non_copyable_Derived>);
+	static_assert(!std::is_copy_constructible_v<prop::Polywrap<Non_copyable_Derived>>);
+}
+
+TEST_CASE("Swap") {
+	prop::Polywrap p1 = 1;
+	prop::Polywrap p2 = 2;
+	std::swap(p1, p2);
+	REQUIRE(*p1 == 2);
+	REQUIRE(*p2 == 1);
 }
