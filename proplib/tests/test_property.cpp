@@ -78,7 +78,6 @@ TEST_CASE("Compile time checks") {
 	struct Gen {
 		operator int() const;
 	};
-	static_assert(decltype(prop::detail::is_property(prop::Property<int>{}))::value);
 	static_assert(!prop::detail::is_property_v<int>);
 	static_assert(prop::detail::is_property_v<prop::Property<int>>);
 	static_assert(prop::detail::Property_value<Gen, int>);

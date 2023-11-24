@@ -1,6 +1,9 @@
 #pragma once
 
+#include "exceptions.h"
 #include "raii.h"
+#include "type_name.h"
+#include "type_traits.h"
 
 #include <cassert>
 #include <concepts>
@@ -81,30 +84,28 @@ namespace prop {
 			Binding_set dependents;
 		};
 
-		template <class T>
-		std::true_type is_property(prop::Property<T> &&);
-		std::false_type is_property(...);
-		template <class T>
-		constexpr bool is_property_v = decltype(is_property(std::declval<std::remove_cvref_t<T>>()))::value;
+		template <class Property>
+		constexpr bool is_property_v = is_type_specialization_v<std::remove_cvref_t<Property>, prop::Property>;
 
-		template <class U, class T>
-		concept Property_value = std::convertible_to<U, T> && !
-		is_property_v<U>;
+		template <class Compatible_type, class Inner_property_type>
+		concept Property_value =
+			std::convertible_to<Compatible_type, Inner_property_type> && !is_property_v<Compatible_type>;
 
-		template <class U, class T>
-		concept Compatible_property = is_property_v<U> && requires(U &&p) {
-															  { p.get() } -> Property_value<T>;
-														  };
+		template <class Property, class Inner_property_type>
+		concept Compatible_property =
+			is_property_v<Property> && (!std::is_lvalue_reference_v<Property> || requires(Property &&p) {
+				{ p.get() } -> Property_value<Inner_property_type>;
+			});
 
 		namespace {
 			template <class Function, class T, class... Properties>
 			concept Property_value_function = requires(Function &&f) {
-												  { f(std::declval<Properties>()...) } -> Property_value<T>;
-											  };
+				{ f(std::declval<Properties>()...) } -> Property_value<T>;
+			};
 			template <class Function, class T, class... Properties>
 			concept Property_property_function = requires(Function &&f) {
-													 { f(std::declval<Properties>()...) } -> Compatible_property<T>;
-												 };
+				{ f(std::declval<Properties>()...) } -> Compatible_property<T>;
+			};
 		} // namespace
 		template <class Function, class T, class... Properties>
 		concept Property_function = Property_value_function<Function, T, Properties...> ||
@@ -132,7 +133,8 @@ namespace prop {
 		template <class... Property_types, detail::Property_function<T, const Property<Property_types> *...> Function>
 		void bind(Function source, Property<Property_types> &...properties);
 		template <class U>
-		auto bind(Property<U> &other) -> std::enable_if_t<std::is_assignable_v<T &, U>>;
+		void bind(Property<U> &other)
+			requires(std::is_assignable_v<T &, U>);
 		void unbind() final override;
 		template <class Functor>
 		std::invoke_result_t<Functor, T &> apply(Functor &&f);
@@ -296,7 +298,9 @@ namespace prop {
 
 	template <class T>
 	template <class U>
-	auto Property<T>::bind(Property<U> &other) -> std::enable_if_t<std::is_assignable_v<T &, U>> {
+	void Property<T>::bind(Property<U> &other)
+		requires(std::is_assignable_v<T &, U>)
+	{
 		bind(std::function<T(const Property<U> *)>{[this](const Property<U> *other) -> T {
 				 if (!other) {
 					 unbind();
@@ -355,18 +359,21 @@ namespace prop {
 				value = std::move(t);
 			}
 		} else {
-			detail::RAII notifier{[this] { write_notify(); }};
-			T t = [this, &notifier]() -> T {
-				try {
-					return source();
-				} catch (...) {
-					notifier.cancel();
-					throw;
-				}
-			}();
-			value = std::move(t);
-			updater.early_exit();
-			need_update = false;
+			if constexpr (std::is_move_assignable_v<T>) {
+				detail::RAII notifier{[this] { write_notify(); }};
+				value = [this, &notifier] {
+					try {
+						return source();
+					} catch (...) {
+						notifier.cancel();
+						throw;
+					}
+				}();
+				updater.early_exit();
+				need_update = false;
+			} else {
+				throw prop::Logic_error{"Trying to update a " + prop::type_name<T>() + " which is not move-assignable"};
+			}
 		}
 	}
 
