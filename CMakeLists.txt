@@ -12,14 +12,15 @@ set(CMAKE_LINKER_FLAGS_DEBUG  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined,ad
 set(PROP_LIBRARY_UI_SOURCES
 	button
 	label
+	vertical_layout
 	widget
 	window
-	vertical_layout
 )
 list(TRANSFORM PROP_LIBRARY_UI_SOURCES PREPEND "proplib/ui/")
 
 set(PROP_LIBRARY_UTILITY_SOURCES
 	binding
+	exceptions
 	font
 	polywrap
 	property
@@ -72,4 +73,7 @@ add_executable(Prop_tests
 	proplib/utility/polywrap.cpp
 	proplib/utility/polywrap.h
 )
+if("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
+	target_compile_options(Prop_tests PRIVATE -fconcepts-diagnostics-depth=3)
+endif()
 target_link_libraries(Prop_tests PRIVATE Catch2::Catch2WithMain)
