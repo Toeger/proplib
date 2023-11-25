@@ -9,7 +9,7 @@
 static std::vector<prop::Window *> windows;
 namespace prop {
 	struct Window_privates {
-		bool pump(prop::Window &w);
+		bool pump(prop::Window &w, bool exclusive);
 
 		sf::RenderWindow window;
 		prop::Binding on_widget_update;
@@ -54,8 +54,9 @@ prop::Window::~Window() {}
 
 void prop::Window::pump() {
 	for (auto it = std::begin(windows); it != std::end(windows);) {
-		auto &privates = *(*it)->privates;
-		if (privates.pump(**it)) {
+		auto &window = (**it);
+		//TODO: Figure out a way to wait for events from multiple windows
+		if (window.privates->pump(window, std::size(windows) == 1)) {
 			++it;
 		} else {
 			it = windows.erase(it);
@@ -69,9 +70,10 @@ void prop::Window::exec() {
 	}
 }
 
-bool prop::Window_privates::pump(prop::Window &w) {
+bool prop::Window_privates::pump(prop::Window &w, bool exclusive) {
 	sf::Event event;
-	while (window.pollEvent(event)) {
+	for (bool success = exclusive ? window.waitEvent(event) : window.pollEvent(event); success;
+		 success = window.pollEvent(event)) {
 		if (event.type == sf::Event::Closed) {
 			window.close();
 			return false;
