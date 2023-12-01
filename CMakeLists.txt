@@ -20,12 +20,14 @@ list(TRANSFORM PROP_LIBRARY_UI_SOURCES PREPEND "proplib/ui/")
 
 set(PROP_LIBRARY_UTILITY_SOURCES
 	binding
+	callable
 	exceptions
 	font
 	polywrap
 	property
 	raii
 	style
+	type_list
 	type_name
 	type_traits
 )
