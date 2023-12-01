@@ -7,6 +7,8 @@
 #include <string>
 
 namespace prop {
+	class Label;
+	void swap(prop::Label &lhs, prop::Label &rhs);
 	class Label : public prop::Widget {
 		public:
 		Label(std::string text = {});
@@ -19,6 +21,9 @@ namespace prop {
 
 		prop::Property<std::string> text;
 		prop::Property<prop::Font> font;
+		prop::Property<int> font_size;
+
+		private:
 		std::unique_ptr<struct Label_privates> privates;
 	};
 } // namespace prop

@@ -6,5 +6,6 @@ prop::Style prop::default_style = [] {
 	if (!retval.font.apply([](prop::Font &f) { return f.load("/usr/share/fonts/truetype/ubuntu/Ubuntu-M.ttf"); })) {
 		throw std::runtime_error{"TODO: implement proper font finding"};
 	}
+	retval.font_size = 24;
 	return retval;
 }();

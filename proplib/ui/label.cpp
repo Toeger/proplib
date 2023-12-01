@@ -9,7 +9,9 @@
 prop::Label::Label(std::string text)
 	: text{std::move(text)}
 	, font{[] { return prop::default_style.font; }}
-	, privates{std::make_unique<Label_privates>()} {}
+	, font_size{[] { return prop::default_style.font_size; }} {
+	privates = std::make_unique<Label_privates>(this);
+}
 
 prop::Label::Label(Label &&other) {
 	swap(*this, other);
@@ -17,6 +19,7 @@ prop::Label::Label(Label &&other) {
 
 prop::Label &prop::Label::operator=(Label &&other) {
 	swap(*this, other);
+	privates->label = this;
 	return *this;
 }
 
@@ -33,15 +36,17 @@ void prop::Label::update() {
 	sftext.setPosition(x, y);
 	sftext.setFont(font.get().font_privates->font);
 	sftext.setString(text.get());
-	sftext.setCharacterSize(24); // in pixels, not points!
+	sftext.setCharacterSize(font_size);
 	sftext.setFillColor(sf::Color::Black);
 	drawer->draw(sftext);
 }
 
-void prop::swap(Label &lhs, Label &rhs) {
+void prop::swap(prop::Label &lhs, prop::Label &rhs) {
 	using std::swap;
-	swap(lhs.text, rhs.text);
-	swap(lhs.font, rhs.font);
-	swap(lhs.privates, rhs.privates);
-	swap(static_cast<Widget &>(lhs), static_cast<Widget &>(rhs));
+#define PROP_MEMBERS PROP_X(text) PROP_X(font) PROP_X(font_size) PROP_X(privates)
+#define PROP_X(MEMBER) swap(lhs.MEMBER, rhs.MEMBER);
+	PROP_MEMBERS
+#undef PROP_X
+#undef PROP_MEMBERS
+	swap(static_cast<prop::Widget &>(lhs), static_cast<prop::Widget &>(rhs));
 }
