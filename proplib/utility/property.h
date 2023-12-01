@@ -1,7 +1,9 @@
 #pragma once
 
+#include "callable.h"
 #include "exceptions.h"
 #include "raii.h"
+#include "type_list.h"
 #include "type_name.h"
 #include "type_traits.h"
 
@@ -9,9 +11,9 @@
 #include <concepts>
 #include <functional>
 #include <set>
-#include <tuple>
+#include <vector>
 
-//#define PROPERTY_DEBUG
+#define PROPERTY_DEBUG
 
 #ifdef PROPERTY_DEBUG
 #include <string>
@@ -59,8 +61,13 @@ namespace prop {
 			void write_notify();
 			void update_start();
 			void update_complete();
+			void set_explicit_dependencies(Binding_list list);
 
+#ifdef PROPERTY_DEBUG
+			Property_base(std::string_view type_name);
+#else
 			Property_base();
+#endif
 			Property_base(Property_base &&other);
 			Property_base(const Property_base &) = delete;
 			void operator=(const Property_base &) = delete;
@@ -73,11 +80,10 @@ namespace prop {
 			void clear_implicit_dependencies();
 			void sever_implicit_dependents();
 			void take_explicit_dependents(Property_base &&source);
+			Binding_list explicit_dependencies;
 #ifdef PROPERTY_DEBUG
 			std::string name;
-#endif
-			Binding_list explicit_dependencies;
-#ifndef PROPERTY_DEBUG
+#else
 			private:
 #endif
 			Binding_set implicit_dependencies;
@@ -86,6 +92,144 @@ namespace prop {
 
 		template <class Property>
 		constexpr bool is_property_v = is_type_specialization_v<std::remove_cvref_t<Property>, prop::Property>;
+
+		template <class Property>
+		Property_base *get_property_base_pointer(Property &&p) {
+			using Prop_t = std::remove_cvref_t<std::remove_pointer_t<std::remove_cvref_t<Property>>>;
+			if constexpr (std::is_pointer_v<std::remove_cvref_t<Property>>) {
+				return static_cast<Property_base *>(const_cast<Prop_t *>(p));
+			} else {
+				return static_cast<Property_base *>(const_cast<Prop_t *>(&p));
+			}
+		}
+
+		template <class Function_arg, class Property>
+		consteval bool is_compatible_function_arg_for_property() {
+			using Prop_t = std::remove_cvref_t<std::remove_pointer_t<std::remove_cvref_t<Property>>>;
+			using T = std::remove_cvref_t<decltype(std::declval<Prop_t>().get())>;
+			if (std::is_constructible_v<Function_arg, Prop_t &>) {
+				return true;
+			} else if (std::is_constructible_v<Function_arg, Prop_t *>) {
+				return true;
+			} else if (std::is_constructible_v<Function_arg, T &>) {
+				return true;
+			} else if (std::is_constructible_v<Function_arg, T *>) {
+				return true;
+			}
+			return false;
+		}
+
+		template <class Function_args_list, class Properties_list, std::size_t... indexes>
+		consteval bool are_compatible_function_args_for_properties(std::index_sequence<indexes...>) {
+			return (is_compatible_function_arg_for_property<typename Function_args_list::template at<indexes>,
+															typename Properties_list::template at<indexes>>() &&
+					...);
+		}
+
+		template <class Function_arg, class Property>
+		consteval bool requires_valid_property() {
+			using Prop_t = std::remove_cvref_t<std::remove_pointer_t<std::remove_cvref_t<Property>>>;
+			using T = std::remove_cvref_t<decltype(std::declval<Prop_t>().get())>;
+			if (std::is_constructible_v<Function_arg, Prop_t &>) {
+				return true;
+			} else if (std::is_constructible_v<Function_arg, Prop_t *>) {
+				return false;
+			} else if (std::is_constructible_v<Function_arg, T &>) {
+				return true;
+			} else if (std::is_constructible_v<Function_arg, T *>) {
+				return false;
+			}
+		}
+
+		template <class Function_arg, class Property>
+		consteval bool changes_property() {
+			using Prop_t = std::remove_cvref_t<std::remove_pointer_t<std::remove_cvref_t<Property>>>;
+			using T = std::remove_cvref_t<decltype(std::declval<Prop_t>().get())>;
+			if constexpr (std::is_constructible_v<Function_arg, const Prop_t &>) {
+				return false;
+			} else if constexpr (std::is_constructible_v<Function_arg, const Prop_t *>) {
+				return false;
+			} else if constexpr (std::is_constructible_v<Function_arg, Prop_t &>) {
+				return true;
+			} else if constexpr (std::is_constructible_v<Function_arg, Prop_t *>) {
+				return true;
+			} else if constexpr (std::is_constructible_v<Function_arg, const T &>) {
+				return false;
+			} else if constexpr (std::is_constructible_v<Function_arg, const T *>) {
+				return false;
+			} else if constexpr (std::is_constructible_v<Function_arg, T &>) {
+				return true;
+			} else if constexpr (std::is_constructible_v<Function_arg, T *>) {
+				return true;
+			}
+		}
+
+		template <class Function_arg, class Property>
+		decltype(auto) convert_to_function_arg(const Property *property) {
+			using T = std::remove_cvref_t<decltype(property->get())>;
+			if constexpr (std::is_constructible_v<Function_arg, const Property &>) {
+				if (!property) {
+					throw prop::Property_expired{""};
+				}
+				return *property;
+			} else if constexpr (std::is_constructible_v<Function_arg, const Property *>) {
+				return property;
+			} else if constexpr (std::is_constructible_v<Function_arg, Property &>) {
+				if (!property) {
+					throw prop::Property_expired{""};
+				}
+				return *const_cast<Property *>(property);
+			} else if constexpr (std::is_constructible_v<Function_arg, Property *>) {
+				return const_cast<Property *>(property);
+			} else if constexpr (std::is_constructible_v<Function_arg, const T &>) {
+				if (!property) {
+					throw prop::Property_expired{""};
+				}
+				return property->get();
+			} else if constexpr (std::is_constructible_v<Function_arg, const T *>) {
+				return property ? &property->get() : nullptr;
+			} else if constexpr (std::is_constructible_v<Function_arg, T &>) {
+				if (!property) {
+					throw prop::Property_expired{""};
+				}
+				return const_cast<T &>(property->get());
+			} else if constexpr (std::is_constructible_v<Function_arg, T *>) {
+				return property ? &const_cast<T &>(property->get()) : nullptr;
+			}
+		}
+
+		template <class Return_type, class Function, class... Properties, std::size_t... indexes>
+		std::function<Return_type(const Binding_list &)> create_explicit_caller(Function &&function,
+																				std::index_sequence<indexes...>) {
+			return [source = std::forward<Function>(function)](const Binding_list &explicit_dependencies) {
+				using Args_list = prop::Callable_info_for<Function>::Args;
+				return source(convert_to_function_arg<typename Args_list::template at<indexes>>(
+					static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(
+						explicit_dependencies[indexes]))...);
+			};
+		}
+
+		template <class Return_type>
+		struct Property_function_binder {
+			template <class Function, class... Properties>
+			Property_function_binder(Function &&function, Properties &&...properties)
+				: function{create_explicit_caller<Return_type, Function, Properties...>(
+					  std::forward<Function>(function), std::index_sequence_for<Properties...>{})}
+				, explicit_dependencies{{get_property_base_pointer(properties)...}} {
+				static_assert(
+					std::assignable_from<Return_type &, typename prop::Callable_info_for<Function>::Return_type>,
+					"Return type of callabe not assignable to inner property type");
+				static_assert(prop::Callable_info_for<Function>::Args::size == sizeof...(Properties),
+							  "Number of function arguments and properties don't match");
+				static_assert(
+					are_compatible_function_args_for_properties<typename prop::Callable_info_for<Function>::Args,
+																prop::Type_list<Properties...>>(
+						std::index_sequence_for<Properties...>{}),
+					"Callable arguments and parameters are incompatible");
+			}
+			std::function<Return_type(const Binding_list &)> function;
+			Binding_list explicit_dependencies;
+		};
 
 		template <class Compatible_type, class Inner_property_type>
 		concept Property_value =
@@ -110,6 +254,7 @@ namespace prop {
 		template <class Function, class T, class... Properties>
 		concept Property_function = Property_value_function<Function, T, Properties...> ||
 									Property_property_function<Function, T, Properties...>;
+
 	} // namespace detail
 
 	extern void (*on_property_severed)(detail::Property_base *severed, detail::Property_base *reason);
@@ -117,7 +262,7 @@ namespace prop {
 	template <class T>
 	class Property : detail::Property_base {
 		public:
-		Property() = default;
+		Property();
 		Property(detail::Property_function<T> auto f);
 		Property(detail::Compatible_property<T> auto const &p);
 		Property(detail::Compatible_property<T> auto &p);
@@ -127,11 +272,12 @@ namespace prop {
 		Property &operator=(detail::Property_function<T> auto f);
 		Property &operator=(detail::Compatible_property<T> auto &&p);
 		Property &operator=(detail::Property_value<T> auto &&v);
+		Property &operator=(detail::Property_function_binder<T> binder);
 		operator const T &() const;
 		void set(T t);
 		const T &get() const;
 		template <class... Property_types, detail::Property_function<T, const Property<Property_types> *...> Function>
-		void bind(Function source, Property<Property_types> &...properties);
+		void bind(Function &&source, Property<Property_types> &...properties);
 		template <class U>
 		void bind(Property<U> &other)
 			requires(std::is_assignable_v<T &, U>);
@@ -140,18 +286,16 @@ namespace prop {
 		std::invoke_result_t<Functor, T &> apply(Functor &&f);
 
 		private:
-		void update_source(std::function<T()> f);
+		void update_source(std::function<T(const prop::detail::Binding_list &)> f);
 		void update() override final;
 		T value{};
-		std::function<T()> source;
-		template <class Functor, class... Args, std::size_t... Indexes>
-		static auto call_with_explicit_dependencies(Functor &f, std::tuple<Args...> *tuple,
-													detail::Binding_list &explicit_dependencies,
-													std::index_sequence<Indexes...>) {
-			assert(std::size(explicit_dependencies) == sizeof...(Indexes));
-			return f(static_cast<std::remove_reference_t<decltype(std::get<Indexes>(*tuple))>>(
-				explicit_dependencies[Indexes])...);
-		}
+		std::function<T(const prop::detail::Binding_list &)> source;
+		friend class Binding;
+		template <class Property>
+		friend Property_base *detail::get_property_base_pointer(Property &&p);
+		template <class Return_type, class Function, class... Properties, std::size_t... indexes>
+		friend std::function<Return_type(const detail::Binding_list &)>
+		detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
 	};
 
 	namespace detail {
@@ -201,20 +345,47 @@ namespace prop {
 	} // namespace detail
 
 	template <class T>
+	Property<T>::Property()
+#ifdef PROPERTY_DEBUG
+		: Property_base{prop::type_name<T>()}
+#endif
+	{
+	}
+
+	template <class T>
 	Property<T>::Property(detail::Property_function<T> auto f)
-		: value{[&f, this] {
+		:
+#ifdef PROPERTY_DEBUG
+		Property_base{prop::type_name<T>()}
+		,
+#endif
+
+		value{[&f, this] {
 			detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
 			return f();
 		}()}
-		, source{std::move(f)} {}
+		, source{[source = std::move(f)](const prop::detail::Binding_list &) { return source(); }} {
+	}
 
 	template <class T>
 	Property<T>::Property(detail::Compatible_property<T> auto const &p)
-		: value(p.value) {}
+		:
+#ifdef PROPERTY_DEBUG
+		Property_base{prop::type_name<T>()}
+		,
+#endif
+		value(p.value) {
+	}
 
 	template <class T>
 	Property<T>::Property(detail::Compatible_property<T> auto &p)
-		: value(p.value) {}
+		:
+#ifdef PROPERTY_DEBUG
+		Property_base{prop::type_name<T>()}
+		,
+#endif
+		value(p.value) {
+	}
 
 	template <class T>
 	Property<T>::Property(detail::Compatible_property<T> auto &&p)
@@ -224,11 +395,17 @@ namespace prop {
 
 	template <class T>
 	Property<T>::Property(detail::Property_value<T> auto &&v)
-		: value(std::forward<decltype(v)>(v)) {}
+		:
+#ifdef PROPERTY_DEBUG
+		Property_base{prop::type_name<T>()}
+		,
+#endif
+		value(std::forward<decltype(v)>(v)) {
+	}
 
 	template <class T>
 	Property<T> &Property<T>::operator=(detail::Property_function<T> auto f) {
-		update_source(std::move(f));
+		update_source([func = std::move(f)](const prop::detail::Binding_list &) { return func(); });
 		return *this;
 	}
 
@@ -267,6 +444,13 @@ namespace prop {
 	}
 
 	template <class T>
+	Property<T> &Property<T>::operator=(detail::Property_function_binder<T> binder) {
+		Property_base::set_explicit_dependencies(std::move(binder.explicit_dependencies));
+		update_source(std::move(binder.function));
+		return *this;
+	}
+
+	template <class T>
 	Property<T>::operator const T &() const {
 		return get();
 	}
@@ -288,12 +472,10 @@ namespace prop {
 
 	template <class T>
 	template <class... Property_types, detail::Property_function<T, const Property<Property_types> *...> Function>
-	void Property<T>::bind(Function source, Property<Property_types> &...properties) {
+	void Property<T>::bind(Function &&source, Property<Property_types> &...properties) {
 		explicit_dependencies = {{&properties...}};
-		update_source([this, source = std::move(source)] {
-			return call_with_explicit_dependencies(source, (std::tuple<const Property<Property_types> *...> *){},
-												   explicit_dependencies, std::index_sequence_for<Property_types...>());
-		});
+		update_source(detail::create_explicit_caller<T, Function, Property<Property_types>...>(
+			std::forward<Function>(source), std::index_sequence_for<Property_types...>{}));
 	}
 
 	template <class T>
@@ -342,35 +524,42 @@ namespace prop {
 	}
 
 	template <class T>
-	void Property<T>::update_source(std::function<T()> f) {
+	void Property<T>::update_source(std::function<T(const prop::detail::Binding_list &)> f) {
 		std::swap(f, source);
 		update();
 	}
 
 	template <class T>
 	void Property<T>::update() {
-		detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
+		detail::RAII notifier{[this] { write_notify(); }};
+		auto call_source = [this] {
+			detail::RAII updater{[this] { update_start(); },
+								 [this] {
+									 update_complete();
+									 need_update = false;
+								 }};
+			return source(explicit_dependencies);
+		};
 		if constexpr (detail::is_equal_comparable_v<T>) {
-			T t = source();
-			updater.early_exit();
-			need_update = false;
-			if (!detail::is_equal(t, value)) {
-				detail::RAII notifier{[this] { write_notify(); }};
-				value = std::move(t);
+			try {
+				T t = call_source();
+				if (detail::is_equal(t, value)) {
+					notifier.cancel();
+				} else {
+					value = std::move(t);
+				}
+			} catch (const prop::Property_expired &) {
+				unbind();
+			} catch (...) {
+				throw;
 			}
 		} else {
 			if constexpr (std::is_move_assignable_v<T>) {
-				detail::RAII notifier{[this] { write_notify(); }};
-				value = [this, &notifier] {
-					try {
-						return source();
-					} catch (...) {
-						notifier.cancel();
-						throw;
-					}
-				}();
-				updater.early_exit();
-				need_update = false;
+				try {
+					value = call_source();
+				} catch (const prop::Property_expired &) {
+					unbind();
+				}
 			} else {
 				throw prop::Logic_error{"Trying to update a " + prop::type_name<T>() + " which is not move-assignable"};
 			}

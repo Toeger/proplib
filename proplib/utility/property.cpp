@@ -89,9 +89,25 @@ void prop::detail::Property_base::update_complete() {
 	current_binding = previous_binding;
 }
 
-prop::detail::Property_base::Property_base()
+void prop::detail::Property_base::set_explicit_dependencies(Binding_list list) {
+	for (auto dependency : explicit_dependencies) {
+		if (dependency && !implicit_dependencies.has(dependency)) {
+			dependency->dependents.remove(this);
+		}
+	}
+	explicit_dependencies = std::move(list);
+	for (auto dependency : explicit_dependencies) {
+		if (dependency) {
+			dependency->dependents.add(this);
+		}
+	}
+}
+
 #ifdef PROPERTY_DEBUG
-	: name("p" + std::to_string(++property_base_counter))
+prop::detail::Property_base::Property_base(std::string_view type_name)
+	: name("p" + std::to_string(++property_base_counter) + "<" + std::string{type_name} + ">")
+#else
+prop::detail::Property_base::Property_base()
 #endif
 {
 	TRACE("Created " << name << (creation_binding ? " with creation binding " + creation_binding->name : ""));
@@ -117,14 +133,17 @@ prop::detail::Property_base::Property_base(Property_base &&other) {
 }
 
 prop::detail::Property_base::~Property_base() {
+	TRACE("Destroying " << name);
 	//clear implicit dependencies
 	clear_implicit_dependencies();
 	//clear explicit dependencies
-	for (const auto &dependency : implicit_dependencies) {
-		dependency->dependents.remove(this);
+	for (const auto &dependency : explicit_dependencies) {
+		if (dependency) {
+			TRACE("Removed " << name << " from dependents of " << dependency->name);
+			dependency->dependents.remove(this);
+		}
 	}
 	//clear creation dependency
-	implicit_dependencies.clear();
 	if (dependents.has(creation_binding)) {
 		TRACE("Removed " << name << " as dependency from " << creation_binding->name << " because " << name
 						 << " is a temporary getting destroyed");
@@ -132,21 +151,22 @@ prop::detail::Property_base::~Property_base() {
 		creation_binding->implicit_dependencies.remove(this);
 	}
 	//remove dependents
-	for (auto dep_it = std::begin(dependents); dep_it != std::end(dependents);) {
-		auto &dependent = *dep_it;
-		//unbind dependents
-		sever_implicit_dependents();
+	sever_implicit_dependents();
+	for (auto &dependent : dependents) {
 		for (auto &explicit_dependency : dependent->explicit_dependencies) {
+			if (explicit_dependency == this) {
 #ifdef PROPERTY_DEBUG
-			if (explicit_dependency) {
 				TRACE("Explicit dependency " << name << " of " << dependent->name << " is no longer available");
-			}
 #endif
-			explicit_dependency = nullptr;
+				explicit_dependency = nullptr;
+			}
 		}
-		dep_it = dependents.set.erase(dep_it);
+		dependent->update();
 	}
 	TRACE(name << " destroyed");
+#ifdef PROPERTY_DEBUG
+	name = "~" + name;
+#endif
 }
 
 void prop::detail::Property_base::clear_implicit_dependencies() {
@@ -163,7 +183,7 @@ void prop::detail::Property_base::clear_implicit_dependencies() {
 }
 
 void prop::detail::Property_base::sever_implicit_dependents() {
-	for (auto dep_it = std::begin(dependents); dep_it != std::end(dependents);) {
+	for (auto dep_it = std::cbegin(dependents); dep_it != std::cend(dependents);) {
 		auto &dependent = *dep_it;
 		++dep_it;
 		//unbind dependents

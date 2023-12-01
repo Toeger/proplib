@@ -2,28 +2,39 @@
 
 #include <cassert>
 
-prop::Property<void>::Property(std::function<void()> source) {
-	update_source(std::move(source));
+prop::Binding::Binding()
+	:
+#ifdef PROPERTY_DEBUG
+	Property_base{"void"}
+	,
+#endif
+	callback{+[] {}} {
 }
 
-prop::Property<void> &prop::Property<void>::operator=(std::function<void()> source) {
-	std::swap(source, this->source);
+prop::Binding::Binding(std::function<void()> callback)
+#ifdef PROPERTY_DEBUG
+	: Property_base{"void"}
+#endif
+{
+	update_source(std::move(callback));
+}
+
+prop::Binding &prop::Binding::operator=(std::function<void()> callback) {
+	update_source(std::move(callback));
 	return *this;
 }
 
-void prop::Property<void>::unbind() {
-	source = nullptr;
+void prop::Binding::unbind() {
+	callback = nullptr;
 	Property_base::unbind();
 }
 
-void prop::Property<void>::update() {
-	{
-		detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
-		source();
-	}
+void prop::Binding::update() {
+	detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
+	callback();
 }
 
-void prop::Property<void>::update_source(std::function<void()> f) {
-	source = std::move(f);
+void prop::Binding::update_source(std::function<void()> f) {
+	callback = std::move(f);
 	update();
 }

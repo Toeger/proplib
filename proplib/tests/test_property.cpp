@@ -8,7 +8,7 @@
 #define RESET_COUNTER                                                                                                  \
 	extern int property_base_counter;                                                                                  \
 	property_base_counter = 0;                                                                                         \
-	std::clog << __LINE__ << '\n';
+	std::clog << '\n' << __LINE__ << '\n';
 template <class T>
 void print_status(const prop::Property<T> &p) {
 	auto print_list = [](auto container) {
@@ -29,7 +29,7 @@ void print_status(const prop::Property<T> &p) {
 	std::clog << "]\n";
 }
 #else
-#define RESET_COUNTER ;
+#define RESET_COUNTER
 #define print_status(PROPERTY)
 #endif
 
@@ -196,4 +196,74 @@ TEST_CASE("Moving properties while maintaining binding") {
 	print_status(p3);
 
 	REQUIRE(p2 == 3);
+}
+
+TEST_CASE("Property function binder") {
+	prop::Property p = 42;
+	prop::detail::Property_function_binder<int>{[] { return 0; }};
+	prop::detail::Property_function_binder<int>{[](const prop::Property<int> &p) { return 0; }, p};
+	prop::detail::Property_function_binder<int>{[](prop::Property<int> &p) { return 0; }, p};
+	prop::detail::Property_function_binder<int>{[](const int &i) { return 0; }, p};
+	prop::detail::Property_function_binder<int>{[](int &i) { return 0; }, p};
+	prop::detail::Property_function_binder<int>{[](int i) { return 0; }, p};
+	prop::detail::Property_function_binder<int>{[](double d) { return 0; }, p};
+	prop::detail::Property_function_binder<int>{[](const double &d) { return 0; }, p};
+	prop::detail::Property_function_binder<int>{[](int &i) { return 0; }, &p};
+	prop::detail::Property_function_binder<int>{[](int i) { return 0; }, &p};
+	prop::detail::Property_function_binder<int>{[](double d) { return 0; }, &p};
+#if defined PROP_RUN_FAILED_TESTS || 0
+	/* Number of function arguments and properties don't match: */
+	prop::detail::Property_function_binder<int>{[](int i) { return 0; }};
+	/* Callable arguments and parameters are incompatible: */
+	prop::detail::Property_function_binder<int>{[](double &d) { return 0; }, p};
+#endif
+}
+
+TEST_CASE("Explicit bindings") {
+	RESET_COUNTER
+	prop::Property p1 = 42;
+	prop::Property<int> p2;
+	p2 = {[](const int &i) { return i + 2; }, p1};
+	p2 = {[](int &i) { return i + 2; }, p1};
+	p2 = {[](int i) { return i + 2; }, p1};
+	p2 = {[](double i) { return i + 2; }, p1};
+	p2 = {[](prop::Property<int> &i) { return i + 2; }, p1};
+	p2 = {[](prop::Property<int> *i) { return *i + 2; }, p1};
+	p2 = {[](const prop::Property<int> &i) { return i + 2; }, p1};
+	p2 = {[](const prop::Property<int> *i) { return *i + 2; }, p1};
+	p2 = {[](const int &i) { return i + 2; }, &p1};
+	p2 = {[](int &i) { return i + 2; }, &p1};
+	p2 = {[](int i) { return i + 2; }, &p1};
+	p2 = {[](double i) { return i + 2; }, &p1};
+	p2 = {[](prop::Property<int> &i) { return i + 2; }, &p1};
+	p2 = {[](prop::Property<int> *i) { return *i + 2; }, &p1};
+	p2 = {[](const prop::Property<int> &i) { return i + 2; }, &p1};
+	p2 = {[](const prop::Property<int> *i) { return *i + 2; }, &p1};
+	p2 = {[](int, int, int) { return 42; }, &p1, &p1, p1};
+}
+
+TEST_CASE("Expiring explicit bindings") {
+	RESET_COUNTER
+	prop::Property<int> p1;
+	prop::Property p2 = 2;
+	{
+		prop::Property p3 = 3;
+		{
+			prop::Property p4 = 4;
+			p1 = {[&p2](int &vp3, int *vp4) { return 1 + p2 + vp3 + (vp4 ? *vp4 : 0); }, p3, p4};
+			//1 + 2 + 3 + 4 = 10
+			REQUIRE(p1 == 10);
+			p4 = 44;
+			//1 + 2 + 3 + 44 = 50
+			REQUIRE(p1 == 50);
+		}
+		//p4 died, but it's ok because vp4 is a pointer
+		//1 + 2 + 3 + 0 = 6
+		REQUIRE(p1 == 6);
+	}
+	//p3 died, so p1 has been severed, old value 6 still exists
+	REQUIRE(p1 == 6);
+	p2 = 2;
+	//changes to p2 have no effect on p1 because p1 has been severed
+	REQUIRE(p1 == 6);
 }
