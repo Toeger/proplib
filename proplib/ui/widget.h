@@ -5,6 +5,8 @@
 #include <memory>
 
 namespace prop {
+	class Widget;
+	void swap(prop::Widget &lhs, prop::Widget &rhs);
 	class Label;
 	class Widget {
 		public:
@@ -20,6 +22,8 @@ namespace prop {
 		Property<int> y;
 		Property<int> width;
 		Property<int> height;
+		Property<int> preferred_width;
+		Property<int> preferred_height;
 		std::unique_ptr<struct Widget_privates> privates;
 	};
 } // namespace prop

@@ -17,11 +17,12 @@ prop::Widget &prop::Widget::operator=(Widget &&other) {
 
 prop::Widget::~Widget() {}
 
-void prop::swap(Widget &lhs, Widget &rhs) {
+void prop::swap(prop::Widget &lhs, prop::Widget &rhs) {
 	using std::swap;
-	swap(lhs.x, rhs.x);
-	swap(lhs.y, rhs.y);
-	swap(lhs.width, rhs.width);
-	swap(lhs.height, rhs.height);
-	swap(lhs.privates, rhs.privates);
+#define PROP_MEMBERS                                                                                                   \
+	PROP_X(x) PROP_X(y) PROP_X(width) PROP_X(height) PROP_X(privates) PROP_X(preferred_width) PROP_X(preferred_height)
+#define PROP_X(MEMBER) swap(lhs.MEMBER, rhs.MEMBER);
+	PROP_MEMBERS
+#undef PROP_X
+#undef PROP_MEMBERS
 }
