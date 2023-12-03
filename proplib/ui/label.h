@@ -7,8 +7,7 @@
 #include <string>
 
 namespace prop {
-	class Label;
-	void swap(prop::Label &lhs, prop::Label &rhs);
+	void swap(class Label &lhs, class Label &rhs);
 	class Label : public prop::Widget {
 		public:
 		Label(std::string text = {});
@@ -16,7 +15,7 @@ namespace prop {
 		Label &operator=(Label &&other);
 		~Label();
 
-		void update() override;
+		void draw(struct Draw_context context) const override;
 		friend void swap(Label &lhs, Label &rhs);
 
 		prop::Property<std::string> text;

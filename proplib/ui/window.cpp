@@ -1,7 +1,6 @@
 #include "window.h"
-#include "../utility/binding.h"
+#include "../internals/widget.privates.h"
 #include "widget.h"
-#include "widget.privates.h"
 
 #include <SFML/Graphics.hpp>
 #include <vector>
@@ -12,31 +11,18 @@ namespace prop {
 		bool pump(prop::Window &w, bool exclusive);
 
 		sf::RenderWindow window;
-		prop::Binding on_widget_update;
+		prop::Property<void> on_widget_update;
 	};
 } // namespace prop
 
 static auto get_widget_updater(prop::Window &window) {
-	return [&window, widget_privates = static_cast<prop::Widget_privates *>(nullptr)]() mutable {
-		auto new_widget_privates = window.widget.get() ? window.widget.get()->privates.get() : nullptr;
-		if (new_widget_privates == widget_privates) {
-			return;
-		}
-		if (widget_privates) {
-			widget_privates->window = nullptr;
-		}
-		widget_privates = new_widget_privates;
-		if (widget_privates) {
-			widget_privates->window = &window.privates->window;
-			widget_privates->offset = {0, 0};
-			window.widget.apply(
-				[window_privates = window.privates.get(), &window](prop::Polywrap<prop::Widget> &widget) {
-					widget->privates->window = &window_privates->window;
-					widget->x = 0;
-					widget->y = 0;
-					widget->width.bind(window.width);
-					widget->height.bind(window.height);
-				});
+	return [&window] {
+		if (window.widget.get()) {
+			window.widget.apply([&window](prop::Polywrap<prop::Widget> &widget) {
+				widget->x = widget->y = 0;
+				widget->width = {[](int width) { return width; }, widget->width};
+				widget->height = {[](int height) { return height; }, widget->height};
+			});
 		}
 	};
 }
@@ -81,7 +67,7 @@ bool prop::Window_privates::pump(prop::Window &w, bool exclusive) {
 	}
 	window.clear(sf::Color::White);
 	if (auto &wp = w.widget.get()) {
-		w.widget.apply([](prop::Polywrap<Widget> &w) { w->update(); });
+		w.widget.get()->draw({.window = w.privates->window, .offset = {0, 0}});
 	}
 	window.display();
 	return true;

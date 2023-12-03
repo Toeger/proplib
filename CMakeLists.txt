@@ -9,16 +9,15 @@ set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS} -ggdb -fno-omit-frame-pointer -fs
 set(CMAKE_LINKER_FLAGS_DEBUG  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined,address")
 
 #TODO: Make a prop library
-set(PROP_LIBRARY_UI_SOURCES
+set(PROP_LIBRARY_UI_NAMES
 	button
 	label
 	vertical_layout
 	widget
 	window
 )
-list(TRANSFORM PROP_LIBRARY_UI_SOURCES PREPEND "proplib/ui/")
 
-set(PROP_LIBRARY_UTILITY_SOURCES
+set(PROP_LIBRARY_UTILITY_NAMES
 	binding
 	callable
 	exceptions
@@ -31,7 +30,10 @@ set(PROP_LIBRARY_UTILITY_SOURCES
 	type_name
 	type_traits
 )
-list(TRANSFORM PROP_LIBRARY_UTILITY_SOURCES PREPEND "proplib/utility/")
+
+list(TRANSFORM PROP_LIBRARY_UI_NAMES PREPEND "proplib/ui/" OUTPUT_VARIABLE PROP_LIBRARY_UI_SOURCES)
+
+list(TRANSFORM PROP_LIBRARY_UTILITY_NAMES PREPEND "proplib/utility/" OUTPUT_VARIABLE PROP_LIBRARY_UTILITY_SOURCES)
 
 set(PROP_LIBRARY_SOURCES
 	${PROP_LIBRARY_UI_SOURCES}
@@ -41,7 +43,8 @@ list(TRANSFORM PROP_LIBRARY_SOURCES APPEND ".cpp")
 
 list(TRANSFORM PROP_LIBRARY_SOURCES REPLACE "\.cpp$" ".h" OUTPUT_VARIABLE PROP_LIBRARY_HEADERS)
 
-list(TRANSFORM PROP_LIBRARY_SOURCES REPLACE "\.cpp$" ".privates.h" OUTPUT_VARIABLE PROP_LIBRARY_PRIVATE_CANDIDATES)
+list(TRANSFORM PROP_LIBRARY_UI_NAMES PREPEND "proplib/internals/" OUTPUT_VARIABLE PROP_LIBRARY_PRIVATE_CANDIDATES)
+list(TRANSFORM PROP_LIBRARY_PRIVATE_CANDIDATES APPEND ".privates.h")
 foreach(PROP_LIBRARY_PRIVATES_FILE IN ITEMS ${PROP_LIBRARY_PRIVATE_CANDIDATES})
 	if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${PROP_LIBRARY_PRIVATES_FILE}")
 		set(PROP_LIBRARY_PRIVATES ${PROP_LIBRARY_PRIVATES} ${PROP_LIBRARY_PRIVATES_FILE})
@@ -63,19 +66,27 @@ target_link_libraries(PropDemo PRIVATE
 )
 
 #tests
+list(APPEND PROP_LIBRARY_TESTS_CANDIDATES ${PROP_LIBRARY_UI_NAMES} ${PROP_LIBRARY_UTILITY_NAMES})
+list(TRANSFORM PROP_LIBRARY_TESTS_CANDIDATES PREPEND "proplib/tests/test_")
+list(TRANSFORM PROP_LIBRARY_TESTS_CANDIDATES APPEND ".cpp")
+foreach(PROP_LIBRARY_TESTS_CANDIDATE IN ITEMS ${PROP_LIBRARY_TESTS_CANDIDATES})
+	if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${PROP_LIBRARY_TESTS_CANDIDATE}")
+		set(PROP_LIBRARY_TESTS ${PROP_LIBRARY_TESTS} ${PROP_LIBRARY_TESTS_CANDIDATE})
+	endif()
+endforeach()
+
 find_package(Catch2 2 REQUIRED)
 add_executable(Prop_tests
-	proplib/tests/test_property.cpp
-	proplib/utility/property.cpp
-	proplib/utility/property.h
-	proplib/tests/test_binding.cpp
-	proplib/utility/binding.cpp
-	proplib/utility/binding.h
-	proplib/tests/test_polywrap.cpp
-	proplib/utility/polywrap.cpp
-	proplib/utility/polywrap.h
+	${PROP_LIBRARY_SOURCES}
+	${PROP_LIBRARY_HEADERS}
+	${PROP_LIBRARY_TESTS}
 )
 if("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 	target_compile_options(Prop_tests PRIVATE -fconcepts-diagnostics-depth=3)
 endif()
-target_link_libraries(Prop_tests PRIVATE Catch2::Catch2WithMain)
+target_link_libraries(Prop_tests PRIVATE
+	Catch2::Catch2WithMain
+	sfml-graphics
+	sfml-system
+	sfml-window
+)

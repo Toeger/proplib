@@ -13,7 +13,7 @@
 #include <set>
 #include <vector>
 
-#define PROPERTY_DEBUG
+//#define PROPERTY_DEBUG
 
 #ifdef PROPERTY_DEBUG
 #include <string>
@@ -52,6 +52,8 @@ namespace prop {
 			std::vector<Property_base *> list; //TODO: Try out other things like std::forward_list
 		};
 
+		void swap(struct Property_base &lhs, struct Property_base &rhs);
+
 		struct Property_base {
 			virtual void update();
 			virtual void unbind();
@@ -68,9 +70,10 @@ namespace prop {
 #else
 			Property_base();
 #endif
-			Property_base(Property_base &&other);
 			Property_base(const Property_base &) = delete;
+			Property_base(Property_base &&other);
 			void operator=(const Property_base &) = delete;
+			void operator=(Property_base &&other);
 			~Property_base();
 
 			bool need_update = false;
@@ -80,6 +83,7 @@ namespace prop {
 			void clear_implicit_dependencies();
 			void sever_implicit_dependents();
 			void take_explicit_dependents(Property_base &&source);
+			friend void swap(Property_base &lhs, Property_base &rhs);
 			Binding_list explicit_dependencies;
 #ifdef PROPERTY_DEBUG
 			std::string name;
@@ -260,15 +264,20 @@ namespace prop {
 	extern void (*on_property_severed)(detail::Property_base *severed, detail::Property_base *reason);
 
 	template <class T>
+	void print_status(const prop::Property<T> &p);
+
+	template <class T>
 	class Property : detail::Property_base {
 		public:
 		Property();
+		Property(Property<T> &&other);
 		Property(detail::Property_function<T> auto f);
 		Property(detail::Compatible_property<T> auto const &p);
 		Property(detail::Compatible_property<T> auto &p);
-		Property(detail::Compatible_property<T> auto &&p);
+		Property(detail::Compatible_property<T> auto &&p) = delete;
 		Property(detail::Property_value<T> auto &&v);
 
+		Property &operator=(Property<T> &&other);
 		Property &operator=(detail::Property_function<T> auto f);
 		Property &operator=(detail::Compatible_property<T> auto &&p);
 		Property &operator=(detail::Property_value<T> auto &&v);
@@ -276,11 +285,6 @@ namespace prop {
 		operator const T &() const;
 		void set(T t);
 		const T &get() const;
-		template <class... Property_types, detail::Property_function<T, const Property<Property_types> *...> Function>
-		void bind(Function &&source, Property<Property_types> &...properties);
-		template <class U>
-		void bind(Property<U> &other)
-			requires(std::is_assignable_v<T &, U>);
 		void unbind() final override;
 		template <class Functor>
 		std::invoke_result_t<Functor, T &> apply(Functor &&f);
@@ -296,6 +300,33 @@ namespace prop {
 		template <class Return_type, class Function, class... Properties, std::size_t... indexes>
 		friend std::function<Return_type(const detail::Binding_list &)>
 		detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
+		template <class U>
+		friend void print_status(const prop::Property<U> &p);
+	};
+
+	template <>
+	class Property<void> : detail::Property_base {
+		public:
+		Property();
+		Property(std::function<void()> f);
+		Property &operator=(std::function<void()> f);
+		Property &operator=(detail::Property_function_binder<void> binder);
+		template <class... Property_types,
+				  detail::Property_function<void, const Property<Property_types> *...> Function>
+		void bind(Function &&source, Property<Property_types> &...properties);
+		void unbind() final override;
+
+		private:
+		void update_source(std::function<void(const prop::detail::Binding_list &)> f);
+		void update() override final;
+		std::function<void(const prop::detail::Binding_list &)> source;
+		friend class Binding;
+		template <class Property>
+		friend Property_base *detail::get_property_base_pointer(Property &&p);
+		template <class Return_type, class Function, class... Properties, std::size_t... indexes>
+		friend std::function<Return_type(const detail::Binding_list &)>
+		detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
+		friend void print_status(const prop::Property<void> &p);
 	};
 
 	namespace detail {
@@ -346,10 +377,32 @@ namespace prop {
 
 	template <class T>
 	Property<T>::Property()
+		:
 #ifdef PROPERTY_DEBUG
-		: Property_base{prop::type_name<T>()}
+		Property_base{prop::type_name<T>()}
+		,
 #endif
-	{
+		value{} {
+	}
+
+	template <class T>
+	Property<T>::Property(Property<T> &&other)
+		:
+#ifdef PROPERTY_DEBUG
+		Property_base{prop::type_name<T>()}
+		,
+#endif
+		value{std::move(other.value)}
+		, source{std::move(other.source)} {
+		static_cast<Property_base &>(*this) = static_cast<Property_base &&>(other);
+	}
+
+	template <class T>
+	Property<T> &Property<T>::operator=(Property<T> &&other) {
+		value = std::move(other.value);
+		source = std::move(other.source);
+		static_cast<Property_base &>(*this) = static_cast<Property_base &&>(other);
+		return *this;
 	}
 
 	template <class T>
@@ -375,6 +428,7 @@ namespace prop {
 		,
 #endif
 		value(p.value) {
+		p.read_notify();
 	}
 
 	template <class T>
@@ -384,14 +438,9 @@ namespace prop {
 		Property_base{prop::type_name<T>()}
 		,
 #endif
-		value(p.value) {
+		value{std::as_const(p.value)} {
+		p.read_notify();
 	}
-
-	template <class T>
-	Property<T>::Property(detail::Compatible_property<T> auto &&p)
-		: detail::Property_base{std::move(static_cast<Property_base &>(p))}
-		, value(std::move(p.value))
-		, source{std::move(p.source)} {}
 
 	template <class T>
 	Property<T>::Property(detail::Property_value<T> auto &&v)
@@ -400,7 +449,7 @@ namespace prop {
 		Property_base{prop::type_name<T>()}
 		,
 #endif
-		value(std::forward<decltype(v)>(v)) {
+		value{std::forward<decltype(v)>(v)} {
 	}
 
 	template <class T>
@@ -468,29 +517,6 @@ namespace prop {
 	const T &Property<T>::get() const {
 		read_notify();
 		return value;
-	}
-
-	template <class T>
-	template <class... Property_types, detail::Property_function<T, const Property<Property_types> *...> Function>
-	void Property<T>::bind(Function &&source, Property<Property_types> &...properties) {
-		explicit_dependencies = {{&properties...}};
-		update_source(detail::create_explicit_caller<T, Function, Property<Property_types>...>(
-			std::forward<Function>(source), std::index_sequence_for<Property_types...>{}));
-	}
-
-	template <class T>
-	template <class U>
-	void Property<T>::bind(Property<U> &other)
-		requires(std::is_assignable_v<T &, U>)
-	{
-		bind(std::function<T(const Property<U> *)>{[this](const Property<U> *other) -> T {
-				 if (!other) {
-					 unbind();
-					 return value;
-				 }
-				 return other->get();
-			 }},
-			 other);
 	}
 
 	template <class T>
@@ -572,6 +598,7 @@ namespace prop {
 #define PROP_BINOPS PROP_X(<=>) PROP_X(==) PROP_X(!=) PROP_X(<) PROP_X(<=) PROP_X(>) PROP_X(>=)
 #define PROP_X(OP)                                                                                                     \
 	template <class T, class U>                                                                                        \
+		requires(!std::is_same_v<Property<T>, U>)                                                                      \
 	auto operator OP(const Property<T> &lhs, const U &rhs) {                                                           \
 		return lhs.get() OP rhs;                                                                                       \
 	}                                                                                                                  \

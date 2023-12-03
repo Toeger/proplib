@@ -1,8 +1,8 @@
 #include "label.h"
+#include "../internals/label.privates.h"
+#include "../internals/widget.privates.h"
 #include "../utility/font.privates.h"
 #include "../utility/style.h"
-#include "label.privates.h"
-#include "widget.privates.h"
 
 #include <SFML/Graphics.hpp>
 
@@ -25,23 +25,18 @@ prop::Label &prop::Label::operator=(Label &&other) {
 
 prop::Label::~Label() {}
 
-void prop::Label::update() {
-	auto drawer = prop::Widget::privates->window;
-	if (!drawer) {
-		return;
-	}
-
+void prop::Label::draw(Draw_context context) const {
 	sf::Text sftext;
-	sftext.setOrigin(prop::Widget::privates->offset);
+	sftext.setOrigin(context.offset);
 	sftext.setPosition(x, y);
 	sftext.setFont(font.get().font_privates->font);
 	sftext.setString(text.get());
 	sftext.setCharacterSize(font_size);
 	sftext.setFillColor(sf::Color::Black);
-	drawer->draw(sftext);
+	context.window.draw(sftext);
 }
 
-void prop::swap(prop::Label &lhs, prop::Label &rhs) {
+void prop::swap(Label &lhs, Label &rhs) {
 	using std::swap;
 #define PROP_MEMBERS PROP_X(text) PROP_X(font) PROP_X(font_size) PROP_X(privates)
 #define PROP_X(MEMBER) swap(lhs.MEMBER, rhs.MEMBER);

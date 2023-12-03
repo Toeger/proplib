@@ -1,7 +1,7 @@
 #include "binding.h"
 
 #include <cassert>
-
+#if 0
 prop::Binding::Binding()
 	:
 #ifdef PROPERTY_DEBUG
@@ -38,3 +38,4 @@ void prop::Binding::update_source(std::function<void()> f) {
 	callback = std::move(f);
 	update();
 }
+#endif

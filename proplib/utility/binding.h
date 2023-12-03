@@ -4,6 +4,7 @@
 
 #include <functional>
 
+#if 0
 namespace prop {
 	class Binding : prop::detail::Property_base {
 		public:
@@ -42,3 +43,4 @@ namespace prop {
 		});
 	}
 } // namespace prop
+#endif

@@ -5,7 +5,7 @@
 
 #ifdef PROPERTY_DEBUG
 #include <iostream>
-#define TRACE(...) std::clog << __FILE__ << ':' << __LINE__ << ' ' << __PRETTY_FUNCTION__ << " " << __VA_ARGS__ << '\n'
+#define TRACE(...) std::clog << __FILE__ << ':' << __LINE__ << ' ' << __PRETTY_FUNCTION__ << "\n" << __VA_ARGS__ << '\n'
 int property_base_counter;
 static std::string propnames(const prop::detail::Binding_set &set) {
 	std::string result{'['};
@@ -132,6 +132,13 @@ prop::detail::Property_base::Property_base(Property_base &&other) {
 	}
 }
 
+void prop::detail::Property_base::operator=(Property_base &&other) {
+	TRACE(other.name << " was moved to " << name);
+	sever_implicit_dependents();
+	other.sever_implicit_dependents();
+	take_explicit_dependents(std::move(other));
+}
+
 prop::detail::Property_base::~Property_base() {
 	TRACE("Destroying " << name);
 	//clear implicit dependencies
@@ -201,17 +208,38 @@ void prop::detail::Property_base::sever_implicit_dependents() {
 }
 
 void prop::detail::Property_base::take_explicit_dependents(Property_base &&source) {
-	for (auto &dependent : source.dependents) {
-		if (!dependent->implicit_dependencies.has(&source)) {
-			TRACE(name << " adopting explicit dependent " << dependent << " from " << source.name);
-			for (auto &explicit_dependent : dependent->explicit_dependencies) {
+	for (auto it = std::begin(source.dependents); it != std::end(source.dependents);) {
+		auto &source_dependent = *it;
+		++it;
+		if (source_dependent->explicit_dependencies.has(&source)) {
+			TRACE(name << " adopting explicit dependent " << source_dependent->name << " from " << source.name);
+			dependents.add(source_dependent);
+			for (auto &explicit_dependent : source_dependent->explicit_dependencies) {
 				if (explicit_dependent == &source) {
 					explicit_dependent = this;
-					dependents.add(explicit_dependent);
-					source.dependents.remove(explicit_dependent);
 				}
 			}
+			if (!source_dependent->implicit_dependencies.has(&source)) {
+				source.dependents.remove(source_dependent);
+			}
 		}
+	}
+}
+
+void prop::detail::swap(Property_base &lhs, Property_base &rhs) {
+	TRACE("Swapping " << lhs.name << " and " << rhs.name);
+	using std::swap;
+	swap(lhs.explicit_dependencies, rhs.explicit_dependencies);
+	swap(lhs.implicit_dependencies, rhs.implicit_dependencies);
+	swap(lhs.dependents, rhs.dependents);
+
+	for (auto dependent : lhs.dependents) {
+		dependent->explicit_dependencies.replace(&rhs, &lhs);
+		dependent->implicit_dependencies.replace(&rhs, &lhs);
+	}
+	for (auto dependent : rhs.dependents) {
+		dependent->explicit_dependencies.replace(&lhs, &rhs);
+		dependent->implicit_dependencies.replace(&lhs, &rhs);
 	}
 }
 
@@ -300,4 +328,38 @@ std::vector<prop::detail::Property_base *>::const_iterator prop::detail::Binding
 
 std::vector<prop::detail::Property_base *>::const_iterator prop::detail::Binding_list::end() const {
 	return std::end(list);
+}
+
+prop::Property<void>::Property(std::function<void()> f)
+#ifdef PROPERTY_DEBUG
+	: Property_base{"void"}
+#endif
+{
+	update_source([source = std::move(f)](const prop::detail::Binding_list &) { source(); });
+}
+
+void prop::Property<void>::update() {
+	if (!source) {
+		return;
+	}
+	detail::RAII updater{[this] { update_start(); },
+						 [this] {
+							 update_complete();
+							 need_update = false;
+						 }};
+	try {
+		source(explicit_dependencies);
+	} catch (const prop::Property_expired &) {
+		unbind();
+	}
+}
+
+void prop::Property<void>::unbind() {
+	source = nullptr;
+	Property_base::unbind();
+}
+
+void prop::Property<void>::update_source(std::function<void(const prop::detail::Binding_list &)> f) {
+	std::swap(f, source);
+	update();
 }

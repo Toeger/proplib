@@ -4,29 +4,62 @@
 #include <memory>
 
 #ifdef PROPERTY_DEBUG
+#include "../utility/type_name.h"
 #include <iostream>
 #define RESET_COUNTER                                                                                                  \
 	extern int property_base_counter;                                                                                  \
 	property_base_counter = 0;                                                                                         \
 	std::clog << '\n' << __LINE__ << '\n';
+
+std::ostream &operator<<(std::ostream &os, const prop::detail::Binding_list &list) {
+	const char *separator = "";
+	for (const auto &element : list) {
+		os << separator << element->name;
+		separator = ", ";
+	}
+	return os;
+}
+
+std::ostream &operator<<(std::ostream &os, const prop::detail::Binding_set &list) {
+	const char *separator = "";
+	for (const auto &element : list) {
+		os << separator << element->name;
+		separator = ", ";
+	}
+	return os;
+}
+
 template <class T>
-void print_status(const prop::Property<T> &p) {
-	auto print_list = [](auto container) {
-		const char *separator = "";
-		for (auto it = std::begin(container); it != std::end(container); ++it) {
-			std::clog << separator << (*it)->name;
-			separator = ", ";
+concept streamable = requires(std::ostream &os, const T &t) { os << t; };
+
+template <class T>
+struct Printer {
+	Printer(const T &t)
+		: value{t} {}
+	const T &value;
+	std::ostream &print(std::ostream &os) {
+		if constexpr (streamable<T>) {
+			return os << value;
+		} else {
+			return os << prop::type_name<T>() << '@' << &value;
 		}
-	};
+	}
+};
+
+template <class T>
+std::ostream &operator<<(std::ostream &os, Printer<T> &&printer) {
+	return printer.print(os);
+}
+
+template <class T>
+void prop::print_status(const prop::Property<T> &p) {
 	auto &base = *reinterpret_cast<const prop::detail::Property_base *>(static_cast<const void *>(&p));
 	std::clog << "Property " << base.name << '\n';
-	std::clog << "\tExplicit dependencies: [";
-	print_list(base.explicit_dependencies);
-	std::clog << "]\n\tImplicit dependencies: [";
-	print_list(base.implicit_dependencies);
-	std::clog << "]\n\tDependents: [";
-	print_list(base.dependents);
-	std::clog << "]\n";
+	std::clog << "\tvalue: " << Printer{p.value} << "\n";
+	std::clog << "\tsource: " << (p.source ? "Yes" : "No") << "\n";
+	std::clog << "\tExplicit dependencies: [" << base.explicit_dependencies << "]\n";
+	std::clog << "\tImplicit dependencies: [" << base.implicit_dependencies << "]\n";
+	std::clog << "\tDependents: [" << base.dependents << "]\n";
 }
 #else
 #define RESET_COUNTER
@@ -158,14 +191,14 @@ TEST_CASE("Dereference") {
 	}
 }
 
-TEST_CASE("Property assignment and binding") {
+TEST_CASE("Property assignment and value capturing") {
 	RESET_COUNTER
 	prop::Property p1 = 1;
 	prop::Property p2 = p1;
 	REQUIRE(p2 == 1);
 	p1 = 2;
 	REQUIRE(p2 == 1);
-	p2.bind(p1);
+	p2 = [&p1] { return p1; };
 	REQUIRE(p2 == 2);
 	p1 = 1;
 	REQUIRE(p2 == 1);
@@ -175,10 +208,10 @@ TEST_CASE("Moving properties while maintaining binding") {
 	RESET_COUNTER
 	prop::Property p1 = 1;
 	prop::Property<int> p2;
-	p2.bind(p1);
-	REQUIRE(p2 == 1);
-	p1 = 2;
+	p2 = {[](int &p1_value) { return p1_value + 1; }, p1};
 	REQUIRE(p2 == 2);
+	p1 = 2;
+	REQUIRE(p2 == 3);
 
 	print_status(p1);
 	print_status(p2);
@@ -195,7 +228,7 @@ TEST_CASE("Moving properties while maintaining binding") {
 	print_status(p2);
 	print_status(p3);
 
-	REQUIRE(p2 == 3);
+	REQUIRE(p2 == 4);
 }
 
 TEST_CASE("Property function binder") {

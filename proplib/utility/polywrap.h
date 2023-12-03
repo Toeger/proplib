@@ -169,6 +169,7 @@ namespace prop {
 #define PROP_BINOPS PROP_X(<=>) PROP_X(==) PROP_X(!=) PROP_X(<) PROP_X(<=) PROP_X(>) PROP_X(>=)
 #define PROP_X(OP)                                                                                                     \
 	template <class T, class U>                                                                                        \
+		requires(!std::is_same_v<Polywrap<T>, U>)                                                                      \
 	auto operator OP(const Polywrap<T> &lhs, const U &rhs) {                                                           \
 		return lhs.get() OP rhs;                                                                                       \
 	}                                                                                                                  \

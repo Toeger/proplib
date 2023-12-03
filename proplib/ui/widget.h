@@ -5,9 +5,7 @@
 #include <memory>
 
 namespace prop {
-	class Widget;
-	void swap(prop::Widget &lhs, prop::Widget &rhs);
-	class Label;
+	void swap(class Widget &lhs, class Widget &rhs);
 	class Widget {
 		public:
 		Widget();
@@ -15,7 +13,7 @@ namespace prop {
 		Widget &operator=(Widget &&other);
 
 		virtual ~Widget();
-		virtual void update();
+		virtual void draw(struct Draw_context context) const;
 		friend void swap(Widget &lhs, Widget &rhs);
 
 		Property<int> x;
