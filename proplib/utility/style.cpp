@@ -7,5 +7,6 @@ prop::Style prop::default_style = [] {
 		throw std::runtime_error{"TODO: implement proper font finding"};
 	}
 	retval.font_size = 24;
+	retval.hover_time = std::chrono::milliseconds{200};
 	return retval;
 }();
