@@ -25,6 +25,7 @@ set(PROP_LIBRARY_UTILITY_NAMES
 	polywrap
 	property
 	raii
+	signal
 	style
 	type_list
 	type_name
