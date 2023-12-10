@@ -18,11 +18,9 @@ namespace prop {
 				sf::Text sftext;
 				sftext.setString(label->text.get());
 				sftext.setFont(label->font.get().font_privates.get()->font);
-				auto bounds = sftext.getLocalBounds();
-				auto width = bounds.width;
-				auto height = bounds.height;
-				label->preferred_height = std::ceil(bounds.height);
-				label->preferred_width = std::ceil(bounds.width);
+				sftext.setCharacterSize(label->font_size);
+				label->preferred_height = label->font_size;
+				label->preferred_width = std::ceil(sftext.getLocalBounds().width);
 			}} {}
 		Label *label;
 		Property<void> text_sizer;
