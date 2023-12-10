@@ -276,6 +276,7 @@ namespace prop {
 		Property(detail::Compatible_property<T> auto &p);
 		Property(detail::Compatible_property<T> auto &&p) = delete;
 		Property(detail::Property_value<T> auto &&v);
+		Property(detail::Property_function_binder<T> binder);
 
 		Property &operator=(Property<T> &&other);
 		Property &operator=(detail::Property_function<T> auto f);
@@ -307,7 +308,7 @@ namespace prop {
 	template <>
 	class Property<void> : detail::Property_base {
 		public:
-		Property();
+		Property() = default;
 		Property(std::function<void()> f);
 		Property &operator=(std::function<void()> f);
 		Property &operator=(detail::Property_function_binder<void> binder);
@@ -395,6 +396,11 @@ namespace prop {
 		value{std::move(other.value)}
 		, source{std::move(other.source)} {
 		static_cast<Property_base &>(*this) = static_cast<Property_base &&>(other);
+	}
+
+	template <class T>
+	Property<T>::Property(detail::Property_function_binder<T> binder) {
+		*this = std::move(binder);
 	}
 
 	template <class T>
