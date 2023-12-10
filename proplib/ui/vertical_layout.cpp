@@ -24,10 +24,9 @@ void prop::Vertical_layout::draw(Draw_context context) const {
 
 void prop::swap(Vertical_layout &lhs, Vertical_layout &rhs) {
 	using std::swap;
-#define PROP_MEMBERS PROP_X(children) PROP_X(privates)
 #define PROP_X(MEMBER) swap(lhs.MEMBER, rhs.MEMBER);
-	PROP_MEMBERS
+	PROP_X(children)
+	PROP_X(privates)
 #undef PROP_X
-#undef PROP_MEMBERS
-	swap(static_cast<prop::Widget &>(lhs), static_cast<prop::Widget &>(rhs));
+		swap(static_cast<prop::Widget &>(lhs), static_cast<prop::Widget &>(rhs));
 }

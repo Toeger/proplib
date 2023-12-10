@@ -22,6 +22,8 @@ namespace prop {
 		Property<int> height;
 		Property<int> preferred_width;
 		Property<int> preferred_height;
+		Property<bool> visible = true;
+
 		std::unique_ptr<struct Widget_privates> privates;
 	};
 } // namespace prop

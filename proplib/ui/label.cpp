@@ -23,7 +23,7 @@ prop::Label &prop::Label::operator=(Label &&other) {
 	return *this;
 }
 
-prop::Label::~Label() {}
+prop::Label::~Label() = default;
 
 void prop::Label::draw(Draw_context context) const {
 	sf::Text sftext;
@@ -38,10 +38,11 @@ void prop::Label::draw(Draw_context context) const {
 
 void prop::swap(Label &lhs, Label &rhs) {
 	using std::swap;
-#define PROP_MEMBERS PROP_X(text) PROP_X(font) PROP_X(font_size) PROP_X(privates)
 #define PROP_X(MEMBER) swap(lhs.MEMBER, rhs.MEMBER);
-	PROP_MEMBERS
+	PROP_X(text)
+	PROP_X(font)
+	PROP_X(font_size)
+	PROP_X(privates)
 #undef PROP_X
-#undef PROP_MEMBERS
-	swap(static_cast<prop::Widget &>(lhs), static_cast<prop::Widget &>(rhs));
+		swap(static_cast<prop::Widget &>(lhs), static_cast<prop::Widget &>(rhs));
 }

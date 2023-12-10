@@ -36,7 +36,7 @@ prop::Window::Window(std::string title, int width, int height)
 	windows.push_back(this);
 }
 
-prop::Window::~Window() {}
+prop::Window::~Window() = default;
 
 void prop::Window::pump() {
 	for (auto it = std::begin(windows); it != std::end(windows);) {
