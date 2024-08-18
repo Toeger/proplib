@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../utility/polywrap.h"
-#include "../utility/property.h"
+#include "utility/polywrap.h"
+#include "utility/property.h"
 #include "widget.h"
 
 #include <memory>

@@ -1,0 +1,9 @@
+- prop::Container:
+	- Templated class that can hold different types of objects
+		- tuple
+		- a known number of them (array)
+		- an unknown number of them (vector)
+		- other prop::Containers
+	- Use CTAD to deduce types
+
+- Possibly change prop::Polywrap to use std::unique_ptr instead of std::shared_ptr

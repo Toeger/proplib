@@ -1,8 +1,8 @@
 #include "label.h"
-#include "../internals/label.privates.h"
-#include "../internals/widget.privates.h"
-#include "../utility/font.privates.h"
-#include "../utility/style.h"
+#include "internals/label.privates.h"
+#include "internals/widget.privates.h"
+#include "utility/font.privates.h"
+#include "utility/style.h"
 
 #include <SFML/Graphics.hpp>
 
@@ -44,5 +44,5 @@ void prop::swap(Label &lhs, Label &rhs) {
 	PROP_X(font_size)
 	PROP_X(privates)
 #undef PROP_X
-		swap(static_cast<prop::Widget &>(lhs), static_cast<prop::Widget &>(rhs));
+	swap(static_cast<prop::Widget &>(lhs), static_cast<prop::Widget &>(rhs));
 }

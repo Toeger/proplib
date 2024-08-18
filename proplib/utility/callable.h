@@ -6,6 +6,19 @@
 namespace prop {
 	//helpers to extract callable information
 	namespace detail {
+		//is callable
+		template <class Return_type, class... Args>
+		auto get_is_callable(Return_type (*)(Args...)) -> std::true_type;
+		template <class Return_type, class Class_type, class... Args>
+		auto get_is_callable(Return_type (Class_type::*)(Args...)) -> std::true_type;
+		template <class Return_type, class Class_type, class... Args>
+		auto get_is_callable(Return_type (Class_type::*)(Args...) const) -> std::true_type;
+		template <class T>
+		auto get_is_callable(const T &) -> decltype(get_is_callable(&std::remove_reference_t<T>::operator()));
+		template <class T>
+		auto get_is_callable(const T &&) -> decltype(get_is_callable(&std::remove_reference_t<T>::operator()));
+		std::false_type get_is_callable(...);
+
 		//return type
 		template <class Return_type, class... Args>
 		auto get_return_type(Return_type (*)(Args...)) -> Return_type;
@@ -53,6 +66,9 @@ namespace prop {
 		template <class Return_type, class Class, class... Args>
 		auto get_const_member_function_pointer(Type_list<Args...>) -> Return_type (Class::*)(Args...) const;
 	} // namespace detail
+
+	template <class T>
+	static constexpr bool is_callable_v = decltype(detail::get_is_callable(std::declval<T>()))::value;
 
 	//struct to hold callable information
 	template <class T, bool has_class>

@@ -1,66 +1,14 @@
-#include "../utility/property.h"
+#include "utility/property.h"
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 #include <memory>
 
 #ifdef PROPERTY_DEBUG
-#include "../utility/type_name.h"
 #include <iostream>
 #define RESET_COUNTER                                                                                                  \
 	extern int property_base_counter;                                                                                  \
 	property_base_counter = 0;                                                                                         \
 	std::clog << '\n' << __LINE__ << '\n';
-
-std::ostream &operator<<(std::ostream &os, const prop::detail::Binding_list &list) {
-	const char *separator = "";
-	for (const auto &element : list) {
-		os << separator << element->name;
-		separator = ", ";
-	}
-	return os;
-}
-
-std::ostream &operator<<(std::ostream &os, const prop::detail::Binding_set &list) {
-	const char *separator = "";
-	for (const auto &element : list) {
-		os << separator << element->name;
-		separator = ", ";
-	}
-	return os;
-}
-
-template <class T>
-concept streamable = requires(std::ostream &os, const T &t) { os << t; };
-
-template <class T>
-struct Printer {
-	Printer(const T &t)
-		: value{t} {}
-	const T &value;
-	std::ostream &print(std::ostream &os) {
-		if constexpr (streamable<T>) {
-			return os << value;
-		} else {
-			return os << prop::type_name<T>() << '@' << &value;
-		}
-	}
-};
-
-template <class T>
-std::ostream &operator<<(std::ostream &os, Printer<T> &&printer) {
-	return printer.print(os);
-}
-
-template <class T>
-void prop::print_status(const prop::Property<T> &p) {
-	auto &base = *reinterpret_cast<const prop::detail::Property_base *>(static_cast<const void *>(&p));
-	std::clog << "Property " << base.name << '\n';
-	std::clog << "\tvalue: " << Printer{p.value} << "\n";
-	std::clog << "\tsource: " << (p.source ? "Yes" : "No") << "\n";
-	std::clog << "\tExplicit dependencies: [" << base.explicit_dependencies << "]\n";
-	std::clog << "\tImplicit dependencies: [" << base.implicit_dependencies << "]\n";
-	std::clog << "\tDependents: [" << base.dependents << "]\n";
-}
 #else
 #define RESET_COUNTER
 #define print_status(PROPERTY)
@@ -167,6 +115,28 @@ TEST_CASE("Property<Move_only>") {
 	p1 = std::make_unique<int>(42);
 	REQUIRE(p1 != nullptr);
 	REQUIRE(*p1.get() == 42);
+}
+
+struct Generator {
+	template <class T>
+	operator T() const {
+		return {};
+	}
+};
+
+struct Acceptor {
+	Acceptor() = default;
+	Acceptor(std::same_as<int> auto v);
+	Acceptor &operator=(std::same_as<int> auto v) {
+		return *this;
+	}
+};
+
+TEST_CASE("Conversion property value") {
+	prop::Property p1 = 42;
+	p1 = Generator{};
+	prop::Property<Acceptor> p2;
+	p2 = 42;
 }
 
 TEST_CASE("Dereference") {
@@ -299,4 +269,105 @@ TEST_CASE("Expiring explicit bindings") {
 	p2 = 2;
 	//changes to p2 have no effect on p1 because p1 has been severed
 	REQUIRE(p1 == 6);
+}
+
+struct S {
+	prop::Property<int> inner;
+};
+
+#ifdef PROPERTY_DEBUG
+std::ostream &operator<<(std::ostream &os, const S &s) {
+	return os << "S{" << s.inner << "}";
+}
+#endif
+
+TEST_CASE("Inner property") {
+	RESET_COUNTER
+	prop::Property<S> p1;
+	prop::Property<void> p3;
+	p3 = {[](S &s) { s.inner = 42; }, p1};
+	print_status(p1);
+	print_status(p3);
+	p1 = S{};
+	print_status(p1);
+	print_status(p3);
+	REQUIRE(p1.get().inner == 42);
+	p1 = S{};
+	print_status(p1);
+	print_status(p3);
+	REQUIRE(p1.get().inner == 42);
+}
+
+struct SS {
+	prop::Property<S> s;
+};
+#ifdef PROPERTY_DEBUG
+std::ostream &operator<<(std::ostream &os, const SS &ss) {
+	return os << "SS{" << ss.s << "}";
+}
+#endif
+
+TEST_CASE("Inner inner property") {
+	RESET_COUNTER
+	prop::Property<SS> p1;
+	prop::Property<void> p4;
+	p4 = {[](SS &ss) { ss.s.apply_guarded([](S &s) { s.inner = 42; }); }, p1};
+	print_status(p1);
+	print_status(p4);
+	p1 = SS{};
+	print_status(p1);
+	print_status(p4);
+	REQUIRE(p1.get().s.get().inner == 42);
+	p1 = SS{};
+	print_status(p1);
+	print_status(p4);
+	REQUIRE(p1.get().s.get().inner == 42);
+}
+
+TEST_CASE("Apply operators") {
+	RESET_COUNTER
+	prop::Property p1 = 42;
+	p1.apply()++;
+	REQUIRE(p1 == 43);
+}
+
+TEST_CASE("Apply member function calls") {
+	RESET_COUNTER
+	prop::Property<std::vector<int>> p1;
+	p1.apply()->push_back(42);
+	REQUIRE(p1.get().size() == 1);
+	REQUIRE(p1.get().front() == 42);
+}
+
+TEST_CASE("Dependency checks") {
+	RESET_COUNTER
+	prop::Property p1 = 42;
+	prop::Property p2 = [&] { return p1; };
+	print_status(p1);
+	print_status(p2);
+	REQUIRE(p1.is_implicit_dependency_of(p2));
+	REQUIRE(p2.is_implicit_dependent_of(p1));
+	REQUIRE_FALSE(p1.is_explicit_dependency_of(p2));
+	REQUIRE_FALSE(p2.is_explicit_dependent_of(p1));
+	REQUIRE(p1.is_dependency_of(p2));
+	REQUIRE(p2.is_dependent_of(p1));
+	p2 = {[](int i) { return i; }, p1};
+	print_status(p1);
+	print_status(p2);
+	REQUIRE(p1.is_explicit_dependency_of(p2));
+	REQUIRE(p2.is_explicit_dependent_of(p1));
+	REQUIRE_FALSE(p1.is_implicit_dependency_of(p2));
+	REQUIRE_FALSE(p2.is_implicit_dependent_of(p1));
+	REQUIRE(p1.is_dependency_of(p2));
+	REQUIRE(p2.is_dependent_of(p1));
+}
+
+TEST_CASE("Vectorsum") {
+	prop::Property<std::vector<int>> pv;
+	prop::Property ps = [&pv] { return std::accumulate(std::begin(pv.get()), std::end(pv.get()), 0); };
+	REQUIRE(ps == 0);
+	pv.apply()->push_back(42);
+	REQUIRE(ps == 42);
+	pv.apply()->push_back(5);
+	REQUIRE(ps == 47);
 }

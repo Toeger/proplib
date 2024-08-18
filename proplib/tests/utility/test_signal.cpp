@@ -1,6 +1,6 @@
-#include "../utility/signal.h"
+#include "utility/signal.h"
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 
 TEST_CASE("Default constructed") {
 	int callcount = 0;
@@ -50,7 +50,14 @@ TEST_CASE("Multiple connections") {
 	REQUIRE(callcount == 6);
 }
 
-TEST_CASE("Connecting signal to signal") {}
+TEST_CASE("Connecting signal to signal") {
+	bool called = false;
+	prop::Signal s1;
+	prop::Signal s2;
+	s1.connect(s2);
+	s2.connect([&called] { called = true; });
+	s1.emit();
+}
 
 TEST_CASE("Connection with extra properties") {}
 
@@ -66,3 +73,8 @@ TEST_CASE("Disconnecting all connections") {
 TEST_CASE("Disconnecting specific connections") {}
 
 TEST_CASE("Move signal") {}
+
+TEST_CASE("Ignoring arguments") {
+	prop::Signal<int, int> s;
+	s.connect([] {});
+}

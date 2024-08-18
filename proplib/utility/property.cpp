@@ -1,6 +1,7 @@
 #include "property.h"
 
 #include <cassert>
+#include <cstdint>
 #include <stdexcept>
 
 #ifdef PROPERTY_DEBUG
@@ -103,14 +104,39 @@ void prop::detail::Property_base::set_explicit_dependencies(Binding_list list) {
 	}
 }
 
-#ifdef PROPERTY_DEBUG
-prop::detail::Property_base::Property_base(std::string_view type_name)
-	: name("p" + std::to_string(++property_base_counter) + "<" + std::string{type_name} + ">")
-#else
-prop::detail::Property_base::Property_base()
-#endif
-{
+bool prop::detail::Property_base::is_implicit_dependency_of(const Property_base &other) const {
+	return other.implicit_dependencies.has(this) and not other.explicit_dependencies.has(this);
+}
+
+bool prop::detail::Property_base::is_explicit_dependency_of(const Property_base &other) const {
+	return other.explicit_dependencies.has(this);
+}
+
+bool prop::detail::Property_base::is_dependency_of(const Property_base &other) const {
+	return dependents.has(&other);
+}
+
+bool prop::detail::Property_base::is_implicit_dependent_of(const Property_base &other) const {
+	return implicit_dependencies.has(&other) and not explicit_dependencies.has(&other);
+}
+
+bool prop::detail::Property_base::is_explicit_dependent_of(const Property_base &other) const {
+	return explicit_dependencies.has(&other);
+}
+
+bool prop::detail::Property_base::is_dependent_of(const Property_base &other) const {
+	return other.dependents.has(this);
+}
+
+prop::detail::Property_base::Property_base() {
+#ifdef PROPERTY_NAMES
 	TRACE("Created " << name << (creation_binding ? " with creation binding " + creation_binding->name : ""));
+#else
+	TRACE("Created " << this
+					 << (creation_binding ? " with creation binding " +
+												std::to_string(reinterpret_cast<std::uintptr_t>(creation_binding)) :
+											""));
+#endif
 }
 
 prop::detail::Property_base::Property_base(Property_base &&other) {
@@ -226,6 +252,14 @@ void prop::detail::Property_base::take_explicit_dependents(Property_base &&sourc
 	}
 }
 
+const prop::detail::Binding_set &prop::detail::Property_base::get_implicit_dependencies() const {
+	return implicit_dependencies;
+}
+
+const prop::detail::Binding_set &prop::detail::Property_base::get_dependents() const {
+	return dependents;
+}
+
 void prop::detail::swap(Property_base &lhs, Property_base &rhs) {
 	TRACE("Swapping " << lhs.name << " and " << rhs.name);
 	using std::swap;
@@ -243,8 +277,8 @@ void prop::detail::swap(Property_base &lhs, Property_base &rhs) {
 	}
 }
 
-bool prop::detail::Binding_set::has(Property_base *pb) const {
-	return set.contains(pb);
+bool prop::detail::Binding_set::has(const Property_base *pb) const {
+	return set.contains(const_cast<Property_base *>(pb));
 }
 
 bool prop::detail::Binding_set::is_empty() const {
@@ -294,7 +328,7 @@ std::set<prop::detail::Property_base *>::const_iterator prop::detail::Binding_se
 	return std::cend(set);
 }
 
-bool prop::detail::Binding_list::has(Property_base *property) const {
+bool prop::detail::Binding_list::has(const Property_base *property) const {
 	return std::find(std::begin(list), std::end(list), property) != std::end(list);
 }
 
@@ -330,12 +364,12 @@ std::vector<prop::detail::Property_base *>::const_iterator prop::detail::Binding
 	return std::end(list);
 }
 
-prop::Property<void>::Property(std::function<void()> f)
-#ifdef PROPERTY_DEBUG
-	: Property_base{"void"}
-#endif
-{
-	update_source([source = std::move(f)](const prop::detail::Binding_list &) { source(); });
+prop::Property<void>::Property() {}
+
+prop::Property<void> &prop::Property<void>::operator=(detail::Property_function_binder<void> binder) {
+	Property_base::set_explicit_dependencies(std::move(binder.explicit_dependencies));
+	update_source(std::move(binder.function));
+	return *this;
 }
 
 void prop::Property<void>::update() {
@@ -362,4 +396,62 @@ void prop::Property<void>::unbind() {
 void prop::Property<void>::update_source(std::function<void(const prop::detail::Binding_list &)> f) {
 	std::swap(f, source);
 	update();
+}
+
+bool prop::Property<void>::is_bound() const {
+	return !!source;
+}
+
+std::ostream &prop::detail::operator<<(std::ostream &os, const prop::detail::Binding_set &set) {
+	const char *separator = "";
+	for (const auto &element : set) {
+		os << separator;
+#ifdef PROPERTY_NAMES
+		if (element->name.empty()) {
+			os << &element;
+		} else {
+			os << element->name;
+		}
+#else
+		os << &element;
+#endif
+		separator = ", ";
+	}
+	return os;
+}
+
+std::ostream &prop::detail::operator<<(std::ostream &os, const prop::detail::Binding_list &list) {
+	const char *separator = "";
+	for (const auto &element : list) {
+		os << separator;
+#ifdef PROPERTY_NAMES
+		if (element->name.empty()) {
+			os << &element;
+		} else {
+			os << element->name;
+		}
+#else
+		os << &element;
+#endif
+		separator = ", ";
+	}
+	return os;
+}
+
+void prop::print_status(const prop::Property<void> &p, std::ostream &os) {
+	os << "Property ";
+#ifdef PROPERTY_NAMES
+	if (p.name.empty()) {
+		os << &p;
+	} else {
+		os << p.name;
+	}
+#else
+	os << &p;
+#endif
+	os << '\n';
+	os << "\tsource: " << (p.source ? "Yes" : "No") << "\n";
+	os << "\tExplicit dependencies: [" << p.explicit_dependencies << "]\n";
+	os << "\tImplicit dependencies: [" << p.get_implicit_dependencies() << "]\n";
+	os << "\tDependents: [" << p.get_dependents() << "]\n";
 }

@@ -36,7 +36,7 @@ namespace prop {
 
 		template <class Compatible_pointer, class Polywrap_inner_type>
 		concept Compatible_polywrap_pointer = !is_polywrap_v<Compatible_pointer> && requires(Compatible_pointer &&ptr) {
-			{ *ptr } -> Compatible_polywrap_value<Polywrap_inner_type>;
+			{ *ptr } -> std::convertible_to<Polywrap_inner_type &>;
 		};
 
 		template <class Polywrap, class Polywrap_inner_type>

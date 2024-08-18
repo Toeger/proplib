@@ -11,6 +11,7 @@ set(CMAKE_LINKER_FLAGS_DEBUG  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined,ad
 #TODO: Make a prop library
 set(PROP_LIBRARY_UI_NAMES
 	button
+	combobox
 	label
 	vertical_layout
 	widget
@@ -60,6 +61,7 @@ add_executable(PropDemo
 	${PROP_LIBRARY_HEADERS}
 	${PROP_LIBRARY_PRIVATES} #this doesn't belong to the demo, but it's easier to develop for now
 )
+target_include_directories(PropDemo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/proplib)
 target_link_libraries(PropDemo PRIVATE
 	sfml-graphics
 	sfml-system
@@ -67,24 +69,35 @@ target_link_libraries(PropDemo PRIVATE
 )
 
 #tests
-list(APPEND PROP_LIBRARY_TESTS_CANDIDATES ${PROP_LIBRARY_UI_NAMES} ${PROP_LIBRARY_UTILITY_NAMES})
-list(TRANSFORM PROP_LIBRARY_TESTS_CANDIDATES PREPEND "proplib/tests/test_")
-list(TRANSFORM PROP_LIBRARY_TESTS_CANDIDATES APPEND ".cpp")
-foreach(PROP_LIBRARY_TESTS_CANDIDATE IN ITEMS ${PROP_LIBRARY_TESTS_CANDIDATES})
+list(APPEND PROP_LIBRARY_UTILITY_TESTS_CANDIDATES ${PROP_LIBRARY_UTILITY_NAMES})
+list(TRANSFORM PROP_LIBRARY_UTILITY_TESTS_CANDIDATES PREPEND "proplib/tests/utility/test_")
+list(TRANSFORM PROP_LIBRARY_UTILITY_TESTS_CANDIDATES APPEND ".cpp")
+foreach(PROP_LIBRARY_TESTS_CANDIDATE IN ITEMS ${PROP_LIBRARY_UTILITY_TESTS_CANDIDATES})
 	if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${PROP_LIBRARY_TESTS_CANDIDATE}")
 		set(PROP_LIBRARY_TESTS ${PROP_LIBRARY_TESTS} ${PROP_LIBRARY_TESTS_CANDIDATE})
 	endif()
 endforeach()
 
-find_package(Catch2 2 REQUIRED)
+list(APPEND PROP_LIBRARY_UI_TESTS_CANDIDATES ${PROP_LIBRARY_UI_NAMES})
+list(TRANSFORM PROP_LIBRARY_UI_TESTS_CANDIDATES PREPEND "proplib/tests/ui/test_")
+list(TRANSFORM PROP_LIBRARY_UI_TESTS_CANDIDATES APPEND ".cpp")
+foreach(PROP_LIBRARY_TESTS_CANDIDATE IN ITEMS ${PROP_LIBRARY_UI_TESTS_CANDIDATES})
+	if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${PROP_LIBRARY_TESTS_CANDIDATE}")
+		set(PROP_LIBRARY_TESTS ${PROP_LIBRARY_TESTS} ${PROP_LIBRARY_TESTS_CANDIDATE})
+	endif()
+endforeach()
+
+find_package(Catch2 REQUIRED)
 add_executable(Prop_tests
 	${PROP_LIBRARY_SOURCES}
 	${PROP_LIBRARY_HEADERS}
 	${PROP_LIBRARY_TESTS}
 )
+target_compile_definitions(Prop_tests PRIVATE PROPERTY_NAMES)
 if("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 	target_compile_options(Prop_tests PRIVATE -fconcepts-diagnostics-depth=3)
 endif()
+target_include_directories(Prop_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/proplib)
 target_link_libraries(Prop_tests PRIVATE
 	Catch2::Catch2WithMain
 	sfml-graphics

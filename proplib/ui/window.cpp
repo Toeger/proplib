@@ -1,27 +1,20 @@
 #include "window.h"
-#include "../internals/widget.privates.h"
+#include "internals/widget.privates.h"
+#include "internals/window.privates.h"
 #include "widget.h"
 
 #include <SFML/Graphics.hpp>
 #include <vector>
 
 static std::vector<prop::Window *> windows;
-namespace prop {
-	struct Window_privates {
-		bool pump(prop::Window &w, bool exclusive);
-
-		sf::RenderWindow window;
-		prop::Property<void> on_widget_update;
-	};
-} // namespace prop
 
 static auto get_widget_updater(prop::Window &window) {
 	return [&window] {
 		if (window.widget.get()) {
 			window.widget.apply([&window](prop::Polywrap<prop::Widget> &widget) {
 				widget->x = widget->y = 0;
-				widget->width = {[](int width) { return width; }, widget->width};
-				widget->height = {[](int height) { return height; }, widget->height};
+				widget->width = {[](int width) { return width; }, window.width};
+				widget->height = {[](int height) { return height; }, window.height};
 			});
 		}
 	};

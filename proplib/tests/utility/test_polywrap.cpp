@@ -1,7 +1,7 @@
-#include "../utility/polywrap.h"
-#include "../utility/type_traits.h"
+#include "utility/polywrap.h"
+#include "utility/type_traits.h"
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 #include <functional>
 
 static bool base_destroyed = false;
@@ -88,8 +88,6 @@ TEST_CASE("Concepts") {
 
 		//Compatible_polywrap_pointer<Parameter_type, Polywrap_type>
 		static_assert(prop::detail::Compatible_polywrap_pointer<int *, int>);
-		static_assert(prop::detail::Compatible_polywrap_pointer<int *, long>);
-		static_assert(prop::detail::Compatible_polywrap_pointer<long *, int>);
 		static_assert(prop::detail::Compatible_polywrap_pointer<Copyable_Derived *, Base>);
 		static_assert(!prop::detail::Compatible_polywrap_pointer<Base *, Copyable_Derived>);
 		static_assert(!prop::detail::Compatible_polywrap_pointer<std::unique_ptr<Base>, Copyable_Derived>);
@@ -118,8 +116,6 @@ TEST_CASE("Concepts") {
 		static_assert(prop::detail::Settable<Copyable_Derived, prop::Polywrap<Base>>);
 		static_assert(!prop::detail::Settable<Base, prop::Polywrap<Copyable_Derived>>);
 		static_assert(prop::detail::Settable<int *, prop::Polywrap<int>>);
-		static_assert(prop::detail::Settable<int *, prop::Polywrap<long>>);
-		static_assert(prop::detail::Settable<long *, prop::Polywrap<int>>);
 		static_assert(prop::detail::Settable<Copyable_Derived *, prop::Polywrap<Base>>);
 		static_assert(!prop::detail::Settable<Base *, prop::Polywrap<Copyable_Derived>>);
 	}
@@ -223,6 +219,12 @@ TEST_CASE("Polymorphism") {
 		REQUIRE_THROWS_WITH(
 			[&] { auto copy = p; }(),
 			"Attempted to copy a prop::Polywrap<Base> holding a Non_copyable_Derived which is not copy-constructible");
+	}
+
+	WHEN("Assigning a derived pointer") {
+		prop::Polywrap<Base> p;
+		Non_copyable_Derived ncd;
+		p = &ncd;
 	}
 }
 

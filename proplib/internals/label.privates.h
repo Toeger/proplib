@@ -1,14 +1,10 @@
 #pragma once
 
-#include "../ui/label.h"
-#include "../utility/font.privates.h"
+#include "ui/label.h"
+#include "utility/font.privates.h"
 
 #include <SFML/Graphics/Text.hpp>
 #include <cmath>
-
-namespace sf {
-	class RenderWindow;
-}
 
 namespace prop {
 	struct Label_privates {

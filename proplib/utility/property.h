@@ -10,14 +10,15 @@
 #include <cassert>
 #include <concepts>
 #include <functional>
+#include <iostream>
 #include <set>
 #include <vector>
 
-//#define PROPERTY_DEBUG
-
-#ifdef PROPERTY_DEBUG
+#ifdef PROPERTY_NAMES
 #include <string>
 #endif
+
+//#define PROPERTY_DEBUG
 
 namespace prop {
 	template <class T>
@@ -25,7 +26,7 @@ namespace prop {
 	namespace detail {
 		struct Property_base;
 		struct Binding_set {
-			bool has(Property_base *) const;
+			bool has(const Property_base *) const;
 			bool is_empty() const;
 			bool add(Property_base *);
 			void remove(Property_base *);
@@ -39,9 +40,10 @@ namespace prop {
 			std::set<Property_base *>::const_iterator cend() const;
 			std::set<Property_base *> set; //TODO: Try out flat_set or something to save some nanoseconds
 		};
+		std::ostream &operator<<(std::ostream &os, const Binding_set &set);
 
 		struct Binding_list {
-			bool has(Property_base *property) const;
+			bool has(const Property_base *property) const;
 			std::size_t size() const;
 			void replace(Property_base *old_value, Property_base *new_value);
 			Property_base *operator[](std::size_t index) const;
@@ -51,6 +53,7 @@ namespace prop {
 			std::vector<Property_base *>::const_iterator end() const;
 			std::vector<Property_base *> list; //TODO: Try out other things like std::forward_list
 		};
+		std::ostream &operator<<(std::ostream &os, const prop::detail::Binding_list &list);
 
 		void swap(struct Property_base &lhs, struct Property_base &rhs);
 
@@ -64,12 +67,14 @@ namespace prop {
 			void update_start();
 			void update_complete();
 			void set_explicit_dependencies(Binding_list list);
+			bool is_implicit_dependency_of(const Property_base &other) const;
+			bool is_explicit_dependency_of(const Property_base &other) const;
+			bool is_dependency_of(const Property_base &other) const;
+			bool is_implicit_dependent_of(const Property_base &other) const;
+			bool is_explicit_dependent_of(const Property_base &other) const;
+			bool is_dependent_of(const Property_base &other) const;
 
-#ifdef PROPERTY_DEBUG
-			Property_base(std::string_view type_name);
-#else
 			Property_base();
-#endif
 			Property_base(const Property_base &) = delete;
 			Property_base(Property_base &&other);
 			void operator=(const Property_base &) = delete;
@@ -85,11 +90,13 @@ namespace prop {
 			void take_explicit_dependents(Property_base &&source);
 			friend void swap(Property_base &lhs, Property_base &rhs);
 			Binding_list explicit_dependencies;
-#ifdef PROPERTY_DEBUG
+			const Binding_set &get_implicit_dependencies() const;
+			const Binding_set &get_dependents() const;
+#ifdef PROPERTY_NAMES
 			std::string name;
-#else
-			private:
 #endif
+
+			private:
 			Binding_set implicit_dependencies;
 			Binding_set dependents;
 		};
@@ -213,16 +220,38 @@ namespace prop {
 			};
 		}
 
+		template <class F>
+		concept Callable = prop::is_callable_v<F>;
+
 		template <class Return_type>
 		struct Property_function_binder {
+			template <class... Properties>
+			Property_function_binder(Callable auto &&function, Properties &&...properties)
+				: function{create_explicit_caller<Return_type, decltype(function), Properties...>(
+					  std::forward<decltype(function)>(function), std::index_sequence_for<Properties...>{})}
+				, explicit_dependencies{{get_property_base_pointer(properties)...}} {
+				static_assert(std::assignable_from<Return_type &,
+												   typename prop::Callable_info_for<decltype(function)>::Return_type>,
+							  "Return type of callabe not assignable to inner property type");
+				static_assert(prop::Callable_info_for<decltype(function)>::Args::size == sizeof...(Properties),
+							  "Number of function arguments and properties don't match");
+				static_assert(
+					are_compatible_function_args_for_properties<
+						typename prop::Callable_info_for<decltype(function)>::Args, prop::Type_list<Properties...>>(
+						std::index_sequence_for<Properties...>{}),
+					"Callable arguments and parameters are incompatible");
+			}
+			std::function<Return_type(const Binding_list &)> function;
+			Binding_list explicit_dependencies;
+		};
+
+		template <>
+		struct Property_function_binder<void> {
 			template <class Function, class... Properties>
 			Property_function_binder(Function &&function, Properties &&...properties)
-				: function{create_explicit_caller<Return_type, Function, Properties...>(
+				: function{create_explicit_caller<void, Function, Properties...>(
 					  std::forward<Function>(function), std::index_sequence_for<Properties...>{})}
 				, explicit_dependencies{{get_property_base_pointer(properties)...}} {
-				static_assert(
-					std::assignable_from<Return_type &, typename prop::Callable_info_for<Function>::Return_type>,
-					"Return type of callabe not assignable to inner property type");
 				static_assert(prop::Callable_info_for<Function>::Args::size == sizeof...(Properties),
 							  "Number of function arguments and properties don't match");
 				static_assert(
@@ -231,7 +260,7 @@ namespace prop {
 						std::index_sequence_for<Properties...>{}),
 					"Callable arguments and parameters are incompatible");
 			}
-			std::function<Return_type(const Binding_list &)> function;
+			std::function<void(const Binding_list &)> function;
 			Binding_list explicit_dependencies;
 		};
 
@@ -259,12 +288,139 @@ namespace prop {
 		concept Property_function = Property_value_function<Function, T, Properties...> ||
 									Property_property_function<Function, T, Properties...>;
 
+		template <class T>
+		struct Operation_forwarder {
+			Operation_forwarder(prop::Property<T> &p)
+				: p{p} {}
+#define PROP_OP(OP)                                                                                                    \
+	decltype(auto) operator OP() {                                                                                     \
+		return OP p.value;                                                                                             \
+	}
+			//Unary ops: + - * & ~ ! ++ --
+			PROP_OP(+)
+			PROP_OP(-)
+			PROP_OP(*)
+			PROP_OP(&)
+			PROP_OP(~)
+			PROP_OP(!)
+			PROP_OP(++)
+			PROP_OP(--)
+#undef PROP_OP
+			decltype(auto) operator++(int) {
+				return p.value++;
+			}
+			decltype(auto) operator--(int) {
+				return p.value--;
+			}
+
+#define PROP_OP(OP)                                                                                                    \
+	template <class U>                                                                                                 \
+	decltype(auto) operator OP(U &&u) {                                                                                \
+		return p.value OP std::forward<U>(u);                                                                          \
+	}
+
+			//Binary ops: + - * / % ^ | = < > += -= *= /= %= ^= &= |= << >> >>= <<= == != <= >= <=> && || , ->* ( ) [ ]
+			PROP_OP(+)
+			PROP_OP(-)
+			PROP_OP(*)
+			PROP_OP(/)
+			PROP_OP(%)
+			PROP_OP(^)
+			PROP_OP(|)
+			PROP_OP(=)
+			PROP_OP(<)
+			PROP_OP(>)
+			PROP_OP(+=)
+			PROP_OP(-=)
+			PROP_OP(*=)
+			PROP_OP(/=)
+			PROP_OP(%=)
+			PROP_OP(^=)
+			PROP_OP(&=)
+			PROP_OP(|=)
+			PROP_OP(<<)
+			PROP_OP(>>)
+			PROP_OP(>>=)
+			PROP_OP(<<=)
+			PROP_OP(==)
+			PROP_OP(!=)
+			PROP_OP(<=)
+			PROP_OP(>=)
+			PROP_OP(<=>)
+			PROP_OP(&&)
+			PROP_OP(||)
+			//PROP_OP(,) //does not compile due to preprocessor limitations
+			PROP_OP(->*)
+			//PROP_OP(()) //variadic parameters
+			//PROP_OP([]) //different syntax
+#undef PROP_OP
+			template <class U>
+			decltype(auto) operator,(U &&u) {
+				return p.value, std::forward<U>(u);
+			}
+			template <class... Args>
+			decltype(auto) operator()(Args &&...args) {
+				return p.value(std::forward<Args>(args)...);
+			}
+			template <class U>
+			decltype(auto) operator[](U &&u) {
+				return p.value[std::forward<U>(u)];
+			}
+
+			T *operator->() {
+				return &p.value;
+			}
+
+			~Operation_forwarder() {
+				p.read_notify();
+				p.write_notify();
+			}
+
+			auto begin() {
+				return p.apply()->begin();
+			}
+			auto cbegin() {
+				return p.apply()->cbegin();
+			}
+			auto end() {
+				return p.apply()->end();
+			}
+			auto cend() {
+				return p.apply()->cend();
+			}
+
+			private:
+			prop::Property<T> &p;
+		};
+
+		template <class T>
+		concept streamable = requires(std::ostream &os, const T &t) { os << t; };
+
+		template <class T>
+		struct Printer {
+			Printer(const T &t)
+				: value{t} {}
+			const T &value;
+			std::ostream &print(std::ostream &os) {
+				if constexpr (streamable<T>) {
+					return os << value;
+				} else {
+					return os << prop::type_name<T>() << '@' << &value;
+				}
+			}
+		};
+
+		template <class T>
+		std::ostream &operator<<(std::ostream &os, Printer<T> &&printer) {
+			return printer.print(os);
+		}
+
 	} // namespace detail
 
 	extern void (*on_property_severed)(detail::Property_base *severed, detail::Property_base *reason);
 
-	template <class T>
-	void print_status(const prop::Property<T> &p);
+	template <class U>
+	void print_status(const prop::Property<U> &p, std::ostream &os = std::clog);
 
 	template <class T>
 	class Property : detail::Property_base {
@@ -286,9 +442,29 @@ namespace prop {
 		operator const T &() const;
 		void set(T t);
 		const T &get() const;
+		bool is_bound() const;
 		void unbind() final override;
+		detail::Operation_forwarder<T> apply();
 		template <class Functor>
 		std::invoke_result_t<Functor, T &> apply(Functor &&f);
+		template <class Functor>
+		std::invoke_result_t<Functor, T &> apply_guarded(Functor &&f);
+
+		template <class U>
+		bool is_implicit_dependency_of(const Property<U> &other) const;
+		template <class U>
+		bool is_explicit_dependency_of(const Property<U> &other) const;
+		template <class U>
+		bool is_dependency_of(const Property<U> &other) const;
+		template <class U>
+		bool is_implicit_dependent_of(const Property<U> &other) const;
+		template <class U>
+		bool is_explicit_dependent_of(const Property<U> &other) const;
+		template <class U>
+		bool is_dependent_of(const Property<U> &other) const;
+#ifdef PROPERTY_NAMES
+		using detail::Property_base::name;
+#endif
 
 		private:
 		void update_source(std::function<T(const prop::detail::Binding_list &)> f);
@@ -302,20 +478,42 @@ namespace prop {
 		friend std::function<Return_type(const detail::Binding_list &)>
 		detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
 		template <class U>
-		friend void print_status(const prop::Property<U> &p);
+		friend void prop::print_status(const prop::Property<U> &p, std::ostream &os);
+		friend struct detail::Operation_forwarder<T>;
+		template <class U>
+		friend class Property;
 	};
+
+	void print_status(const prop::Property<void> &p, std::ostream &os = std::clog);
 
 	template <>
 	class Property<void> : detail::Property_base {
 		public:
-		Property() = default;
-		Property(std::function<void()> f);
-		Property &operator=(std::function<void()> f);
+		Property();
+		Property(std::convertible_to<std::function<void()>> auto &&f);
+		Property &operator=(std::convertible_to<std::function<void()>> auto &&f);
 		Property &operator=(detail::Property_function_binder<void> binder);
 		template <class... Property_types,
 				  detail::Property_function<void, const Property<Property_types> *...> Function>
 		void bind(Function &&source, Property<Property_types> &...properties);
+		bool is_bound() const;
 		void unbind() final override;
+
+		template <class U>
+		bool is_implicit_dependency_of(const Property<U> &other) const;
+		template <class U>
+		bool is_explicit_dependency_of(const Property<U> &other) const;
+		template <class U>
+		bool is_dependency_of(const Property<U> &other) const;
+		template <class U>
+		bool is_implicit_dependent_of(const Property<U> &other) const;
+		template <class U>
+		bool is_explicit_dependent_of(const Property<U> &other) const;
+		template <class U>
+		bool is_dependent_of(const Property<U> &other) const;
+#ifdef PROPERTY_NAMES
+		using detail::Property_base::name;
+#endif
 
 		private:
 		void update_source(std::function<void(const prop::detail::Binding_list &)> f);
@@ -327,8 +525,40 @@ namespace prop {
 		template <class Return_type, class Function, class... Properties, std::size_t... indexes>
 		friend std::function<Return_type(const detail::Binding_list &)>
 		detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
-		friend void print_status(const prop::Property<void> &p);
+		friend void prop::print_status(const prop::Property<void> &p, std::ostream &os);
+		template <class U>
+		friend class Property;
 	};
+
+	template <class U>
+	bool Property<void>::is_implicit_dependency_of(const Property<U> &other) const {
+		return detail::Property_base::is_implicit_dependency_of(other);
+	}
+
+	template <class U>
+	bool Property<void>::is_explicit_dependency_of(const Property<U> &other) const {
+		return detail::Property_base::is_explicit_dependency_of(other);
+	}
+
+	template <class U>
+	bool Property<void>::is_dependency_of(const Property<U> &other) const {
+		return detail::Property_base::is_dependency_of(other);
+	}
+
+	template <class U>
+	bool Property<void>::is_implicit_dependent_of(const Property<U> &other) const {
+		return detail::Property_base::is_implicit_dependent_of(other);
+	}
+
+	template <class U>
+	bool Property<void>::is_explicit_dependent_of(const Property<U> &other) const {
+		return detail::Property_base::is_explicit_dependent_of(other);
+	}
+
+	template <class U>
+	bool Property<void>::is_dependent_of(const Property<U> &other) const {
+		return detail::Property_base::is_dependent_of(other);
+	}
 
 	namespace detail {
 		template <class T, class U>
@@ -378,22 +608,11 @@ namespace prop {
 
 	template <class T>
 	Property<T>::Property()
-		:
-#ifdef PROPERTY_DEBUG
-		Property_base{prop::type_name<T>()}
-		,
-#endif
-		value{} {
-	}
+		: value{} {}
 
 	template <class T>
 	Property<T>::Property(Property<T> &&other)
-		:
-#ifdef PROPERTY_DEBUG
-		Property_base{prop::type_name<T>()}
-		,
-#endif
-		value{std::move(other.value)}
+		: value{std::move(other.value)}
 		, source{std::move(other.source)} {
 		static_cast<Property_base &>(*this) = static_cast<Property_base &&>(other);
 	}
@@ -413,50 +632,27 @@ namespace prop {
 
 	template <class T>
 	Property<T>::Property(detail::Property_function<T> auto f)
-		:
-#ifdef PROPERTY_DEBUG
-		Property_base{prop::type_name<T>()}
-		,
-#endif
-
-		value{[&f, this] {
+		: value{[&f, this] {
 			detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
 			return f();
 		}()}
-		, source{[source = std::move(f)](const prop::detail::Binding_list &) { return source(); }} {
-	}
+		, source{[source = std::move(f)](const prop::detail::Binding_list &) { return source(); }} {}
 
 	template <class T>
 	Property<T>::Property(detail::Compatible_property<T> auto const &p)
-		:
-#ifdef PROPERTY_DEBUG
-		Property_base{prop::type_name<T>()}
-		,
-#endif
-		value(p.value) {
+		: value(p.value) {
 		p.read_notify();
 	}
 
 	template <class T>
 	Property<T>::Property(detail::Compatible_property<T> auto &p)
-		:
-#ifdef PROPERTY_DEBUG
-		Property_base{prop::type_name<T>()}
-		,
-#endif
-		value{std::as_const(p.value)} {
+		: value{std::as_const(p.value)} {
 		p.read_notify();
 	}
 
 	template <class T>
 	Property<T>::Property(detail::Property_value<T> auto &&v)
-		:
-#ifdef PROPERTY_DEBUG
-		Property_base{prop::type_name<T>()}
-		,
-#endif
-		value{std::forward<decltype(v)>(v)} {
-	}
+		: value{std::forward<decltype(v)>(v)} {}
 
 	template <class T>
 	Property<T> &Property<T>::operator=(detail::Property_function<T> auto f) {
@@ -467,6 +663,7 @@ namespace prop {
 	template <class T>
 	Property<T> &Property<T>::operator=(detail::Compatible_property<T> auto &&p) {
 		unbind();
+		p.read_notify();
 		detail::RAII notifier{[this] { write_notify(); }};
 		if constexpr (detail::is_equal_comparable_v<T>) {
 			T t(std::forward<decltype(p)>(p).value);
@@ -532,9 +729,72 @@ namespace prop {
 	}
 
 	template <class T>
+	detail::Operation_forwarder<T> Property<T>::apply() {
+		return {*this};
+	}
+
+	template <class T>
 	template <class Functor>
 	std::invoke_result_t<Functor, T &> Property<T>::apply(Functor &&f) {
 		detail::RAII notifier{[this] { write_notify(); }};
+		read_notify();
+		if constexpr (std::is_fundamental_v<T> || std::is_pointer_v<T>) {
+			T t = value;
+			try {
+				auto retval = f(value);
+				if (t == value) {
+					notifier.cancel();
+				}
+				return retval;
+			} catch (...) {
+				if (t == value) {
+					notifier.cancel();
+				}
+				throw;
+			}
+		} else {
+			return f(value);
+		}
+	}
+
+	template <class T>
+	template <class U>
+	bool Property<T>::is_implicit_dependency_of(const Property<U> &other) const {
+		return Property_base::is_implicit_dependency_of(other);
+	}
+	template <class T>
+	template <class U>
+	bool Property<T>::is_explicit_dependency_of(const Property<U> &other) const {
+		return Property_base::is_explicit_dependency_of(other);
+	}
+	template <class T>
+	template <class U>
+	bool Property<T>::is_dependency_of(const Property<U> &other) const {
+		return Property_base::is_dependency_of(other);
+	}
+	template <class T>
+	template <class U>
+	bool Property<T>::is_implicit_dependent_of(const Property<U> &other) const {
+		return Property_base::is_implicit_dependent_of(other);
+	}
+	template <class T>
+	template <class U>
+	bool Property<T>::is_explicit_dependent_of(const Property<U> &other) const {
+		return Property_base::is_explicit_dependent_of(other);
+	}
+	template <class T>
+	template <class U>
+	bool Property<T>::is_dependent_of(const Property<U> &other) const {
+		return Property_base::is_dependent_of(other);
+	}
+
+	template <class T>
+	template <class Functor>
+	std::invoke_result_t<Functor, T &> Property<T>::apply_guarded(Functor &&f) {
+		detail::RAII notifier{[this] { write_notify(); }};
+		detail::RAII guard{
+			[] { detail::Property_base::current_binding = nullptr; },
+			[binding = detail::Property_base::current_binding] { detail::Property_base::current_binding = binding; }};
 		read_notify();
 		if constexpr (std::is_fundamental_v<T> || std::is_pointer_v<T>) {
 			T t = value;
@@ -596,6 +856,33 @@ namespace prop {
 				throw prop::Logic_error{"Trying to update a " + prop::type_name<T>() + " which is not move-assignable"};
 			}
 		}
+	}
+
+	template <class T>
+	void print_status(const prop::Property<T> &p, std::ostream &os) {
+#ifdef PROPERTY_NAMES
+		if (p.name.empty()) {
+			os << "Property " << &p << '\n';
+		} else {
+			os << "Property " << p.name << '\n';
+		}
+#else
+		os << "Property " << &p << '\n';
+#endif
+		os << "\tvalue: " << prop::detail::Printer{p.value} << "\n";
+		os << "\tsource: " << (p.source ? "Yes" : "No") << "\n";
+		os << "\tExplicit dependencies: [" << p.explicit_dependencies << "]\n";
+		os << "\tImplicit dependencies: [" << p.get_implicit_dependencies() << "]\n";
+		os << "\tDependents: [" << p.get_dependents() << "]\n";
+	}
+
+	Property<void>::Property(std::convertible_to<std::function<void()>> auto &&f) {
+		update_source([source = std::forward<decltype(f)>(f)](const prop::detail::Binding_list &) { source(); });
+	}
+
+	Property<void> &Property<void>::operator=(std::convertible_to<std::function<void()>> auto &&f) {
+		update_source([source = std::forward<decltype(f)>(f)](const prop::detail::Binding_list &) { source(); });
+		return *this;
 	}
 
 	template <class T>
