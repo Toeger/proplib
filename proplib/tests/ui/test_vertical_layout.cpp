@@ -1,14 +1,43 @@
 #include "internals/vertical_layout.privates.h"
+#include "ui/button.h"
+#include "ui/label.h"
 #include "ui/vertical_layout.h"
+#include "ui/window.h"
 
 #include <catch2/catch_all.hpp>
 
 TEST_CASE("Apply width to children") {
 	prop::Widget w1, w2;
 	prop::Vertical_layout vl{&w1, &w2};
-	prop::print_status(vl.width);
-	prop::print_status(vl.privates->layout_updater);
 	vl.width = vl.height = 100;
 	REQUIRE(w1.width == vl.width);
 	REQUIRE(w2.width == vl.width);
+}
+
+TEST_CASE("Apply width to children2") {
+	prop::Vertical_layout vl{
+		prop::Label{"L1"},
+		prop::Label{"L2"},
+	};
+	vl.width = vl.height = 100;
+	auto &w1 = vl.children.get()[0];
+	auto &w2 = vl.children.get()[1];
+	REQUIRE(w1->width == vl.width);
+	REQUIRE(w2->width == vl.width);
+}
+
+TEST_CASE("Apply width to children3") {
+	prop::Window w{"Prop Test"};
+	w.widget = prop::Vertical_layout{
+		prop::Label{"Hello world!"},
+		prop::Label{"Automatic layouting!!!"},
+		prop::Label{"So cool!!!"},
+		prop::Button{"Clickable too!!!", [] { std::cout << "Button clicked\n"; }},
+	};
+	w.widget.apply()->get()->width = 700;
+	w.widget.apply([](auto &w) { w->width = w->height = 100; });
+	//auto &w1 = static_cast<const prop::Vertical_layout *>(w.widget.get().get())->children.get()[0];
+	//auto &w2 = static_cast<const prop::Vertical_layout *>(w.widget.get().get())->children.get()[1];
+	//REQUIRE(w1->width == w.widget.get()->width);
+	//REQUIRE(w2->width == w.widget.get()->width);
 }
