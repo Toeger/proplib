@@ -5,5 +5,10 @@
 		- an unknown number of them (vector)
 		- other prop::Containers
 	- Use CTAD to deduce types
-
+	- Maybe not a good idea after all?
 - Possibly change prop::Polywrap to use std::unique_ptr instead of std::shared_ptr
+- Specialize prop::Property<volatile T> which does not store the value and instead fetches it every time
+- Various Widget_loaders
+	- Take ownership
+	- Don't take ownership
+	- Decide dynamically dependening on input type

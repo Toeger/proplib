@@ -11,6 +11,7 @@ namespace prop {
 	class Window {
 		public:
 		Window(std::string title = {}, int width = 800, int height = 600);
+		Window(std::string title, prop::Polywrap<prop::Widget> widget, int width = 800, int height = 600);
 		~Window();
 		Property<int> width;
 		Property<int> height;
