@@ -1,27 +1,31 @@
 #include "button.h"
 #include "internals/button.privates.h"
 #include "internals/widget.privates.h"
-#include "utility/style.h"
 
 #include <SFML/Graphics/RectangleShape.hpp>
+#include <boost/pfr.hpp>
+
+static void assign(prop::Button &button, prop::Button::Parameters &&parameters) {
+	static_assert(boost::pfr::tuple_size_v<prop::Button::Parameters> == 4, "Add missing parameters");
+	button.text = std::move(parameters.text);
+	button.font = std::move(parameters.font);
+	button.font_size = std::move(parameters.font_size);
+	button.callback = std::move(parameters.callback);
+}
 
 prop::Button::Button()
-	: font{[] { return prop::default_style.font; }}
-	, font_size{[] { return prop::default_style.font_size; }}
-	, privates{std::make_unique<Button_privates>(this)} {
+	: Button{Parameters{}} {}
+
+prop::Button::Button(Parameters &&parameters)
+	: privates{std::make_unique<Button_privates>(this)} {
 	{
 		left_clicked.connect([this] {
-			if (on_clicked) {
-				on_clicked();
+			if (callback) {
+				callback();
 			}
 		});
 	}
-}
-
-prop::Button::Button(std::string text, std::function<void ()> on_clicked)
-	: Button() {
-	this->text = std::move(text);
-	this->on_clicked = std::move(on_clicked);
+	assign(*this, std::move(parameters));
 }
 
 prop::Button::Button(Button &&other) {
@@ -36,6 +40,15 @@ prop::Button &prop::Button::operator=(Button &&other) {
 prop::Button::~Button() = default;
 
 void prop::Button::draw(Draw_context context) const {
+	{ //draw frame
+		sf::RectangleShape rect{sf::Vector2f(width, height)};
+		rect.setPosition(x, y);
+		rect.setOutlineColor(sf::Color::Black);
+		rect.setOutlineThickness(1);
+		rect.setFillColor(sf::Color::Green);
+		context.window.draw(rect);
+	}
+
 	{ //draw text
 		sf::Text sftext;
 		sftext.setOrigin(context.offset);
@@ -46,15 +59,6 @@ void prop::Button::draw(Draw_context context) const {
 		sftext.setFillColor(sf::Color::Black);
 		context.window.draw(sftext);
 	}
-
-	{ //draw frame
-		sf::RectangleShape rect{sf::Vector2f(width, height)};
-		rect.setPosition(x, y);
-		rect.setOutlineColor(sf::Color::Black);
-		rect.setOutlineThickness(1);
-		rect.setFillColor(sf::Color::Green);
-		context.window.draw(rect);
-	}
 }
 
 void prop::swap(Button &lhs, Button &rhs) {
@@ -63,7 +67,7 @@ void prop::swap(Button &lhs, Button &rhs) {
 	PROP_X(text)
 	PROP_X(font)
 	PROP_X(font_size)
-	PROP_X(on_clicked)
+	PROP_X(callback)
 	PROP_X(privates)
 #undef PROP_X
 	swap(static_cast<prop::Widget &>(lhs), static_cast<prop::Widget &>(rhs));

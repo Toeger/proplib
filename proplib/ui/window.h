@@ -10,8 +10,14 @@
 namespace prop {
 	class Window {
 		public:
-		Window(std::string title = {}, int width = 800, int height = 600);
-		Window(std::string title, prop::Polywrap<prop::Widget> widget, int width = 800, int height = 600);
+		struct Parameters {
+			Property<int> width = 800;
+			Property<int> height = 600;
+			Property<std::string> title = "";
+			Property<prop::Polywrap<prop::Widget>> widget;
+		};
+		Window();
+		Window(Parameters &&parameters);
 		~Window();
 		Property<int> width;
 		Property<int> height;

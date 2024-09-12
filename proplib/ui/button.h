@@ -1,6 +1,7 @@
 #pragma once
 
 #include "utility/font.h"
+#include "utility/style.h"
 #include "widget.h"
 
 #include <functional>
@@ -12,8 +13,14 @@ namespace prop {
 
 	class Button : public prop::Widget {
 		public:
+		struct Parameters {
+			prop::Property<std::string> text = "";
+			prop::Property<prop::Font> font = [] { return prop::default_style.font; };
+			prop::Property<int> font_size = [] { return prop::default_style.font_size; };
+			std::function<void()> callback = [] {};
+		};
 		Button();
-		Button(std::string text, std::function<void()> on_clicked = []{});
+		Button(Parameters &&);
 		Button(Button &&other);
 		~Button();
 		Button &operator=(Button &&other);
@@ -24,7 +31,7 @@ namespace prop {
 		prop::Property<std::string> text;
 		prop::Property<prop::Font> font;
 		prop::Property<int> font_size;
-		std::function<void()> on_clicked;
+		std::function<void()> callback;
 
 		private:
 		std::unique_ptr<struct Button_privates> privates;

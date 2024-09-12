@@ -67,12 +67,16 @@ prop::Vertical_layout::Vertical_layout(Children &&...children)
 
 namespace prop {
 	namespace detail {
-		template <class Aggregate, std::size_t... indexes>
-		void add_children(std::vector<prop::Polywrap<prop::Widget>> &container, std::index_sequence<indexes...>,
-						  Aggregate &&aggregate);
 		void add_child(std::vector<prop::Polywrap<prop::Widget>> &container,
 					   prop::detail::Settable<prop::Polywrap<prop::Widget>> auto &&child) {
 			container.emplace_back(child);
+		}
+		template <class... Args>
+		void add_child(Args &&...) {}
+		template <class Aggregate, std::size_t... indexes>
+		void add_children(std::vector<prop::Polywrap<prop::Widget>> &container, std::index_sequence<indexes...>,
+						  Aggregate &&aggregate) {
+			(add_child(container, &boost::pfr::get<indexes>(aggregate)), ...);
 		}
 		template <class Child>
 			requires(std::is_aggregate_v<std::remove_reference_t<Child>> &&
@@ -81,11 +85,6 @@ namespace prop {
 			add_children(container,
 						 std::make_index_sequence<boost::pfr::tuple_size_v<std::remove_reference_t<Child>>>(),
 						 std::forward<Child>(child));
-		}
-		template <class Aggregate, std::size_t... indexes>
-		void add_children(std::vector<prop::Polywrap<prop::Widget>> &container, std::index_sequence<indexes...>,
-						  Aggregate &&aggregate) {
-			(add_child(container, &boost::pfr::get<indexes>(aggregate)), ...);
 		}
 	} // namespace detail
 } // namespace prop

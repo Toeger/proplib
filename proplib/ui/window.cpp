@@ -13,25 +13,26 @@ static auto get_widget_updater(prop::Window &window) {
 		if (window.widget.get()) {
 			window.widget.apply([&window](prop::Polywrap<prop::Widget> &widget) {
 				widget->x = widget->y = 0;
-				widget->width = {+[](int width) { return width; }, window.width};
-				widget->height = {+[](int height) { return height; }, window.height};
+				widget->width = {[](int width) { return width; }, window.width};
+				widget->height = {[](int height) { return height; }, window.height};
 			});
 		}
 	};
 }
 
-prop::Window::Window(std::string title, int width, int height)
-	: width{width}
-	, height{height}
-	, title{title}
-	, privates{new Window_privates{.window{sf::VideoMode(width, height), title},
-								   .on_widget_update{get_widget_updater(*this)}}} {
-	windows.push_back(this);
-}
+prop::Window::Window()
+	: Window{Parameters{}} {}
 
-prop::Window::Window(std::string title, prop::Polywrap<Widget> widget, int width, int height)
-	: Window{std::move(title), width, height} {
-	this->widget = std::move(widget);
+prop::Window::Window(Parameters &&parameters)
+	: width{std::move(parameters.width)}
+	, height{std::move(parameters.height)}
+	, title{std::move(parameters.title)}
+	, widget{std::move(parameters.widget)} {
+	auto widget_updater = get_widget_updater(*this);
+	widget_updater();
+	privates.reset(new Window_privates{.window{sf::VideoMode(width.get(), height.get()), title.get()},
+									   .on_widget_update{std::move(widget_updater)}});
+	windows.push_back(this);
 }
 
 prop::Window::~Window() = default;

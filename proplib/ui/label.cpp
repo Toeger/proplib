@@ -2,14 +2,16 @@
 #include "internals/label.privates.h"
 #include "internals/widget.privates.h"
 #include "utility/font.privates.h"
-#include "utility/style.h"
 
 #include <SFML/Graphics.hpp>
 
-prop::Label::Label(std::string text)
-	: text{std::move(text)}
-	, font{[] { return prop::default_style.font; }}
-	, font_size{[] { return prop::default_style.font_size; }} {
+prop::Label::Label()
+	: Label{Parameters{}} {}
+
+prop::Label::Label(Parameters &&parameters)
+	: text{std::move(parameters.text)}
+	, font{std::move(parameters.font)}
+	, font_size{std::move(parameters.font_size)} {
 	privates = std::make_unique<Label_privates>(this);
 }
 

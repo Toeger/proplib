@@ -6,11 +6,21 @@
 #endif
 
 prop::Widget::Widget()
-	: privates{std::make_unique<Widget_privates>()} {
+	: Widget{Parameters{}} {
 #ifdef PROPERTY_NAMES
 	set_name("<Widget>");
 #endif
 }
+
+prop::Widget::Widget(Parameters &&parameter)
+	: x{std::move(parameter.x)}
+	, y{std::move(parameter.y)}
+	, width{std::move(parameter.width)}
+	, height{std::move(parameter.height)}
+	, preferred_width{std::move(parameter.preferred_width)}
+	, preferred_height{std::move(parameter.preferred_height)}
+	, visible{std::move(parameter.visible)}
+	, privates{std::make_unique<Widget_privates>()} {}
 
 prop::Widget::Widget(Widget &&other) {
 	swap(*this, other);

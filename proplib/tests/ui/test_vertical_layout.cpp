@@ -16,8 +16,12 @@ TEST_CASE("Apply width to children") {
 
 TEST_CASE("Apply width to children2") {
 	prop::Vertical_layout vl{
-		prop::Label{"L1"},
-		prop::Label{"L2"},
+		prop::Label{{
+			.text = "L1",
+		}},
+		prop::Label{{
+			.text = "L2",
+		}},
 	};
 	vl.width = vl.height = 100;
 	auto &w1 = vl.children.get()[0];
@@ -27,12 +31,23 @@ TEST_CASE("Apply width to children2") {
 }
 
 TEST_CASE("Apply width to children3") {
-	prop::Window w{"Prop Test"};
+	prop::Window w{{
+		.title = "Prop Test",
+	}};
 	w.widget = prop::Vertical_layout{
-		prop::Label{"Hello world!"},
-		prop::Label{"Automatic layouting!!!"},
-		prop::Label{"So cool!!!"},
-		prop::Button{"Clickable too!!!", [] { std::cout << "Button clicked\n"; }},
+		prop::Label{{
+			.text = "Hello world!",
+		}},
+		prop::Label{{
+			.text = "Automatic layouting!!!",
+		}},
+		prop::Label{{
+			.text = "So cool!!!",
+		}},
+		prop::Button{{
+			.text = "Clickable too!!!",
+			.callback = [] { std::cout << "Button clicked\n"; },
+		}},
 	};
 	w.widget.apply()->get()->width = 700;
 	w.widget.apply([](auto &w) { w->width = w->height = 100; });
