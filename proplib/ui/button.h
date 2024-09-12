@@ -18,6 +18,7 @@ namespace prop {
 			prop::Property<prop::Font> font = [] { return prop::default_style.font; };
 			prop::Property<int> font_size = [] { return prop::default_style.font_size; };
 			std::function<void()> callback = [] {};
+			prop::Widget::Parameters widget = {};
 		};
 		Button();
 		Button(Parameters &&);

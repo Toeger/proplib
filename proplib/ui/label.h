@@ -15,6 +15,7 @@ namespace prop {
 			prop::Property<std::string> text = "";
 			prop::Property<prop::Font> font = [] { return prop::default_style.font; };
 			prop::Property<int> font_size = [] { return prop::default_style.font_size; };
+			prop::Widget::Parameters widget = {};
 		};
 		Label();
 		Label(Parameters &&parameters);

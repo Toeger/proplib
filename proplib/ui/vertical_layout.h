@@ -3,7 +3,7 @@
 #include "utility/polywrap.h"
 #include "widget.h"
 
-#include <boost/pfr.hpp>
+#include <boost/pfr/core.hpp>
 #include <memory>
 #include <vector>
 #ifdef PROPERTY_NAMES

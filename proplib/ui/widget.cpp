@@ -1,6 +1,7 @@
 #include "widget.h"
 #include "internals/widget.privates.h"
 
+#include <boost/pfr/tuple_size.hpp>
 #ifdef PROPERTY_NAMES
 #include <string_view>
 #endif
@@ -20,7 +21,9 @@ prop::Widget::Widget(Parameters &&parameter)
 	, preferred_width{std::move(parameter.preferred_width)}
 	, preferred_height{std::move(parameter.preferred_height)}
 	, visible{std::move(parameter.visible)}
-	, privates{std::make_unique<Widget_privates>()} {}
+	, privates{std::make_unique<Widget_privates>()} {
+	static_assert(boost::pfr::tuple_size_v<prop::Widget::Parameters> == 7, "Add missing parameters");
+}
 
 prop::Widget::Widget(Widget &&other) {
 	swap(*this, other);

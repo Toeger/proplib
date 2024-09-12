@@ -3,29 +3,28 @@
 #include "internals/widget.privates.h"
 
 #include <SFML/Graphics/RectangleShape.hpp>
-#include <boost/pfr.hpp>
+#include <boost/pfr/tuple_size.hpp>
 
-static void assign(prop::Button &button, prop::Button::Parameters &&parameters) {
-	static_assert(boost::pfr::tuple_size_v<prop::Button::Parameters> == 4, "Add missing parameters");
-	button.text = std::move(parameters.text);
-	button.font = std::move(parameters.font);
-	button.font_size = std::move(parameters.font_size);
-	button.callback = std::move(parameters.callback);
-}
+static void assign(prop::Button &button, prop::Button::Parameters &&parameters) {}
 
 prop::Button::Button()
 	: Button{Parameters{}} {}
 
 prop::Button::Button(Parameters &&parameters)
-	: privates{std::make_unique<Button_privates>(this)} {
+	: prop::Widget{std::move(parameters.widget)}
+	, text{std::move(parameters.text)}
+	, font{std::move(parameters.font)}
+	, font_size{std::move(parameters.font_size)}
+	, callback{std::move(parameters.callback)}
+	, privates{std::make_unique<Button_privates>(this)} {
 	{
+		static_assert(boost::pfr::tuple_size_v<prop::Button::Parameters> == 5, "Add missing parameters");
 		left_clicked.connect([this] {
 			if (callback) {
 				callback();
 			}
 		});
 	}
-	assign(*this, std::move(parameters));
 }
 
 prop::Button::Button(Button &&other) {
