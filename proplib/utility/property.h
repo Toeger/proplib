@@ -226,18 +226,18 @@ namespace prop {
 		template <class Return_type>
 		struct Property_function_binder {
 			template <class... Properties>
-			Property_function_binder(Callable auto &&function, Properties &&...properties)
-				: function{create_explicit_caller<Return_type, decltype(function), Properties...>(
-					  std::forward<decltype(function)>(function), std::index_sequence_for<Properties...>{})}
+			Property_function_binder(Callable auto &&function_, Properties &&...properties)
+				: function{create_explicit_caller<Return_type, decltype(function_), Properties...>(
+					  std::forward<decltype(function_)>(function_), std::index_sequence_for<Properties...>{})}
 				, explicit_dependencies{{get_property_base_pointer(properties)...}} {
 				static_assert(std::assignable_from<Return_type &,
-												   typename prop::Callable_info_for<decltype(function)>::Return_type>,
+												   typename prop::Callable_info_for<decltype(function_)>::Return_type>,
 							  "Return type of callabe not assignable to inner property type");
-				static_assert(prop::Callable_info_for<decltype(function)>::Args::size == sizeof...(Properties),
+				static_assert(prop::Callable_info_for<decltype(function_)>::Args::size == sizeof...(Properties),
 							  "Number of function arguments and properties don't match");
 				static_assert(
 					are_compatible_function_args_for_properties<
-						typename prop::Callable_info_for<decltype(function)>::Args, prop::Type_list<Properties...>>(
+						typename prop::Callable_info_for<decltype(function_)>::Args, prop::Type_list<Properties...>>(
 						std::index_sequence_for<Properties...>{}),
 					"Callable arguments and parameters are incompatible");
 			}
@@ -248,9 +248,9 @@ namespace prop {
 		template <>
 		struct Property_function_binder<void> {
 			template <class Function, class... Properties>
-			Property_function_binder(Function &&function, Properties &&...properties)
+			Property_function_binder(Function &&function_, Properties &&...properties)
 				: function{create_explicit_caller<void, Function, Properties...>(
-					  std::forward<Function>(function), std::index_sequence_for<Properties...>{})}
+					  std::forward<Function>(function_), std::index_sequence_for<Properties...>{})}
 				, explicit_dependencies{{get_property_base_pointer(properties)...}} {
 				static_assert(prop::Callable_info_for<Function>::Args::size == sizeof...(Properties),
 							  "Number of function arguments and properties don't match");
@@ -290,8 +290,8 @@ namespace prop {
 
 		template <class T>
 		struct Operation_forwarder {
-			Operation_forwarder(prop::Property<T> &p)
-				: p{p} {}
+			Operation_forwarder(prop::Property<T> &p_)
+				: p{p_} {}
 #define PROP_OP(OP)                                                                                                    \
 	decltype(auto) operator OP() {                                                                                     \
 		return OP p.value;                                                                                             \
@@ -423,7 +423,7 @@ namespace prop {
 	void print_status(const prop::Property<U> &p, std::ostream &os = std::clog);
 
 	template <class T>
-	class Property : detail::Property_base {
+	class Property final : detail::Property_base {
 		public:
 		Property();
 		Property(Property<T> &&other);
@@ -487,7 +487,7 @@ namespace prop {
 	void print_status(const prop::Property<void> &p, std::ostream &os = std::clog);
 
 	template <>
-	class Property<void> : detail::Property_base {
+	class Property<void> final : detail::Property_base {
 		public:
 		Property();
 		Property(std::convertible_to<std::function<void()>> auto &&f);
@@ -636,7 +636,7 @@ namespace prop {
 			detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
 			return f();
 		}()}
-		, source{[source = std::move(f)](const prop::detail::Binding_list &) { return source(); }} {}
+		, source{[source_ = std::move(f)](const prop::detail::Binding_list &) { return source_(); }} {}
 
 	template <class T>
 	Property<T>::Property(detail::Compatible_property<T> auto const &p)
@@ -877,11 +877,11 @@ namespace prop {
 	}
 
 	Property<void>::Property(std::convertible_to<std::function<void()>> auto &&f) {
-		update_source([source = std::forward<decltype(f)>(f)](const prop::detail::Binding_list &) { source(); });
+		update_source([source_ = std::forward<decltype(f)>(f)](const prop::detail::Binding_list &) { source_(); });
 	}
 
 	Property<void> &Property<void>::operator=(std::convertible_to<std::function<void()>> auto &&f) {
-		update_source([source = std::forward<decltype(f)>(f)](const prop::detail::Binding_list &) { source(); });
+		update_source([source_ = std::forward<decltype(f)>(f)](const prop::detail::Binding_list &) { source_(); });
 		return *this;
 	}
 

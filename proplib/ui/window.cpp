@@ -1,7 +1,7 @@
 #include "window.h"
-#include "internals/widget.privates.h"
-#include "internals/window.privates.h"
-#include "widget.h"
+#include "proplib/internals/widget.privates.h"
+#include "proplib/internals/window.privates.h"
+#include "proplib/ui/widget.h"
 
 #include <SFML/Graphics.hpp>
 #include <vector>
@@ -66,7 +66,10 @@ bool prop::Window_privates::pump(prop::Window &w, bool exclusive) {
 	}
 	window.clear(sf::Color::White);
 	if (auto &wp = w.widget.get()) {
-		w.widget.get()->draw({.window = w.privates->window, .offset = {0, 0}});
+		w.widget.get()->draw({
+			.window = w.privates->window,
+			.offset = {0, 0},
+		});
 	}
 	window.display();
 	return true;

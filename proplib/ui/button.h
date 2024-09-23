@@ -1,8 +1,8 @@
 #pragma once
 
-#include "utility/font.h"
-#include "utility/style.h"
-#include "widget.h"
+#include "proplib/ui/widget.h"
+#include "proplib/utility/font.h"
+#include "proplib/utility/style.h"
 
 #include <functional>
 #include <memory>
@@ -23,7 +23,7 @@ namespace prop {
 		Button();
 		Button(Parameters &&);
 		Button(Button &&other);
-		~Button();
+		~Button() override;
 		Button &operator=(Button &&other);
 
 		void draw(struct Draw_context context) const override;

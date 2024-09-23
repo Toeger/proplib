@@ -8,7 +8,7 @@ prop::Binding::Binding()
 	Property_base{"void"}
 	,
 #endif
-	callback{+[] {}} {
+	callback{[] {}} {
 }
 
 prop::Binding::Binding(std::function<void()> callback)

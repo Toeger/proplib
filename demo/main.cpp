@@ -1,26 +1,10 @@
-#include "../proplib/ui/button.h"
-#include "../proplib/ui/label.h"
-#include "../proplib/ui/vertical_layout.h"
-#include "../proplib/ui/window.h"
+#include "proplib/ui/button.h"
+#include "proplib/ui/label.h"
+#include "proplib/ui/vertical_layout.h"
+#include "proplib/ui/window.h"
+#include "proplib/utility/widget_helper.h"
 
 #include <iostream>
-
-namespace prop {
-	struct Widget_loader {
-		template <class Derived_widget, class Children>
-		Widget_loader(Derived_widget *dw, Children &children) {
-			dw->set_children(children);
-		}
-		char _[0];
-	};
-
-	struct Exec {
-		template <class Callable>
-		Exec(Callable &&callable) {
-			std::forward<Callable>(callable)();
-		}
-	};
-} // namespace prop
 
 int main() {
 	struct : prop::Vertical_layout {
@@ -51,16 +35,17 @@ int main() {
 					prop::Button quit{{
 						.text = "Reaching out",
 					}};
-				} children;
-				prop::Widget_loader loader{this, children};
+				} widgets;
+				[[no_unique_address]] prop::Widget_loader loader{this, widgets};
 			} layout;
 			prop::Button exit_button{{
 				.text = "Exit",
-				.callback = [this] { layout.children.quit.text = ""; },
+				.callback = [this] { layout.widgets.quit.text = ""; },
 			}};
-			prop::Exec set_quit{[this] { layout.children.quit.callback = exit_button.callback; }};
-		} children;
-		prop::Widget_loader loader{this, children};
+			[[no_unique_address]] prop::Executor set_quit{
+				[this] { layout.widgets.quit.callback = exit_button.callback; }};
+		} widgets;
+		[[no_unique_address]] prop::Widget_loader loader{this, widgets};
 	} layout;
 	prop::Window w{{
 		.title = "Prop Demo",

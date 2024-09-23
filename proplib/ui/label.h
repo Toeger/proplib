@@ -1,8 +1,8 @@
 #pragma once
 
-#include "utility/font.h"
-#include "utility/style.h"
-#include "widget.h"
+#include "proplib/ui/widget.h"
+#include "proplib/utility/font.h"
+#include "proplib/utility/style.h"
 
 #include <memory>
 #include <string>
@@ -21,7 +21,7 @@ namespace prop {
 		Label(Parameters &&parameters);
 		Label(Label &&other);
 		Label &operator=(Label &&other);
-		~Label();
+		~Label() override;
 
 		void draw(struct Draw_context context) const override;
 		friend void swap(Label &lhs, Label &rhs);

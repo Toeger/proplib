@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ui/label.h"
-#include "utility/font.privates.h"
+#include "proplib/ui/label.h"
+#include "proplib/utility/font.privates.h"
 
 #include <SFML/Graphics/Text.hpp>
 #include <cmath>

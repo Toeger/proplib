@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ui/button.h"
-#include "utility/font.privates.h"
+#include "proplib/ui/button.h"
+#include "proplib/utility/font.privates.h"
 
 #include <SFML/Graphics/Text.hpp>
 #include <cmath>

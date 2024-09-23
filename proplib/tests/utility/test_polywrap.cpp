@@ -1,5 +1,5 @@
-#include "utility/polywrap.h"
-#include "utility/type_traits.h"
+#include "proplib/utility/polywrap.h"
+#include "proplib/utility/type_traits.h"
 
 #include <catch2/catch_all.hpp>
 #include <functional>
@@ -7,52 +7,55 @@
 static bool base_destroyed = false;
 static bool derived_destroyed = false;
 
-struct Base {
-	virtual const char *f() {
-		return "Base";
-	}
-	~Base() { //not virtual on purpose
-		base_destroyed = true;
-	}
-};
-static_assert(std::is_copy_constructible_v<Base> && std::is_copy_assignable_v<Base>);
-
-struct Copyable_Derived : Base {
-	std::function<void()> message = [] { derived_destroyed = true; };
-	const char *f() override {
-		return "Copyable_Derived";
-	}
-	Copyable_Derived() = default;
-	Copyable_Derived(Copyable_Derived &&) = default;
-	Copyable_Derived(const Copyable_Derived &) = default;
-	Copyable_Derived &operator=(Copyable_Derived &&) = default;
-	Copyable_Derived &operator=(const Copyable_Derived &) = default;
-	~Copyable_Derived() {
-		if (message) {
-			message();
+namespace {
+	struct Base {
+		virtual const char *f() {
+			return "Base";
 		}
-	}
-	Copyable_Derived(int id)
-		: id{id} {};
-	int id = 0;
-};
-static_assert(std::is_copy_constructible_v<Copyable_Derived> && std::is_copy_assignable_v<Copyable_Derived>);
-
-struct Non_copyable_Derived : Base {
-	std::unique_ptr<std::function<void()>> message =
-		std::make_unique<std::function<void()>>([] { derived_destroyed = true; });
-	const char *f() override {
-		return "Non_copyable_Derived";
-	}
-	Non_copyable_Derived() = default;
-	Non_copyable_Derived(Non_copyable_Derived &&) = default;
-	~Non_copyable_Derived() {
-		if (message) {
-			(*message)();
+		~Base() { //not virtual on purpose
+			base_destroyed = true;
 		}
-	}
-};
-static_assert(!std::is_copy_constructible_v<Non_copyable_Derived> && !std::is_copy_assignable_v<Non_copyable_Derived>);
+	};
+	static_assert(std::is_copy_constructible_v<Base> && std::is_copy_assignable_v<Base>);
+
+	struct Copyable_Derived final : Base {
+		std::function<void()> message = [] { derived_destroyed = true; };
+		const char *f() override final {
+			return "Copyable_Derived";
+		}
+		Copyable_Derived() = default;
+		Copyable_Derived(Copyable_Derived &&) = default;
+		Copyable_Derived(const Copyable_Derived &) = default;
+		Copyable_Derived &operator=(Copyable_Derived &&) = default;
+		Copyable_Derived &operator=(const Copyable_Derived &) = default;
+		~Copyable_Derived() {
+			if (message) {
+				message();
+			}
+		}
+		Copyable_Derived(int id_)
+			: id{id_} {}
+		int id = 0;
+	};
+	static_assert(std::is_copy_constructible_v<Copyable_Derived> && std::is_copy_assignable_v<Copyable_Derived>);
+
+	struct Non_copyable_Derived final : Base {
+		std::unique_ptr<std::function<void()>> message =
+			std::make_unique<std::function<void()>>([] { derived_destroyed = true; });
+		const char *f() override final {
+			return "Non_copyable_Derived";
+		}
+		Non_copyable_Derived() = default;
+		Non_copyable_Derived(Non_copyable_Derived &&) = default;
+		~Non_copyable_Derived() {
+			if (message) {
+				(*message)();
+			}
+		}
+	};
+	static_assert(!std::is_copy_constructible_v<Non_copyable_Derived> &&
+				  !std::is_copy_assignable_v<Non_copyable_Derived>);
+} // namespace
 
 TEST_CASE("Concepts") {
 	static_assert(std::is_convertible_v<int, int>);
@@ -216,9 +219,10 @@ TEST_CASE("Polymorphism") {
 
 	WHEN("Trying to copy a non-copyable derived") {
 		prop::Polywrap<Base> p = Non_copyable_Derived{};
-		REQUIRE_THROWS_WITH(
-			[&] { auto copy = p; }(),
-			"Attempted to copy a prop::Polywrap<Base> holding a Non_copyable_Derived which is not copy-constructible");
+		REQUIRE_THROWS_WITH([&] { auto copy = p; }(),
+							"Attempted to copy a " + std::string{prop::type_name<prop::Polywrap<Base>>()} +
+								" holding a " + std::string{prop::type_name<Non_copyable_Derived>()} +
+								" which is not copy-constructible");
 	}
 
 	WHEN("Assigning a derived pointer") {

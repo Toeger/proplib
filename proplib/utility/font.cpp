@@ -2,7 +2,6 @@
 #include "font.privates.h"
 
 #include <SFML/Graphics.hpp>
-#include <stdexcept>
 
 prop::Font::Font()
 	: font_privates{std::make_unique<prop::Font_privates>()} {}

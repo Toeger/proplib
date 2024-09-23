@@ -1,4 +1,4 @@
-#include "ui/label.h"
+#include "proplib/ui/label.h"
 
 #include <catch2/catch_all.hpp>
 

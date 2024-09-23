@@ -1,8 +1,8 @@
 #pragma once
 
-#include "utility/polywrap.h"
-#include "utility/property.h"
-#include "widget.h"
+#include "proplib/ui/widget.h"
+#include "proplib/utility/polywrap.h"
+#include "proplib/utility/property.h"
 
 #include <memory>
 #include <string>

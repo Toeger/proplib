@@ -1,7 +1,7 @@
 #pragma once
 
-#include "utility/polywrap.h"
-#include "widget.h"
+#include "proplib/ui/widget.h"
+#include "proplib/utility/polywrap.h"
 
 #include <boost/pfr/core.hpp>
 #include <memory>
@@ -21,7 +21,7 @@ namespace prop {
 			requires(std::is_convertible_v<decltype(std::forward<Children>(children)), prop::Polywrap<prop::Widget>> &&
 					 ...);
 		Vertical_layout(Vertical_layout &&other);
-		~Vertical_layout();
+		~Vertical_layout() override;
 		Vertical_layout &operator=(Vertical_layout &&other);
 		void draw(struct Draw_context context) const override;
 		friend void swap(Vertical_layout &lhs, Vertical_layout &rhs);
@@ -41,24 +41,24 @@ namespace prop {
 #endif
 
 		prop::Property<std::vector<prop::Polywrap<prop::Widget>>> children;
-#define PROP_VERTICAL_LAYOUT_PROPERTY_MEMBERS PROP_X(children)
 
 		private:
 		template <class... Args, std::size_t... indexes>
 		static void add_children(std::vector<prop::Polywrap<prop::Widget>> &container, std::index_sequence<indexes...>,
 								 Args &&...args);
+
 		std::unique_ptr<struct Vertical_layout_privates> privates;
 	};
 } // namespace prop
 
 //implementation
 template <class... Children>
-prop::Vertical_layout::Vertical_layout(Children &&...children)
-	requires(std::is_convertible_v<decltype(std::forward<Children>(children)), prop::Polywrap<prop::Widget>> && ...)
+prop::Vertical_layout::Vertical_layout(Children &&...children_)
+	requires(std::is_convertible_v<decltype(std::forward<Children>(children_)), prop::Polywrap<prop::Widget>> && ...)
 	: Vertical_layout{} {
 	std::vector<prop::Polywrap<prop::Widget>> children_list;
-	children_list.reserve(sizeof...(children));
-	(children_list.emplace_back(std::forward<Children>(children)), ...);
+	children_list.reserve(sizeof...(children_));
+	(children_list.emplace_back(std::forward<Children>(children_)), ...);
 	this->children = std::move(children_list);
 #ifdef PROPERTY_NAMES
 	set_name("Vertical_layout");
@@ -69,10 +69,10 @@ namespace prop {
 	namespace detail {
 		void add_child(std::vector<prop::Polywrap<prop::Widget>> &container,
 					   prop::detail::Settable<prop::Polywrap<prop::Widget>> auto &&child) {
-			container.emplace_back(child);
+			container.emplace_back(std::forward<decltype(child)>(child));
 		}
-		template <class... Args>
-		void add_child(Args &&...) {}
+		template <class Non_widget_member>
+		void add_child(std::vector<prop::Polywrap<prop::Widget>> &, Non_widget_member &&) {}
 		template <class Aggregate, std::size_t... indexes>
 		void add_children(std::vector<prop::Polywrap<prop::Widget>> &container, std::index_sequence<indexes...>,
 						  Aggregate &&aggregate) {
@@ -90,9 +90,9 @@ namespace prop {
 } // namespace prop
 
 template <class... Children>
-void prop::Vertical_layout::set_children(Children &&...children) {
+void prop::Vertical_layout::set_children(Children &&...children_) {
 	std::vector<prop::Polywrap<prop::Widget>> container;
-	add_children(container, std::index_sequence_for<Children...>(), std::forward<Children>(children)...);
+	add_children(container, std::index_sequence_for<Children...>(), std::forward<Children>(children_)...);
 	this->children = std::move(container);
 }
 

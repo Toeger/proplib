@@ -2,7 +2,7 @@
 
 #include <SFML/Graphics/RenderWindow.hpp>
 
-#include "ui/window.h"
+#include "proplib/ui/window.h"
 
 namespace prop {
 	struct Window_privates {

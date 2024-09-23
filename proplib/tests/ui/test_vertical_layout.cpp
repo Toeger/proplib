@@ -1,8 +1,8 @@
-#include "internals/vertical_layout.privates.h"
-#include "ui/button.h"
-#include "ui/label.h"
-#include "ui/vertical_layout.h"
-#include "ui/window.h"
+#include "proplib/internals/vertical_layout.privates.h"
+#include "proplib/ui/button.h"
+#include "proplib/ui/label.h"
+#include "proplib/ui/vertical_layout.h"
+#include "proplib/ui/window.h"
 
 #include <catch2/catch_all.hpp>
 

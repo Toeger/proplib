@@ -1,7 +1,7 @@
 #include "label.h"
-#include "internals/label.privates.h"
-#include "internals/widget.privates.h"
-#include "utility/font.privates.h"
+#include "proplib/internals/label.privates.h"
+#include "proplib/internals/widget.privates.h"
+#include "proplib/utility/font.privates.h"
 
 #include <SFML/Graphics.hpp>
 #include <boost/pfr/tuple_size.hpp>

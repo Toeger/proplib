@@ -1,4 +1,4 @@
-#include "utility/property.h"
+#include "proplib/utility/property.h"
 
 #include <catch2/catch_all.hpp>
 #include <memory>

@@ -1,10 +1,9 @@
 #pragma once
 
-#include "font.h"
-#include "utility/property.h"
+#include "proplib/utility/font.h"
+#include "proplib/utility/property.h"
 
 #include <chrono>
-#include <string>
 
 namespace prop {
 	class Style {

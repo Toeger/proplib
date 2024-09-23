@@ -14,7 +14,6 @@ Purpose 2:
 
 #include <cassert>
 #include <memory>
-#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
@@ -82,8 +81,8 @@ namespace prop {
 	namespace detail {
 		template <class T>
 		struct T_holder_base {
-			T_holder_base(T *ptr)
-				: ptr{ptr} {}
+			T_holder_base(T *ptr_)
+				: ptr{ptr_} {}
 			virtual T_holder_base<T> *clone();
 			virtual ~T_holder_base() = default;
 			T *ptr = nullptr;
@@ -112,18 +111,18 @@ namespace prop {
 
 		template <class T, class Ptr>
 		struct T_adopter : T_holder_base<T> {
-			void operator()(T *ptr) {
-				assert(ptr == &*this->ptr);
+			void operator()(T *ptr_) {
+				assert(ptr_ == &*this->ptr);
 				if constexpr (std::is_assignable_v<Ptr, std::nullptr_t>) {
 					ptr = nullptr;
 				}
 			}
-			T_adopter(Ptr &&ptr)
-				: T_holder_base<T>{&*ptr}
-				, ptr{std::move(ptr)} {}
-			T_adopter(const Ptr &ptr)
-				: T_holder_base<T>{&*ptr}
-				, ptr{ptr} {}
+			T_adopter(Ptr &&ptr_)
+				: T_holder_base<T>{&*ptr_}
+				, ptr{std::move(ptr_)} {}
+			T_adopter(const Ptr &ptr_)
+				: T_holder_base<T>{&*ptr_}
+				, ptr{ptr_} {}
 			Ptr ptr;
 		};
 

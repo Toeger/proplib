@@ -1,11 +1,9 @@
 #include "button.h"
-#include "internals/button.privates.h"
-#include "internals/widget.privates.h"
+#include "proplib/internals/button.privates.h"
+#include "proplib/internals/widget.privates.h"
 
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <boost/pfr/tuple_size.hpp>
-
-static void assign(prop::Button &button, prop::Button::Parameters &&parameters) {}
 
 prop::Button::Button()
 	: Button{Parameters{}} {}

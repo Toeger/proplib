@@ -1,5 +1,5 @@
-#include "ui/vertical_layout.h"
-#include "utility/property.h"
+#include "proplib/ui/vertical_layout.h"
+#include "proplib/utility/property.h"
 
 #include <algorithm>
 
