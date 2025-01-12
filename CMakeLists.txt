@@ -2,12 +2,17 @@ cmake_minimum_required(VERSION 3.12)
 
 project(PropDemo VERSION 0.1 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-function -Wno-unused-variable -Og -ggdb -fno-omit-frame-pointer -fsanitize=undefined,address")
 set(CMAKE_LINKER_FLAGS_DEBUG  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined,address")
 #add_definitions(-DPROP_EMPTY_CLASS_OPTIMIZATION)
+add_definitions(-DPROPERTY_DEBUG)
+add_definitions(-DPROPERTY_NAMES)
+
+set(PROP_PLATFORM_DYNAMIC OFF)
+set(PROP_PLATFORM "<unset>" CACHE STRING "Platform selection")
 
 #TODO: Make a prop library
 set(PROP_LIBRARY_UI_NAMES
@@ -22,22 +27,38 @@ set(PROP_LIBRARY_UI_NAMES
 set(PROP_LIBRARY_UTILITY_NAMES
 	binding
 	callable
+	canvas
+	color
 	exceptions
 	font
+	orientation
 	polywrap
 	property
 	raii
+	rect
 	signal
 	style
 	type_list
 	type_name
 	type_traits
+	utility
 	widget_helper
 )
 
-list(TRANSFORM PROP_LIBRARY_UI_NAMES PREPEND "proplib/ui/" OUTPUT_VARIABLE PROP_LIBRARY_UI_SOURCES)
+set(PROP_PLATFORM_NAMES
+	platform.h
+	platform_ansi_console.cpp
+)
 
+if (PROP_PLATFORM STREQUAL "SFML")
+	list(APPEND PROP_PLATFORM_NAMES platform_sfml.cpp)
+else()
+	message(FATAL_ERROR "Select a platform by setting the `PROP_PLATFORM` variable, for example with `cmake -DPROP_PLATFORM=<platform>`. Valid platforms are `SFML`. `PROP_PLATFORM` is currently set to `${PROP_PLATFORM}`.")
+endif()
+
+list(TRANSFORM PROP_LIBRARY_UI_NAMES PREPEND "proplib/ui/" OUTPUT_VARIABLE PROP_LIBRARY_UI_SOURCES)
 list(TRANSFORM PROP_LIBRARY_UTILITY_NAMES PREPEND "proplib/utility/" OUTPUT_VARIABLE PROP_LIBRARY_UTILITY_SOURCES)
+list(TRANSFORM PROP_PLATFORM_NAMES PREPEND "proplib/platform/" OUTPUT_VARIABLE PROP_PLATFORM_NAMES)
 
 set(PROP_LIBRARY_SOURCES
 	${PROP_LIBRARY_UI_SOURCES}
@@ -47,13 +68,7 @@ list(TRANSFORM PROP_LIBRARY_SOURCES APPEND ".cpp")
 
 list(TRANSFORM PROP_LIBRARY_SOURCES REPLACE "\.cpp$" ".h" OUTPUT_VARIABLE PROP_LIBRARY_HEADERS)
 
-list(TRANSFORM PROP_LIBRARY_UI_NAMES PREPEND "proplib/internals/" OUTPUT_VARIABLE PROP_LIBRARY_PRIVATE_CANDIDATES)
-list(TRANSFORM PROP_LIBRARY_PRIVATE_CANDIDATES APPEND ".privates.h")
-foreach(PROP_LIBRARY_PRIVATES_FILE IN ITEMS ${PROP_LIBRARY_PRIVATE_CANDIDATES})
-	if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${PROP_LIBRARY_PRIVATES_FILE}")
-		set(PROP_LIBRARY_PRIVATES ${PROP_LIBRARY_PRIVATES} ${PROP_LIBRARY_PRIVATES_FILE})
-	endif()
-endforeach()
+list(APPEND PROP_LIBRARY_SOURCES ${PROP_PLATFORM_NAMES})
 
 #demo
 find_package(SFML COMPONENTS window graphics system)
@@ -64,11 +79,13 @@ add_executable(PropDemo
 	${PROP_LIBRARY_PRIVATES} #this doesn't belong to the demo, but it's easier to develop for now
 )
 target_include_directories(PropDemo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(PropDemo PRIVATE
-	sfml-graphics
-	sfml-system
-	sfml-window
-)
+if (PROP_PLATFORM STREQUAL "SFML")
+	target_link_libraries(PropDemo PRIVATE
+		sfml-graphics
+		sfml-system
+		sfml-window
+	)
+endif()
 
 #tests
 list(APPEND PROP_LIBRARY_UTILITY_TESTS_CANDIDATES ${PROP_LIBRARY_UTILITY_NAMES})

@@ -68,7 +68,7 @@ namespace prop {
 	} // namespace detail
 
 	template <class T>
-	static constexpr bool is_callable_v = decltype(detail::get_is_callable(std::declval<T>()))::value;
+	static constexpr bool is_callable_v = decltype(prop::detail::get_is_callable(std::declval<T>()))::value;
 
 	//struct to hold callable information
 	template <class T, bool has_class>
@@ -79,12 +79,13 @@ namespace prop {
 		Callable_info(T &&) {}
 		Callable_info(const T &) {}
 		Callable_info() = default;
-		using Return_type = detail::Return_type<T>;
-		using Class_type = detail::Class_type<T>;
+		using Return_type = prop::detail::Return_type<T>;
+		using Class_type = prop::detail::Class_type<T>;
 		constexpr static bool has_class_type = true;
-		using Args = detail::Args<T>;
-		using as_function_pointer = decltype(detail::get_member_function_pointer<Return_type, Class_type>(Args{}));
-		using as_non_member_function_pointer = decltype(detail::get_function_pointer<Return_type>(Args{}));
+		using Args = prop::detail::Args<T>;
+		using as_function_pointer =
+			decltype(prop::detail::get_member_function_pointer<Return_type, Class_type>(Args{}));
+		using as_non_member_function_pointer = decltype(prop::detail::get_function_pointer<Return_type>(Args{}));
 	};
 
 	template <class T>
@@ -92,27 +93,27 @@ namespace prop {
 		Callable_info(T &&) {}
 		Callable_info(const T &) {}
 		Callable_info() = default;
-		using Return_type = detail::Return_type<T>;
+		using Return_type = prop::detail::Return_type<T>;
 		constexpr static bool has_class_type = false;
-		using Args = detail::Args<T>;
-		using as_function_pointer = decltype(detail::get_function_pointer<Return_type>(Args{}));
-		using as_non_member_function_pointer = decltype(detail::get_function_pointer<Return_type>(Args{}));
+		using Args = prop::detail::Args<T>;
+		using as_function_pointer = decltype(prop::detail::get_function_pointer<Return_type>(Args{}));
+		using as_non_member_function_pointer = decltype(prop::detail::get_function_pointer<Return_type>(Args{}));
 	};
 
 	template <class T>
-	Callable_info(T &&) -> Callable_info<std::remove_reference_t<T>, detail::has_class_type<T>>;
+	Callable_info(T &&) -> Callable_info<std::remove_reference_t<T>, prop::detail::has_class_type<T>>;
 
 	template <class T>
 	using Callable_info_for = decltype(Callable_info(std::declval<T>()));
 
 	//helper to make a function pointer
 	template <class Return_type, class Typelist>
-	using function_pointer = decltype(detail::get_function_pointer<Return_type>(Typelist{}));
+	using function_pointer = decltype(prop::detail::get_function_pointer<Return_type>(Typelist{}));
 	template <class Return_type, class Class, class Typelist>
-	using member_function_pointer = decltype(detail::get_member_function_pointer<Return_type, Class>(Typelist{}));
+	using member_function_pointer = decltype(prop::detail::get_member_function_pointer<Return_type, Class>(Typelist{}));
 	template <class Return_type, class Class, class Typelist>
 	using const_member_function_pointer =
-		decltype(detail::get_const_member_function_pointer<Return_type, Class>(Typelist{}));
+		decltype(prop::detail::get_const_member_function_pointer<Return_type, Class>(Typelist{}));
 
 	//make overloaded functions
 	template <class... Callables>

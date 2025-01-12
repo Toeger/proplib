@@ -23,7 +23,7 @@ namespace prop {
 
 		template <class Functor, class... Args, std::size_t... Indexes>
 		static void call_with_explicit_dependencies(Functor &f, std::tuple<Args...> *tuple,
-													detail::Binding_list &explicit_dependencies,
+													prop::detail::Binding_list &explicit_dependencies,
 													std::index_sequence<Indexes...>) {
 			assert(std::size(explicit_dependencies) == sizeof...(Indexes));
 			f(static_cast<std::remove_reference_t<decltype(std::get<Indexes>(*tuple))>>(

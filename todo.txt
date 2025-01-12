@@ -12,3 +12,12 @@
 	- Take ownership
 	- Don't take ownership
 	- Decide dynamically dependening on input type
+
+- Failed ideas
+	- Pull instead of push
+	- Dirty flag
+
+- Notable issues
+	- std::vector::operator== not SFINAE-friendly, comparability is semi-decidable
+	- Inheritance to force members
+	- Lack of operator. hurts

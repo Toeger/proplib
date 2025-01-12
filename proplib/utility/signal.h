@@ -36,7 +36,7 @@ namespace prop {
 		void connect(Signal<Other_args...> &signal) {
 			connections.push_back([&signal](const Args &...args) { signal.emit(args...); });
 		}
-		void connect(detail::Signal_binder<Args...> binder) {
+		void connect(prop::detail::Signal_binder<Args...> binder) {
 			connections.push_back(std::move(binder.connection));
 		}
 		std::size_t number_of_connections() const;

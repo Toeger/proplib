@@ -11,14 +11,14 @@ namespace prop {
 		};
 	} // namespace detail
 
-	struct Widget_loader : private detail::Empty {
+	struct Widget_loader : private prop::detail::Empty {
 		template <class Derived_widget, class Children>
 		Widget_loader(Derived_widget *dw, Children &&children) {
 			dw->set_children(std::forward<Children>(children));
 		}
 	};
 
-	struct Executor : private detail::Empty {
+	struct Executor : private prop::detail::Empty {
 		template <class Callable>
 		Executor(Callable &&callable) {
 			std::forward<Callable>(callable)();

@@ -74,5 +74,5 @@ namespace prop {
 		auto adopt_from(T<Args...> &&) -> Type_list<Args...>;
 	}
 	template <class T>
-	using adopt_from = decltype(detail::adopt_from(std::declval<T>()));
+	using adopt_from = decltype(prop::detail::adopt_from(std::declval<T>()));
 } // namespace prop

@@ -5,7 +5,7 @@
 #include <string>
 
 namespace prop {
-	void swap(class Combobox &lhs, class Combobox &rhs);
+	void swap(class Combobox &lhs, class Combobox &rhs) noexcept;
 	class Combobox : public prop::Widget {
 		public:
 		prop::Property<std::vector<prop::Polywrap<prop::Widget>>> elements;

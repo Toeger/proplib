@@ -69,9 +69,9 @@ namespace prop {
 		T *operator->();
 		const T *operator->() const;
 
-		void set(detail::Compatible_polywrap_value<T> auto &&v);
-		void set(detail::Compatible_polywrap_pointer<T> auto &&p);
-		void set(detail::Compatible_polywrap<T> auto &&v);
+		void set(prop::detail::Compatible_polywrap_value<T> auto &&v);
+		void set(prop::detail::Compatible_polywrap_pointer<T> auto &&p);
+		void set(prop::detail::Compatible_polywrap<T> auto &&v);
 		void set(std::nullptr_t);
 
 		private:
@@ -247,7 +247,7 @@ namespace prop {
 	}
 
 	template <class T>
-	void Polywrap<T>::set(detail::Compatible_polywrap_value<T> auto &&v) {
+	void Polywrap<T>::set(prop::detail::Compatible_polywrap_value<T> auto &&v) {
 		using U = std::remove_cvref_t<decltype(v)>;
 		if (value_ptr.use_count() == 1) { //attempt to avoid reallocation
 			if constexpr (std::is_polymorphic_v<T>) {
@@ -272,7 +272,7 @@ namespace prop {
 	}
 
 	template <class T>
-	void Polywrap<T>::set(detail::Compatible_polywrap_pointer<T> auto &&p) {
+	void Polywrap<T>::set(prop::detail::Compatible_polywrap_pointer<T> auto &&p) {
 		using U = std::remove_cvref_t<decltype(p)>;
 		if constexpr (prop::is_template_specialization_v<U, std::shared_ptr>) { //adopt shared_ptr
 			value_ptr = std::forward<decltype(p)>(p);
@@ -283,7 +283,7 @@ namespace prop {
 	}
 
 	template <class T>
-	void Polywrap<T>::set(detail::Compatible_polywrap<T> auto &&v) {
+	void Polywrap<T>::set(prop::detail::Compatible_polywrap<T> auto &&v) {
 		if constexpr (std::is_rvalue_reference_v<decltype(v)>) {
 			std::swap(value_ptr, v.value_ptr);
 			return;

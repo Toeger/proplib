@@ -1,31 +1,63 @@
 #include "vertical_layout.h"
-#include "proplib/internals/vertical_layout.privates.h"
-#include "proplib/internals/widget.privates.h"
+#include "proplib/utility/canvas.h"
 
 #include <cassert>
 #ifdef PROPERTY_NAMES
 #include <string_view>
 #endif
 
-#define PROP_VERTICAL_LAYOUT_PROPERTY_MEMBERS PROP_X(children)
+#define PROP_VERTICAL_LAYOUT_PROPERTY_MEMBERS PROP_X(children) PROP_X(orientation) PROP_X(child_positioners)
 
 prop::Vertical_layout::Vertical_layout()
-	: privates{std::make_unique<Vertical_layout_privates>(this)} {}
+	: child_positioners{[this](std::vector<Child_positioner> &positioners) {
+		auto changed = prop::Value::unchanged;
+		positioners.resize(children->size());
+		for (std::size_t i = 0; i < positioners.size(); i++) {
+			auto child = children[i].get();
+			auto &positioner = positioners[i];
+			if (positioner.widget != child or positioner.index != i) {
+				changed = prop::Value::changed;
+				positioner.widget = child;
+				positioner.index = i;
+				positioner.position.sever();
+				positioner.position = [this, i] {
+					const auto preferred_size =
+						children->size() < i ? children[i]->get_preferred_size().get() : prop::Size{};
+					auto &&prev_pos = i ? child_positioners[i - 1].position.get() :
+										  Rect{
+											  .top = rect->top,
+											  .left = rect->left,
+											  .bottom = rect->top,
+											  .right = rect->right,
+										  };
+					return Rect{
+						.top = prev_pos.bottom,
+						.left = rect->left,
+						.bottom = prev_pos.bottom + preferred_size.height,
+						.right = rect->right,
+					};
+				};
+			}
+		}
+		return changed;
+	}} {
+	assert(child_positioners.is_dependent_on(children));
+}
 
-prop::Vertical_layout::Vertical_layout(Vertical_layout &&other) {
+prop::Vertical_layout::Vertical_layout(Vertical_layout &&other) noexcept {
 	swap(*this, other);
 }
 
 prop::Vertical_layout::~Vertical_layout() {}
 
-prop::Vertical_layout &prop::Vertical_layout::operator=(Vertical_layout &&other) {
+prop::Vertical_layout &prop::Vertical_layout::operator=(Vertical_layout &&other) noexcept {
 	swap(*this, other);
 	return *this;
 }
 
-void prop::Vertical_layout::draw(Draw_context context) const {
+void prop::Vertical_layout::draw(Canvas context) const {
 	for (const auto &child : children.get()) {
-		child->draw(context);
+		child->draw(context.sub_canvas_for(*child.get()));
 	}
 }
 
@@ -39,15 +71,13 @@ void prop::Vertical_layout::set_name(std::string_view name) {
 						}
 					},
 					children};
-#define PROP_X(MEMBER) MEMBER.name = std::string{name.data(), name.size()} + "." + #MEMBER;
+#define PROP_X(MEMBER) MEMBER.custom_name = std::string{name.data(), name.size()} + "." + #MEMBER;
 	PROP_VERTICAL_LAYOUT_PROPERTY_MEMBERS
-	PROP_X(privates->layout_updater)
 #undef PROP_X
 	prop::Widget::set_name(std::move(name));
 }
 
-prop::Vertical_layout::Vertical_layout(std::string_view name)
-	: privates{std::make_unique<Vertical_layout_privates>(this)} {
+prop::Vertical_layout::Vertical_layout(std::string_view name) {
 	set_name(name);
 }
 #endif
@@ -56,7 +86,6 @@ void prop::swap(Vertical_layout &lhs, Vertical_layout &rhs) {
 	using std::swap;
 #define PROP_X(MEMBER) swap(lhs.MEMBER, rhs.MEMBER);
 	PROP_VERTICAL_LAYOUT_PROPERTY_MEMBERS
-	PROP_X(privates)
 #undef PROP_X
 	swap(static_cast<prop::Widget &>(lhs), static_cast<prop::Widget &>(rhs));
 }

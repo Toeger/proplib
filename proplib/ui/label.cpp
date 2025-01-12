@@ -1,53 +1,55 @@
 #include "label.h"
-#include "proplib/internals/label.privates.h"
-#include "proplib/internals/widget.privates.h"
-#include "proplib/utility/font.privates.h"
+#include "proplib/platform/platform.h"
+#include "proplib/utility/canvas.h"
+#include "proplib/utility/utility.h"
 
-#include <SFML/Graphics.hpp>
 #include <boost/pfr/tuple_size.hpp>
+#include <cassert>
+
+#define PROP_LABEL_MEMBERS PROP_X(text), PROP_X(font)
 
 prop::Label::Label()
 	: Label{Parameters{}} {}
 
-prop::Label::Label(Parameters &&parameters)
+prop::Label::Label(Parameters parameters)
 	: prop::Widget{std::move(parameters.widget)}
-	, text{std::move(parameters.text)}
-	, font{std::move(parameters.font)}
-	, font_size{std::move(parameters.font_size)} {
-	static_assert(boost::pfr::tuple_size_v<prop::Label::Parameters> == 4, "Add missing parameters");
-	privates = std::make_unique<Label_privates>(this);
+#define PROP_X(X)                                                                                                      \
+	X {                                                                                                                \
+		std::move(parameters.X)                                                                                        \
+	}
+	, PROP_LABEL_MEMBERS
+#undef PROP_X
+{
+	static_assert(boost::pfr::tuple_size_v<prop::Label::Parameters> == 3, "Add missing parameters");
+	assert(not prop::Style::default_style.font->name.empty());
+	assert(not font->name.empty());
+	preferred_size = {
+		[](const Label &label) {
+			assert(not label.font->name.empty());
+			return prop::platform::canvas::text_size(*label.text, label.font);
+		},
+		self,
+	};
 }
 
-prop::Label::Label(Label &&other) {
+prop::Label::Label(Label &&other) noexcept {
 	swap(*this, other);
 }
 
-prop::Label &prop::Label::operator=(Label &&other) {
+prop::Label &prop::Label::operator=(Label &&other) noexcept {
 	swap(*this, other);
-	privates->label = this;
 	return *this;
 }
 
 prop::Label::~Label() = default;
 
-void prop::Label::draw(Draw_context context) const {
-	sf::Text sftext;
-	sftext.setOrigin(context.offset);
-	sftext.setPosition(x, y);
-	sftext.setFont(font.get().font_privates->font);
-	sftext.setString(text.get());
-	sftext.setCharacterSize(font_size);
-	sftext.setFillColor(sf::Color::Black);
-	context.window.draw(sftext);
+void prop::Label::draw(Canvas canvas) const {
+	canvas.draw_text(text.get(), font);
 }
 
-void prop::swap(Label &lhs, Label &rhs) {
-	using std::swap;
-#define PROP_X(MEMBER) swap(lhs.MEMBER, rhs.MEMBER);
-	PROP_X(text)
-	PROP_X(font)
-	PROP_X(font_size)
-	PROP_X(privates)
-#undef PROP_X
+void prop::swap(Label &lhs, Label &rhs) noexcept {
 	swap(static_cast<prop::Widget &>(lhs), static_cast<prop::Widget &>(rhs));
+#define PROP_X(X) prop::utility::swap(lhs.X, rhs.X)
+	(PROP_LABEL_MEMBERS);
+#undef PROP_X
 }

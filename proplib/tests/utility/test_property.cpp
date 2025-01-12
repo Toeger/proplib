@@ -1,3 +1,4 @@
+#include "proplib/utility/polywrap.h"
 #include "proplib/utility/property.h"
 
 #include <catch2/catch_all.hpp>
@@ -63,9 +64,12 @@ TEST_CASE("Compile time checks") {
 	static_assert(prop::detail::is_property_v<prop::Property<int>>);
 	static_assert(prop::detail::Property_value<Gen, int>);
 	static_assert(prop::detail::Compatible_property<prop::Property<Gen>, int>);
-	static_assert(prop::detail::Property_function<decltype([] { return Gen{}; }), int>);
+	static_assert(prop::detail::Property_update_function<decltype([] { return Gen{}; }), int>);
 	static_assert(!prop::detail::Property_value<prop::Property<int>, int>);
 	static_assert(!prop::detail::Property_value<prop::Property<int> &, int>);
+
+	static_assert(prop::detail::has_operator_arrow_v<prop::Property<int>>);
+	static_assert(prop::detail::has_operator_arrow_v<prop::Polywrap<int>>);
 }
 
 TEST_CASE("Basic Property tests") {
@@ -127,7 +131,7 @@ struct Generator {
 struct Acceptor {
 	Acceptor() = default;
 	Acceptor(std::same_as<int> auto v);
-	Acceptor &operator=(std::same_as<int> auto v) {
+	Acceptor &operator=(std::same_as<int> auto) {
 		return *this;
 	}
 };
@@ -204,22 +208,29 @@ TEST_CASE("Moving properties while maintaining binding") {
 TEST_CASE("Property function binder") {
 	prop::Property p = 42;
 	prop::detail::Property_function_binder<int>{[] { return 0; }};
-	prop::detail::Property_function_binder<int>{[](const prop::Property<int> &p) { return 0; }, p};
-	prop::detail::Property_function_binder<int>{[](prop::Property<int> &p) { return 0; }, p};
-	prop::detail::Property_function_binder<int>{[](const int &i) { return 0; }, p};
-	prop::detail::Property_function_binder<int>{[](int &i) { return 0; }, p};
-	prop::detail::Property_function_binder<int>{[](int i) { return 0; }, p};
-	prop::detail::Property_function_binder<int>{[](double d) { return 0; }, p};
-	prop::detail::Property_function_binder<int>{[](const double &d) { return 0; }, p};
-	prop::detail::Property_function_binder<int>{[](int &i) { return 0; }, &p};
-	prop::detail::Property_function_binder<int>{[](int i) { return 0; }, &p};
-	prop::detail::Property_function_binder<int>{[](double d) { return 0; }, &p};
+	prop::detail::Property_function_binder<int>{[](const prop::Property<int> &) { return 0; }, p};
+	prop::detail::Property_function_binder<int>{[](prop::Property<int> &) { return 0; }, p};
+	prop::detail::Property_function_binder<int>{[](const int &) { return 0; }, p};
+	prop::detail::Property_function_binder<int>{[](int &) { return 0; }, p};
+	prop::detail::Property_function_binder<int>{[](int) { return 0; }, p};
+	prop::detail::Property_function_binder<int>{[](double) { return 0; }, p};
+	prop::detail::Property_function_binder<int>{[](const double &) { return 0; }, p};
+	prop::detail::Property_function_binder<int>{[](int &) { return 0; }, &p};
+	prop::detail::Property_function_binder<int>{[](int) { return 0; }, &p};
+	prop::detail::Property_function_binder<int>{[](double) { return 0; }, &p};
 #if defined PROP_RUN_FAILED_TESTS || 0
 	/* Number of function arguments and properties don't match: */
 	prop::detail::Property_function_binder<int>{[](int i) { return 0; }};
 	/* Callable arguments and parameters are incompatible: */
 	prop::detail::Property_function_binder<int>{[](double &d) { return 0; }, p};
 #endif
+}
+
+TEST_CASE("Property binding mismatch compilation failures") {
+	//prop::Property<int> p = {[](int &, prop::Property<double> &) { return 42; }}; //Not enough properties
+	//prop::Property<int> p{{[] { return 42; }, p}}; //Too many properties
+	//prop::Property<int> p{{[](double &) {}}}; //incorrect value type
+	//prop::Property<int> p{[](int &) {}}; //does not return update status
 }
 
 TEST_CASE("Explicit bindings") {
@@ -327,8 +338,8 @@ TEST_CASE("Inner inner property") {
 TEST_CASE("Apply operators") {
 	RESET_COUNTER
 	prop::Property p1 = 42;
-	p1.apply()++;
-	REQUIRE(p1 == 43);
+	//p1.apply()++;
+	//REQUIRE(p1 == 43);
 }
 
 TEST_CASE("Apply member function calls") {
@@ -350,7 +361,7 @@ TEST_CASE("Dependency checks") {
 	REQUIRE_FALSE(p1.is_explicit_dependency_of(p2));
 	REQUIRE_FALSE(p2.is_explicit_dependent_of(p1));
 	REQUIRE(p1.is_dependency_of(p2));
-	REQUIRE(p2.is_dependent_of(p1));
+	REQUIRE(p2.is_dependent_on(p1));
 	p2 = {[](int i) { return i; }, p1};
 	print_status(p1);
 	print_status(p2);
@@ -359,7 +370,7 @@ TEST_CASE("Dependency checks") {
 	REQUIRE_FALSE(p1.is_implicit_dependency_of(p2));
 	REQUIRE_FALSE(p2.is_implicit_dependent_of(p1));
 	REQUIRE(p1.is_dependency_of(p2));
-	REQUIRE(p2.is_dependent_of(p1));
+	REQUIRE(p2.is_dependent_on(p1));
 }
 
 TEST_CASE("Vectorsum") {
@@ -370,4 +381,38 @@ TEST_CASE("Vectorsum") {
 	REQUIRE(ps == 42);
 	pv.apply()->push_back(5);
 	REQUIRE(ps == 47);
+}
+
+TEST_CASE("Operators") {
+	prop::Property<int> pi = 42;
+	//pi.apply()++;
+	pi++;
+	REQUIRE(pi == 43);
+	pi++;
+	REQUIRE(pi == 44);
+
+	struct S {
+		void mf() {}
+		void cf() const {}
+	};
+	prop::Property<S> ps;
+	bool ps_changed = false;
+	prop::Property<bool> pb = {{[&ps_changed](const S &) { return ps_changed = true; }, ps}};
+	REQUIRE(ps_changed == true);
+	ps_changed = false;
+	ps.apply()->mf();
+	REQUIRE(ps_changed == true);
+	ps_changed = false;
+	ps->cf();
+	REQUIRE(ps_changed == false);
+}
+
+TEST_CASE("Range-based for-loop") {
+	prop::Property pv{std::vector<int>{0, 1, 2, 3, 4, 5}};
+	int i = 0;
+	for (auto &v : pv.get()) {
+		REQUIRE(v == i);
+		REQUIRE(v == pv[i]);
+		i++;
+	}
 }

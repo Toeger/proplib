@@ -4,33 +4,27 @@
 #include "proplib/utility/font.h"
 #include "proplib/utility/style.h"
 
-#include <memory>
 #include <string>
 
 namespace prop {
-	void swap(class Label &lhs, class Label &rhs);
+	void swap(class Label &lhs, class Label &rhs) noexcept;
 	class Label : public prop::Widget {
 		public:
 		struct Parameters {
 			prop::Property<std::string> text = "";
-			prop::Property<prop::Font> font = [] { return prop::default_style.font; };
-			prop::Property<int> font_size = [] { return prop::default_style.font_size; };
+			prop::Property<prop::Font> font = [] { return prop::Style::default_style.font; };
 			prop::Widget::Parameters widget = {};
 		};
 		Label();
-		Label(Parameters &&parameters);
-		Label(Label &&other);
-		Label &operator=(Label &&other);
+		Label(Parameters parameters);
+		Label(Label &&other) noexcept;
+		Label &operator=(Label &&other) noexcept;
 		~Label() override;
 
-		void draw(struct Draw_context context) const override;
-		friend void swap(Label &lhs, Label &rhs);
+		void draw(prop::Canvas canvas) const override;
+		friend void swap(Label &lhs, Label &rhs) noexcept;
 
 		prop::Property<std::string> text;
 		prop::Property<prop::Font> font;
-		prop::Property<int> font_size;
-
-		private:
-		std::unique_ptr<struct Label_privates> privates;
 	};
 } // namespace prop

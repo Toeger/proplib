@@ -30,7 +30,7 @@ void prop::Binding::unbind() {
 }
 
 void prop::Binding::update() {
-	detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
+	prop::detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
 	callback();
 }
 

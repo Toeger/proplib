@@ -17,4 +17,9 @@ namespace prop {
 	struct Property_expired : std::runtime_error {
 		using std::runtime_error::runtime_error;
 	};
+
+	//thrown when a given font could not be loaded
+	struct Io_error : std::runtime_error {
+		using std::runtime_error::runtime_error;
+	};
 } // namespace prop

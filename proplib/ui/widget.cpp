@@ -1,5 +1,6 @@
 #include "widget.h"
-#include "proplib/internals/widget.privates.h"
+#include "proplib/utility/canvas.h"
+#include "proplib/utility/utility.h"
 
 #include <boost/pfr/tuple_size.hpp>
 #ifdef PROPERTY_NAMES
@@ -7,7 +8,7 @@
 #endif
 
 #define PROP_WIDGET_PROPERTY_MEMBERS                                                                                   \
-	PROP_X(x) PROP_X(y) PROP_X(width) PROP_X(height) PROP_X(preferred_width) PROP_X(preferred_height) PROP_X(visible)
+	PROP_X(rect), PROP_X(visible), PROP_X(min_size), PROP_X(max_size), PROP_X(preferred_size)
 
 prop::Widget::Widget()
 	: Widget{Parameters{}} {
@@ -17,47 +18,46 @@ prop::Widget::Widget()
 }
 
 prop::Widget::Widget(Parameters &&parameter)
-	: x{std::move(parameter.x)}
-	, y{std::move(parameter.y)}
-	, width{std::move(parameter.width)}
-	, height{std::move(parameter.height)}
-	, preferred_width{std::move(parameter.preferred_width)}
-	, preferred_height{std::move(parameter.preferred_height)}
-	, visible{std::move(parameter.visible)}
-	, privates{std::make_unique<Widget_privates>()} {
-	static_assert(boost::pfr::tuple_size_v<prop::Widget::Parameters> == 7, "Add missing parameters");
+#define PROP_X(X)                                                                                                      \
+	X {                                                                                                                \
+		std::move(parameter.X)                                                                                         \
+	}
+	: self{this}
+	, PROP_WIDGET_PROPERTY_MEMBERS
+#undef PROP_X
+{
+	static_assert(boost::pfr::tuple_size_v<prop::Widget::Parameters> == 5, "Add missing parameters");
 }
 
-prop::Widget::Widget(Widget &&other) {
+prop::Widget::Widget(Widget &&other) noexcept
+	: self{this} {
 	swap(*this, other);
 }
 
-prop::Widget &prop::Widget::operator=(Widget &&other) {
+prop::Widget &prop::Widget::operator=(Widget &&other) noexcept {
 	swap(*this, other);
 	return *this;
 }
 
 prop::Widget::~Widget() = default;
 
-void prop::Widget::draw(Draw_context) const {}
+void prop::Widget::draw(prop::Canvas) const {}
 
 #ifdef PROPERTY_NAMES
-void prop::Widget::set_name(std::string_view name){
-#define PROP_X(MEMBER) MEMBER.name = std::string{name.data(), name.size()} + "." #MEMBER;
-	PROP_WIDGET_PROPERTY_MEMBERS
+void prop::Widget::set_name(std::string_view name) {
+#define PROP_X(MEMBER) MEMBER.custom_name = std::string{name.data(), name.size()} + "." #MEMBER
+	(PROP_WIDGET_PROPERTY_MEMBERS);
 #undef PROP_X
 }
 
 prop::Widget::Widget(std::string_view name)
-	: privates{std::make_unique<Widget_privates>()} {
+	: self{this} {
 	set_name(name);
 }
 #endif
 
 void prop::swap(Widget &lhs, Widget &rhs) {
-	using std::swap;
-#define PROP_X(MEMBER) swap(lhs.MEMBER, rhs.MEMBER);
-	PROP_WIDGET_PROPERTY_MEMBERS
-	PROP_X(privates)
+#define PROP_X(MEMBER) prop::utility::swap(lhs.MEMBER, rhs.MEMBER)
+	(PROP_WIDGET_PROPERTY_MEMBERS);
 #undef PROP_X
 }

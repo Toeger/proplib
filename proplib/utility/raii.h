@@ -10,9 +10,9 @@ namespace prop::detail {
 			init_function();
 		}
 		RAII(Exit_function p_exit_function)
-			: RAII(do_nothing, std::move(p_exit_function)) {}
+			: RAII([] {}, std::move(p_exit_function)) {}
 		~RAII() {
-			if (!canceled) {
+			if (not canceled) {
 				exit_function();
 			}
 		}
@@ -20,12 +20,13 @@ namespace prop::detail {
 			canceled = true;
 		}
 		void early_exit() {
-			exit_function();
-			cancel();
+			if (not canceled) {
+				exit_function();
+				cancel();
+			}
 		}
 
 		private:
-		static void do_nothing() {}
 		Exit_function exit_function;
 		bool canceled = false;
 	};

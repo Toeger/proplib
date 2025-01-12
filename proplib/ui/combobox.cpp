@@ -1,6 +1,6 @@
 #include "combobox.h"
 
-void prop::swap(Combobox &lhs, Combobox &rhs) {
+void prop::swap(Combobox &lhs, Combobox &rhs) noexcept {
 	using std::swap;
 #define PROP_X(MEMBER) swap(lhs.MEMBER, rhs.MEMBER);
 	PROP_X(elements)

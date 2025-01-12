@@ -1,21 +1,45 @@
 #pragma once
 
-#include <filesystem>
-#include <memory>
+#include "proplib/utility/color.h"
+#include "proplib/utility/orientation.h"
+
+#include <optional>
+#include <string>
 
 namespace prop {
 	class Font {
+		struct Attributes {
+			std::optional<prop::Color> color;
+			std::optional<std::string> name;
+			std::optional<prop::Orientation> orientation;
+			std::optional<float> pixel_size; //point size?
+			//std::optional<> clipping_mode;
+			std::optional<bool> bold;
+			std::optional<bool> italic;
+			std::optional<bool> strikeout;
+			std::optional<bool> subscript;
+			std::optional<bool> superscript;
+			std::optional<bool> underline;
+		};
+
 		public:
 		Font();
-		Font(const Font &other);
-		Font(Font &&other);
-		Font &operator=(const Font &other);
-		Font &operator=(Font &&other);
-		~Font();
-		bool load(std::filesystem::path path);
-		struct Font_privates &privates();
-		const struct Font_privates &privates() const;
+		Font(const Font &) = default;
+		Font(Font &&) = default;
+		Font &operator=(const Font &) = default;
+		Font &operator=(Font &&) = default;
+		Font(Attributes attributes_);
+		void set(Attributes attributes_);
+		Font with(Attributes attributes_);
 
-		std::unique_ptr<struct Font_privates> font_privates;
+		prop::Color color;
+		std::string name;
+		prop::Orientation orientation;
+		float pixel_size; //point size?
+		//clipping_mode;
+		bool bold = false;
+		bool italic = false;
+		bool strikeout = false;
+		bool underline = false;
 	};
 } // namespace prop

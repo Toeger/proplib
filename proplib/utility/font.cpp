@@ -1,37 +1,43 @@
 #include "font.h"
-#include "font.privates.h"
+#include "proplib/utility/style.h"
 
-#include <SFML/Graphics.hpp>
+#define PROP_MEMBERS                                                                                                   \
+	PROP_X(color), PROP_X(name), PROP_X(orientation), PROP_X(pixel_size), PROP_X(bold), PROP_X(italic),                \
+		PROP_X(strikeout), PROP_X(underline)
 
 prop::Font::Font()
-	: font_privates{std::make_unique<prop::Font_privates>()} {}
-
-prop::Font::Font(const Font &other)
-	: font_privates{std::make_unique<prop::Font_privates>(*other.font_privates)} {}
-
-prop::Font::Font(Font &&other)
-	: font_privates{std::move(other.font_privates)} {}
-
-prop::Font &prop::Font::operator=(const prop::Font &other) {
-	*font_privates = *other.font_privates;
-	return *this;
+#define PROP_X(X)                                                                                                      \
+	X {                                                                                                                \
+		prop::Style::default_style.font->X                                                                             \
+	}
+	: PROP_MEMBERS
+#undef PROP_X
+{
 }
 
-prop::Font &prop::Font::operator=(prop::Font &&other) {
-	std::swap(font_privates, other.font_privates);
-	return *this;
+prop::Font::Font(Attributes attributes_)
+#define PROP_X(X)                                                                                                      \
+	X {                                                                                                                \
+		attributes_.X ? std::move(attributes_.X.value()) : prop::Style::default_style.font->X                          \
+	}
+	: PROP_MEMBERS
+#undef PROP_X
+{
 }
 
-prop::Font::~Font() {}
-
-bool prop::Font::load(std::filesystem::path path) {
-	return privates().font.loadFromFile(path.string());
+void prop::Font::set(Attributes attributes_) {
+#define PROP_X(X)                                                                                                      \
+	[&] {                                                                                                              \
+		if (attributes_.X) {                                                                                           \
+			X = std::move(attributes_.X.value());                                                                      \
+		}                                                                                                              \
+	}()
+	(PROP_MEMBERS);
+#undef PROP_X
 }
 
-prop::Font_privates &prop::Font::privates() {
-	return *font_privates;
-}
-
-const prop::Font_privates &prop::Font::privates() const {
-	return *font_privates;
+prop::Font prop::Font::with(Attributes attributes_) {
+	Font font{*this};
+	font.set(std::move(attributes_));
+	return font;
 }

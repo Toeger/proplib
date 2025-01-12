@@ -1,23 +1,130 @@
 #include "property.h"
 
 #include <cassert>
-#include <cstdint>
-#include <stdexcept>
 
 #ifdef PROPERTY_DEBUG
+#include <algorithm>
+#include <concepts>
 #include <iostream>
-#define TRACE(...) std::clog << __FILE__ << ':' << __LINE__ << ' ' << __PRETTY_FUNCTION__ << "\n" << __VA_ARGS__ << '\n'
+#include <source_location>
+
+#ifdef PROPERTY_NAMES
+#include <sstream>
+
+std::string prop::detail::to_string(const void *p) {
+	std::stringstream stream;
+	stream << p;
+	return stream.str();
+}
+#endif
+
+constexpr std::string_view path(std::string_view filepath) {
+#ifdef WIN32
+	const auto separator = '\\';
+#else
+	const auto separator = '/';
+#endif
+	auto pos = filepath.rfind(separator);
+	if (pos != filepath.npos) {
+		filepath.remove_suffix(filepath.length() - pos - 1);
+	}
+	return filepath;
+}
+
+constexpr std::string_view file(std::string_view filepath) {
+#ifdef WIN32
+	const auto separator = '\\';
+#else
+	const auto separator = '/';
+#endif
+	auto pos = filepath.rfind(separator);
+	if (pos != filepath.npos) {
+		filepath.remove_prefix(pos + 1);
+	}
+	return filepath;
+}
+
+enum class Function_part { before_name, name, after_name };
+
+constexpr std::string_view function_part(std::string_view function, Function_part fp) {
+	auto name_end_pos = function.find('(');
+	if (name_end_pos == function.npos) {
+		name_end_pos = function.size() - 1;
+	}
+	if (fp == Function_part::after_name) {
+		function.remove_prefix(name_end_pos);
+		return function;
+	}
+
+	auto name_start_pos = std::find_if(std::rbegin(function) + static_cast<long int>(function.size()) -
+										   static_cast<long int>(name_end_pos),
+									   std::rend(function), [](char c) { return c == ':' or c == ' '; }) -
+						  std::rbegin(function);
+	name_start_pos = static_cast<long int>(function.size()) - name_start_pos;
+	if (fp == Function_part::before_name) {
+		function.remove_suffix(function.size() - static_cast<std::size_t>(name_start_pos));
+		return function;
+	}
+	function.remove_suffix(function.size() - name_end_pos);
+	function.remove_prefix(static_cast<std::size_t>(name_start_pos));
+	return function;
+}
+
+struct Tracer {
+	Tracer(std::ostream &output_stream = std::clog, std::source_location sl = std::source_location::current())
+		: os{output_stream} {
+		//std::move(*this) << prop::Color::path << path(sl.file_name());
+		std::move(*this) << prop::Color::file << file(sl.file_name()) << ':' << prop::Color::file << sl.line();
+		std::move(*this) << ' ';
+		//std::move(*this) << prop::Color::function_type << function_part(sl.function_name(), Function_part::before_name);
+		std::move(*this) << prop::Color::function_name << function_part(sl.function_name(), Function_part::name);
+		//std::move(*this) << prop::Color::function_type << function_part(sl.function_name(), Function_part::after_name);
+		std::move(*this) << ": ";
+	}
+	Tracer &&operator<<(prop::Color color) && {
+		os << prop::Console_text_color{color};
+		return std::move(*this);
+	}
+	Tracer &&operator<<(const char *s) && {
+		os << prop::Console_text_color{prop::Color::static_text} << s;
+		return std::move(*this);
+	}
+	Tracer &&operator<<(char c) && {
+		os << prop::Console_text_color{prop::Color::static_text} << c;
+		return std::move(*this);
+	}
+	Tracer &&operator<<(std::string_view s) && {
+		os << s;
+		return std::move(*this);
+	}
+	Tracer &&operator<<(std::convertible_to<int> auto i) && {
+		os << i;
+		return std::move(*this);
+	}
+	Tracer &&operator<<(const void *p) && {
+		os << prop::Console_text_color{prop::Color::pointer} << p;
+		return std::move(*this);
+	}
+	~Tracer() {
+		os << prop::console_reset_text_color << '\n';
+	}
+	std::ostream &os;
+};
+
+#define TRACE(...) Tracer{} << __VA_ARGS__
+
 int property_base_counter;
 static std::string propnames(const prop::detail::Binding_set &set) {
-	std::string result{'['};
+	std::stringstream ss;
+	ss << prop::Console_text_color{prop::Color::static_text} << '[';
 	const char *separator = "";
 	for (const auto &binding : set) {
-		result += separator;
+		ss << prop::Console_text_color{prop::Color::static_text} << separator;
 		separator = ", ";
-		result += binding->name;
+		ss << binding->get_name();
 	}
-	result.push_back(']');
-	return result;
+	ss << prop::Console_text_color{prop::Color::static_text} << ']';
+	return ss.str();
 }
 #else
 #define TRACE(...)
@@ -25,6 +132,8 @@ static std::string propnames(const prop::detail::Binding_set &set) {
 
 void (*prop::on_property_severed)(prop::detail::Property_base *severed, prop::detail::Property_base *reason) =
 	[](prop::detail::Property_base *, prop::detail::Property_base *) {};
+
+void (*prop::on_property_update_exception)(std::exception_ptr exception) = [](std::exception_ptr) {};
 
 void prop::detail::Property_base::update() {
 	if (need_update) {
@@ -57,7 +166,7 @@ void prop::detail::Property_base::unbind_depends() {
 
 void prop::detail::Property_base::read_notify() {
 	if (current_binding && dependents.add(current_binding)) {
-		TRACE("Added " << name << " as an implicit dependency of " << current_binding->name);
+		TRACE("Added " << get_name() << " as an implicit dependency of " << current_binding->get_name());
 		current_binding->implicit_dependencies.add(this);
 	}
 }
@@ -67,7 +176,7 @@ void prop::detail::Property_base::read_notify() const {
 }
 
 void prop::detail::Property_base::write_notify() {
-	TRACE(name << "->" << propnames(dependents));
+	TRACE(get_name() << "->" << propnames(dependents));
 	for (const auto &dependent : dependents) {
 		dependent->need_update = true;
 	}
@@ -79,14 +188,14 @@ void prop::detail::Property_base::write_notify() {
 }
 
 void prop::detail::Property_base::update_start() {
-	TRACE(name);
+	TRACE(get_name());
 	previous_binding = current_binding;
 	clear_implicit_dependencies();
 	current_binding = this;
 }
 
 void prop::detail::Property_base::update_complete() {
-	TRACE(name);
+	TRACE(get_name());
 	current_binding = previous_binding;
 }
 
@@ -124,28 +233,31 @@ bool prop::detail::Property_base::is_explicit_dependent_of(const Property_base &
 	return explicit_dependencies.has(&other);
 }
 
-bool prop::detail::Property_base::is_dependent_of(const Property_base &other) const {
+bool prop::detail::Property_base::is_dependent_on(const Property_base &other) const {
 	return other.dependents.has(this);
 }
 
-prop::detail::Property_base::Property_base() {
+prop::detail::Property_base::Property_base
 #ifdef PROPERTY_NAMES
-	TRACE("Created " << name << (creation_binding ? " with creation binding " + creation_binding->name : ""));
+	(std::string property_name)
+	: auto_name{std::move(property_name)}
+
+{
+	TRACE("Created " << get_name() << prop::Color::static_text
+					 << (creation_binding ? " with creation binding " + creation_binding->get_name() : ""));
 #else
-	TRACE("Created " << this
-					 << (creation_binding ? " with creation binding " +
-												std::to_string(reinterpret_cast<std::uintptr_t>(creation_binding)) :
-											""));
+	() {
+	TRACE("Created " << get_name() << prop::Color::static_text
+					 << (creation_binding ? " with creation binding " + prop::to_string(creation_binding) : ""));
 #endif
 }
 
 prop::detail::Property_base::Property_base(Property_base &&other) {
-	TRACE(other.name << " split into "
-					 << "<" + other.name << " (moved from) and "
-					 << ">" + other.name << " (moved to)");
+	TRACE(other.get_name() << " split into " << "<" << other.get_name() << " (moved from) and " << ">"
+						   << other.get_name() << " (moved to)");
 #ifdef PROPERTY_DEBUG
-	name = ">" + other.name;
-	other.name = "<" + other.name;
+	custom_name = ">" + other.custom_name;
+	other.custom_name = "<" + other.custom_name;
 #endif
 	using std::swap;
 	swap(explicit_dependencies, other.explicit_dependencies);
@@ -159,27 +271,27 @@ prop::detail::Property_base::Property_base(Property_base &&other) {
 }
 
 void prop::detail::Property_base::operator=(Property_base &&other) {
-	TRACE(other.name << " was moved to " << name);
+	TRACE(other.get_name() << " was moved to " << get_name());
 	sever_implicit_dependents();
 	other.sever_implicit_dependents();
 	take_explicit_dependents(std::move(other));
 }
 
 prop::detail::Property_base::~Property_base() {
-	TRACE("Destroying " << name);
+	TRACE("Destroying " << get_name());
 	//clear implicit dependencies
 	clear_implicit_dependencies();
 	//clear explicit dependencies
 	for (const auto &dependency : explicit_dependencies) {
 		if (dependency) {
-			TRACE("Removed " << name << " from dependents of " << dependency->name);
+			TRACE("Removed " << get_name() << " from dependents of " << dependency->get_name());
 			dependency->dependents.remove(this);
 		}
 	}
 	//clear creation dependency
 	if (dependents.has(creation_binding)) {
-		TRACE("Removed " << name << " as dependency from " << creation_binding->name << " because " << name
-						 << " is a temporary getting destroyed");
+		TRACE("Removed " << get_name() << " as dependency from " << creation_binding->get_name() << " because "
+						 << get_name() << " is a temporary getting destroyed");
 		dependents.remove(creation_binding);
 		creation_binding->implicit_dependencies.remove(this);
 	}
@@ -189,16 +301,17 @@ prop::detail::Property_base::~Property_base() {
 		for (auto &explicit_dependency : dependent->explicit_dependencies) {
 			if (explicit_dependency == this) {
 #ifdef PROPERTY_DEBUG
-				TRACE("Explicit dependency " << name << " of " << dependent->name << " is no longer available");
+				TRACE("Explicit dependency " << get_name() << " of " << dependent->get_name()
+											 << " is no longer available");
 #endif
 				explicit_dependency = nullptr;
 			}
 		}
 		dependent->update();
 	}
-	TRACE(name << " destroyed");
+	TRACE(get_name() << " destroyed");
 #ifdef PROPERTY_DEBUG
-	name = "~" + name;
+	custom_name = "~" + custom_name;
 #endif
 }
 
@@ -206,9 +319,9 @@ void prop::detail::Property_base::clear_implicit_dependencies() {
 	if (implicit_dependencies.is_empty()) {
 		return;
 	}
-	TRACE(name);
+	TRACE(get_name());
 	for (const auto &dependency : implicit_dependencies) {
-		TRACE("Removed " << name << " from dependents of " << dependency->name);
+		TRACE("Removed " << get_name() << " from dependents of " << dependency->get_name());
 		assert(dependency->dependents.has(this));
 		dependency->dependents.remove(this);
 	}
@@ -216,6 +329,10 @@ void prop::detail::Property_base::clear_implicit_dependencies() {
 }
 
 void prop::detail::Property_base::sever_implicit_dependents() {
+	if (dependents.is_empty()) {
+		return;
+	}
+	TRACE(get_name());
 	for (auto dep_it = std::cbegin(dependents); dep_it != std::cend(dependents);) {
 		auto &dependent = *dep_it;
 		++dep_it;
@@ -224,7 +341,7 @@ void prop::detail::Property_base::sever_implicit_dependents() {
 			if (dependent->explicit_dependencies.has(this)) {
 				dependent->implicit_dependencies.remove(this);
 			} else {
-				TRACE("Unbound " << dependent->name << " because it implicitly depends on " << name
+				TRACE("Unbound " << dependent->get_name() << " because it implicitly depends on " << get_name()
 								 << " which is getting severed");
 				on_property_severed(dependent, this);
 				dependent->unbind();
@@ -234,11 +351,16 @@ void prop::detail::Property_base::sever_implicit_dependents() {
 }
 
 void prop::detail::Property_base::take_explicit_dependents(Property_base &&source) {
+	if (source.dependents.is_empty()) {
+		return;
+	}
+	TRACE(get_name());
 	for (auto it = std::begin(source.dependents); it != std::end(source.dependents);) {
 		auto &source_dependent = *it;
 		++it;
 		if (source_dependent->explicit_dependencies.has(&source)) {
-			TRACE(name << " adopting explicit dependent " << source_dependent->name << " from " << source.name);
+			TRACE(get_name() << " adopting explicit dependent " << source_dependent->get_name() << " from "
+							 << source.get_name());
 			dependents.add(source_dependent);
 			for (auto &explicit_dependent : source_dependent->explicit_dependencies) {
 				if (explicit_dependent == &source) {
@@ -261,7 +383,7 @@ const prop::detail::Binding_set &prop::detail::Property_base::get_dependents() c
 }
 
 void prop::detail::swap(Property_base &lhs, Property_base &rhs) {
-	TRACE("Swapping " << lhs.name << " and " << rhs.name);
+	TRACE("Swapping " << lhs.get_name() << " and " << rhs.get_name());
 	using std::swap;
 	swap(lhs.explicit_dependencies, rhs.explicit_dependencies);
 	swap(lhs.implicit_dependencies, rhs.implicit_dependencies);
@@ -366,7 +488,7 @@ std::vector<prop::detail::Property_base *>::const_iterator prop::detail::Binding
 
 prop::Property<void>::Property() {}
 
-prop::Property<void> &prop::Property<void>::operator=(detail::Property_function_binder<void> binder) {
+prop::Property<void> &prop::Property<void>::operator=(prop::detail::Property_function_binder<void> binder) {
 	Property_base::set_explicit_dependencies(std::move(binder.explicit_dependencies));
 	update_source(std::move(binder.function));
 	return *this;
@@ -376,11 +498,11 @@ void prop::Property<void>::update() {
 	if (!source) {
 		return;
 	}
-	detail::RAII updater{[this] { update_start(); },
-						 [this] {
-							 update_complete();
-							 need_update = false;
-						 }};
+	prop::detail::RAII updater{[this] { update_start(); },
+							   [this] {
+								   update_complete();
+								   need_update = false;
+							   }};
 	try {
 		source(explicit_dependencies);
 	} catch (const prop::Property_expired &) {
@@ -393,7 +515,7 @@ void prop::Property<void>::unbind() {
 	Property_base::unbind();
 }
 
-void prop::Property<void>::update_source(std::function<void(const prop::detail::Binding_list &)> f) {
+void prop::Property<void>::update_source(std::move_only_function<void(const prop::detail::Binding_list &)> f) {
 	std::swap(f, source);
 	update();
 }
@@ -403,15 +525,12 @@ bool prop::Property<void>::is_bound() const {
 }
 
 std::ostream &prop::detail::operator<<(std::ostream &os, const prop::detail::Binding_set &set) {
+	const auto &static_text_color = prop::Console_text_color{prop::Color::static_text};
 	const char *separator = "";
 	for (const auto &element : set) {
-		os << separator;
+		os << static_text_color << separator << prop::console_reset_text_color;
 #ifdef PROPERTY_NAMES
-		if (element->name.empty()) {
-			os << &element;
-		} else {
-			os << element->name;
-		}
+		os << element->get_name();
 #else
 		os << &element;
 #endif
@@ -421,15 +540,12 @@ std::ostream &prop::detail::operator<<(std::ostream &os, const prop::detail::Bin
 }
 
 std::ostream &prop::detail::operator<<(std::ostream &os, const prop::detail::Binding_list &list) {
+	const auto &static_text_color = prop::Console_text_color{prop::Color::static_text};
 	const char *separator = "";
 	for (const auto &element : list) {
-		os << separator;
+		os << static_text_color << separator << prop::console_reset_text_color;
 #ifdef PROPERTY_NAMES
-		if (element->name.empty()) {
-			os << &element;
-		} else {
-			os << element->name;
-		}
+		os << element->get_name();
 #else
 		os << &element;
 #endif
@@ -439,19 +555,19 @@ std::ostream &prop::detail::operator<<(std::ostream &os, const prop::detail::Bin
 }
 
 void prop::print_status(const prop::Property<void> &p, std::ostream &os) {
-	os << "Property ";
+	const auto &static_text_color = prop::Console_text_color{prop::Color::static_text};
+	os << static_text_color << "Property " << prop::console_reset_text_color;
 #ifdef PROPERTY_NAMES
-	if (p.name.empty()) {
-		os << &p;
-	} else {
-		os << p.name;
-	}
+	os << p.get_name();
 #else
 	os << &p;
 #endif
 	os << '\n';
-	os << "\tsource: " << (p.source ? "Yes" : "No") << "\n";
-	os << "\tExplicit dependencies: [" << p.explicit_dependencies << "]\n";
-	os << "\tImplicit dependencies: [" << p.get_implicit_dependencies() << "]\n";
-	os << "\tDependents: [" << p.get_dependents() << "]\n";
+	os << static_text_color << "\tsource: " << prop::console_reset_text_color << (p.source ? "Yes" : "No") << "\n";
+	os << static_text_color << "\tExplicit dependencies: [" << prop::console_reset_text_color << p.explicit_dependencies
+	   << static_text_color << "]\n";
+	os << static_text_color << "\tImplicit dependencies: [" << prop::console_reset_text_color
+	   << p.get_implicit_dependencies() << static_text_color << "]\n";
+	os << static_text_color << "\tDependents: [" << prop::console_reset_text_color << p.get_dependents()
+	   << static_text_color << "]\n";
 }
