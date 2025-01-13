@@ -24,6 +24,9 @@ namespace PROP_DETAIL { //separate namespace because all types in this namespace
 #endif
 		name.remove_prefix(prefix.size());
 		name.remove_suffix(suffix.size());
+		if (name == "std::basic_string<char>") {
+			return std::string_view{"std::string"};
+		}
 		return name;
 	}
 } // namespace PROP_DETAIL

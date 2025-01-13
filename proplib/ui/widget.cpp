@@ -1,5 +1,6 @@
 #include "widget.h"
 #include "proplib/utility/canvas.h"
+#include "proplib/utility/dependency_tracer.h"
 #include "proplib/utility/utility.h"
 
 #include <boost/pfr/tuple_size.hpp>
@@ -46,6 +47,13 @@ void prop::Widget::draw(prop::Canvas) const {}
 #ifdef PROPERTY_NAMES
 void prop::Widget::set_name(std::string_view name) {
 #define PROP_X(MEMBER) MEMBER.custom_name = std::string{name.data(), name.size()} + "." #MEMBER
+	(PROP_WIDGET_PROPERTY_MEMBERS);
+#undef PROP_X
+}
+
+void prop::Widget::trace(Dependency_tracer &dependency_tracer) const {
+	PROP_TRACE(dependency_tracer, *this);
+#define PROP_X(X) PROP_TRACE(dependency_tracer, X)
 	(PROP_WIDGET_PROPERTY_MEMBERS);
 #undef PROP_X
 }

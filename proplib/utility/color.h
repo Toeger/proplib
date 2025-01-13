@@ -60,7 +60,7 @@ namespace prop {
 			fuchsia, purple;
 
 		//prop colors
-		static Color static_text, type, pointer, file, path, function_name, function_type;
+		static Color static_text, type, variable_name, address, file, path, function_name, function_type;
 	};
 
 	struct Console_text_color {
@@ -98,7 +98,8 @@ inline constexpr prop::Color prop::Color::purple{{.rgb = 0x800080}};
 
 inline prop::Color prop::Color::static_text = prop::Color::silver;
 inline prop::Color prop::Color::type = prop::Color::fuchsia;
-inline prop::Color prop::Color::pointer = prop::Color::purple;
+inline prop::Color prop::Color::variable_name = prop::Color::aqua;
+inline prop::Color prop::Color::address = prop::Color::purple;
 inline prop::Color prop::Color::file = prop::Color::aqua;
 inline prop::Color prop::Color::path = prop::Color::teal;
 inline prop::Color prop::Color::function_name = prop::Color::aqua;

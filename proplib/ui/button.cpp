@@ -1,5 +1,6 @@
 #include "button.h"
 #include "proplib/utility/canvas.h"
+#include "proplib/utility/dependency_tracer.h"
 #include "proplib/utility/utility.h"
 
 #include <boost/pfr/tuple_size.hpp>
@@ -54,6 +55,11 @@ void prop::Button::draw(Canvas canvas) const {
 		//sftext.setFillColor(sf::Color::Black);
 		//canvas.window.draw(sftext);
 	}
+}
+
+void prop::Button::trace(Dependency_tracer &dependency_tracer) const {
+	PROP_TRACE(dependency_tracer, *this, text, font);
+	prop::Widget::trace(dependency_tracer);
 }
 
 void prop::swap(Button &lhs, Button &rhs) noexcept {

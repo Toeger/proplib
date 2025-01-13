@@ -26,6 +26,7 @@ namespace prop {
 		Button &operator=(Button &&other) noexcept;
 
 		void draw(prop::Canvas context) const override;
+		void trace(Dependency_tracer &dependency_tracer) const override;
 		friend void swap(Button &lhs, Button &rhs) noexcept;
 
 		prop::Property<std::string> text;

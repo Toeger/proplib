@@ -11,6 +11,7 @@
 
 namespace prop {
 	class Canvas;
+	class Dependency_tracer;
 
 	void swap(class Widget &lhs, class Widget &rhs);
 
@@ -32,6 +33,7 @@ namespace prop {
 		virtual void draw(prop::Canvas context) const;
 #ifdef PROPERTY_NAMES
 		virtual void set_name(std::string_view name);
+		virtual void trace(Dependency_tracer &dependency_tracer) const;
 		Widget(std::string_view name);
 #endif
 		friend void swap(Widget &lhs, Widget &rhs);

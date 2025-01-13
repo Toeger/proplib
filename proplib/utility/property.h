@@ -125,7 +125,7 @@ namespace prop {
 				std::string auto_name = prop::to_string(prop::Console_text_color{prop::Color::type}) +
 										std::string{type} +
 										prop::to_string(prop::Console_text_color{prop::Color::static_text}) + "@" +
-										prop::to_string(prop::Console_text_color{prop::Color::pointer}) +
+										prop::to_string(prop::Console_text_color{prop::Color::address}) +
 										prop::detail::to_string(this) + prop::to_string(prop::console_reset_text_color);
 				if (custom_name.empty()) {
 					return auto_name;
@@ -1191,7 +1191,7 @@ namespace prop {
 #ifdef PROPERTY_NAMES
 		os << "Property " << p.get_name() << '\n';
 #else
-		os << "Property " << prop::Console_text_color{prop::Color::pointer} << &p << '\n';
+		os << "Property " << prop::Console_text_color{prop::Color::address} << &p << '\n';
 #endif
 		os << static_text_color << "\tvalue: " << prop::console_reset_text_color << prop::detail::Printer{p.value}
 		   << "\n";
