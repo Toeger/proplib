@@ -1,6 +1,7 @@
 #pragma once
 
 #include "callable.h"
+#include "color.h"
 #include "exceptions.h"
 #include "raii.h"
 #include "type_list.h"
@@ -15,17 +16,16 @@
 #include <vector>
 
 #ifdef PROPERTY_NAMES
-#include "color.h"
 #include <string>
 #endif
-
-//#define PROPERTY_DEBUG
 
 namespace prop {
 	template <class T>
 	class Property;
 
 	enum struct Value : bool { unchanged, changed };
+
+	class Dependency_tracer;
 
 	namespace detail {
 		template <class T, class U = T>
@@ -80,17 +80,6 @@ namespace prop {
 
 		void swap(Property_base &lhs, Property_base &rhs);
 
-#ifdef PROPERTY_NAMES
-		template <class T>
-		std::string default_name(void *p) {
-			return prop::to_string(prop::Console_text_color{prop::Color::type}) +
-				   std::string{prop::type_name<std::remove_cvref_t<T>>()} +
-				   prop::to_string(prop::Console_text_color{prop::Color::static_text}) + "@" +
-				   prop::to_string(prop::Console_text_color{prop::Color::pointer}) + prop::detail::to_string(p) +
-				   prop::to_string(prop::console_reset_text_color);
-		}
-#endif
-
 		struct Property_base {
 			virtual void update();
 			virtual void unbind();
@@ -109,7 +98,7 @@ namespace prop {
 			bool is_dependent_on(const Property_base &other) const;
 
 #ifdef PROPERTY_NAMES
-			Property_base(std::string name);
+			Property_base(std::string_view type_name);
 #else
 			Property_base();
 #endif
@@ -130,9 +119,14 @@ namespace prop {
 			const Binding_set &get_implicit_dependencies() const;
 			const Binding_set &get_dependents() const;
 #ifdef PROPERTY_NAMES
+			std::string_view type;
 			std::string custom_name;
-			std::string auto_name;
 			std::string get_name() const {
+				std::string auto_name = prop::to_string(prop::Console_text_color{prop::Color::type}) +
+										std::string{type} +
+										prop::to_string(prop::Console_text_color{prop::Color::static_text}) + "@" +
+										prop::to_string(prop::Console_text_color{prop::Color::pointer}) +
+										prop::detail::to_string(this) + prop::to_string(prop::console_reset_text_color);
 				if (custom_name.empty()) {
 					return auto_name;
 				}
@@ -146,13 +140,16 @@ namespace prop {
 			private:
 			Binding_set implicit_dependencies;
 			Binding_set dependents;
+			friend Dependency_tracer;
 		};
 
 		template <class T>
 		struct Property_name_base : Property_base {
 #ifdef PROPERTY_NAMES
 			Property_name_base()
-				: prop::detail::Property_base(prop::detail::default_name<T>(this)) {}
+				: prop::detail::Property_base("") {
+				type = prop::type_name<T>();
+			}
 
 			protected:
 			~Property_name_base() = default;

@@ -1,12 +1,5 @@
 #include "property.h"
-
 #include <cassert>
-
-#ifdef PROPERTY_DEBUG
-#include <algorithm>
-#include <concepts>
-#include <iostream>
-#include <source_location>
 
 #ifdef PROPERTY_NAMES
 #include <sstream>
@@ -17,6 +10,12 @@ std::string prop::detail::to_string(const void *p) {
 	return stream.str();
 }
 #endif
+
+#ifdef PROPERTY_DEBUG
+#include <algorithm>
+#include <concepts>
+#include <iostream>
+#include <source_location>
 
 constexpr std::string_view path(std::string_view filepath) {
 #ifdef WIN32
@@ -239,8 +238,8 @@ bool prop::detail::Property_base::is_dependent_on(const Property_base &other) co
 
 prop::detail::Property_base::Property_base
 #ifdef PROPERTY_NAMES
-	(std::string property_name)
-	: auto_name{std::move(property_name)}
+	(std::string_view type_name)
+	: type{type_name}
 
 {
 	TRACE("Created " << get_name() << prop::Color::static_text

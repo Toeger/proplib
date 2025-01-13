@@ -8,7 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-function -Wno-unused-variable -Og -ggdb -fno-omit-frame-pointer -fsanitize=undefined,address")
 set(CMAKE_LINKER_FLAGS_DEBUG  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined,address")
 #add_definitions(-DPROP_EMPTY_CLASS_OPTIMIZATION)
-add_definitions(-DPROPERTY_DEBUG)
+#add_definitions(-DPROPERTY_DEBUG)
 add_definitions(-DPROPERTY_NAMES)
 
 set(PROP_PLATFORM_DYNAMIC OFF)
@@ -29,6 +29,7 @@ set(PROP_LIBRARY_UTILITY_NAMES
 	callable
 	canvas
 	color
+	dependency_tracer
 	exceptions
 	font
 	orientation
@@ -112,7 +113,6 @@ add_executable(Prop_tests
 	${PROP_LIBRARY_HEADERS}
 	${PROP_LIBRARY_TESTS}
 )
-target_compile_definitions(Prop_tests PRIVATE PROPERTY_NAMES)
 if("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 	target_compile_options(Prop_tests PRIVATE -fconcepts-diagnostics-depth=3)
 endif()

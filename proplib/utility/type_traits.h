@@ -9,6 +9,8 @@ namespace prop {
 	struct is_template_specialization<Template<Args...>, Template> : std::true_type {};
 	template <class T, template <class...> class Template>
 	constexpr bool is_template_specialization_v = is_template_specialization<T, Template>::value;
+	template <class T, template <class...> class Template>
+	concept template_specialization = is_template_specialization_v<T, Template>;
 
 	template <class T>
 	auto is_dereferenceable(T &&t) -> decltype(*std::declval<T>(), std::true_type{});
