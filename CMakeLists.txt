@@ -5,10 +5,10 @@ project(PropDemo VERSION 0.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-function -Wno-unused-variable -Og -ggdb -fno-omit-frame-pointer -fsanitize=undefined,address")
-set(CMAKE_LINKER_FLAGS_DEBUG  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined,address")
+set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wno-unused-function -Wno-unused-variable -O0 -ggdb -fno-omit-frame-pointer -fsanitize=undefined,address")
+set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined,address")
 #add_definitions(-DPROP_EMPTY_CLASS_OPTIMIZATION)
-#add_definitions(-DPROPERTY_DEBUG)
+add_definitions(-DPROPERTY_DEBUG)
 add_definitions(-DPROPERTY_NAMES)
 
 set(PROP_PLATFORM_DYNAMIC OFF)
@@ -25,14 +25,15 @@ set(PROP_LIBRARY_UI_NAMES
 )
 
 set(PROP_LIBRARY_UTILITY_NAMES
+	alignment
 	binding
 	callable
 	canvas
 	color
+	compatibility
 	dependency_tracer
 	exceptions
 	font
-	orientation
 	polywrap
 	property
 	raii
@@ -72,12 +73,13 @@ list(TRANSFORM PROP_LIBRARY_SOURCES REPLACE "\.cpp$" ".h" OUTPUT_VARIABLE PROP_L
 list(APPEND PROP_LIBRARY_SOURCES ${PROP_PLATFORM_NAMES})
 
 #demo
-find_package(SFML COMPONENTS window graphics system)
+if (PROP_PLATFORM STREQUAL "SFML")
+	find_package(SFML COMPONENTS window graphics system)
+endif()
 add_executable(PropDemo
 	demo/main.cpp
 	${PROP_LIBRARY_SOURCES}
 	${PROP_LIBRARY_HEADERS}
-	${PROP_LIBRARY_PRIVATES} #this doesn't belong to the demo, but it's easier to develop for now
 )
 target_include_directories(PropDemo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 if (PROP_PLATFORM STREQUAL "SFML")
@@ -85,6 +87,25 @@ if (PROP_PLATFORM STREQUAL "SFML")
 		sfml-graphics
 		sfml-system
 		sfml-window
+	)
+endif()
+
+#experiments
+if (PROP_PLATFORM STREQUAL "SFML")
+	find_package(SFML COMPONENTS window graphics system)
+endif()
+add_executable(PropExperiments
+	experiments/main.cpp
+	${PROP_LIBRARY_SOURCES}
+	${PROP_LIBRARY_HEADERS}
+)
+target_include_directories(PropExperiments PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+if (PROP_PLATFORM STREQUAL "SFML")
+	target_link_libraries(PropExperiments PRIVATE
+		sfml-graphics
+		sfml-system
+		sfml-window
+		-lstdc++exp
 	)
 endif()
 
@@ -114,12 +135,17 @@ add_executable(Prop_tests
 	${PROP_LIBRARY_TESTS}
 )
 if("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
-	target_compile_options(Prop_tests PRIVATE -fconcepts-diagnostics-depth=3)
+	target_compile_options(Prop_tests PRIVATE -fconcepts-diagnostics-depth=10)
 endif()
 target_include_directories(Prop_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+if (PROP_PLATFORM STREQUAL "SFML")
+	target_link_libraries(Prop_tests PRIVATE
+		sfml-graphics
+		sfml-system
+		sfml-window
+	)
+endif()
 target_link_libraries(Prop_tests PRIVATE
 	Catch2::Catch2WithMain
-	sfml-graphics
-	sfml-system
-	sfml-window
+	-lstdc++exp
 )

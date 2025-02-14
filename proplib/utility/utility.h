@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <concepts>
+#include <sstream>
 #include <utility>
 
 namespace prop {
@@ -54,4 +55,12 @@ namespace prop {
 		return std::find(std::begin(c), std::end(c), v) != std::end(c);
 	}
 
+	template <class T>
+	std::string to_string(const T &t)
+		requires(requires(std::stringstream &ss) { ss << t; })
+	{
+		std::stringstream ss;
+		ss << t;
+		return std::move(ss).str();
+	}
 } // namespace prop

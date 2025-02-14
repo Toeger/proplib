@@ -35,14 +35,12 @@ namespace prop {
 		};
 		//helper for contains
 		template <class T, class... Args>
-		struct Contains;
-		template <class T, class First, class... Args>
-		struct Contains<T, First, Args...> {
-			static constexpr bool value = std::is_same_v<T, First> || Contains<T, Args...>::value;
-		};
-		template <class T, class... Args>
 		struct Contains {
 			static constexpr bool value = false;
+		};
+		template <class T, class First, class... Args>
+		struct Contains<T, First, Args...> {
+			static constexpr bool value = std::is_same_v<T, First> or Contains<T, Args...>::value;
 		};
 		template <class... Args>
 		static auto concat(Type_list<Args...>) -> Type_list<Ts..., Args...>;

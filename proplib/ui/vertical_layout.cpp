@@ -6,7 +6,7 @@
 #include <string_view>
 #endif
 
-#define PROP_VERTICAL_LAYOUT_PROPERTY_MEMBERS PROP_X(children) PROP_X(orientation) PROP_X(child_positioners)
+#define PROP_VERTICAL_LAYOUT_PROPERTY_MEMBERS PROP_X(children) PROP_X(alignment) PROP_X(child_positioners)
 
 prop::Vertical_layout::Vertical_layout()
 	: child_positioners{[this](std::vector<Child_positioner> &positioners) {

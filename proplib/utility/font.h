@@ -1,7 +1,7 @@
 #pragma once
 
+#include "proplib/utility/alignment.h"
 #include "proplib/utility/color.h"
-#include "proplib/utility/orientation.h"
 
 #include <optional>
 #include <string>
@@ -11,7 +11,7 @@ namespace prop {
 		struct Attributes {
 			std::optional<prop::Color> color;
 			std::optional<std::string> name;
-			std::optional<prop::Orientation> orientation;
+			std::optional<prop::Alignment> alignment;
 			std::optional<float> pixel_size; //point size?
 			//std::optional<> clipping_mode;
 			std::optional<bool> bold;
@@ -34,7 +34,7 @@ namespace prop {
 
 		prop::Color color;
 		std::string name;
-		prop::Orientation orientation;
+		prop::Alignment alignment;
 		float pixel_size; //point size?
 		//clipping_mode;
 		bool bold = false;

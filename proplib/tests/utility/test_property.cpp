@@ -286,12 +286,6 @@ struct S {
 	prop::Property<int> inner;
 };
 
-#ifdef PROPERTY_DEBUG
-std::ostream &operator<<(std::ostream &os, const S &s) {
-	return os << "S{" << s.inner << "}";
-}
-#endif
-
 TEST_CASE("Inner property") {
 	RESET_COUNTER
 	prop::Property<S> p1;
@@ -312,11 +306,6 @@ TEST_CASE("Inner property") {
 struct SS {
 	prop::Property<S> s;
 };
-#ifdef PROPERTY_DEBUG
-std::ostream &operator<<(std::ostream &os, const SS &ss) {
-	return os << "SS{" << ss.s << "}";
-}
-#endif
 
 TEST_CASE("Inner inner property") {
 	RESET_COUNTER
@@ -408,11 +397,119 @@ TEST_CASE("Operators") {
 }
 
 TEST_CASE("Range-based for-loop") {
-	prop::Property pv{std::vector<int>{0, 1, 2, 3, 4, 5}};
-	int i = 0;
+	prop::Property pv{std::vector<std::size_t>{0, 1, 2, 3, 4, 5}};
+	std::size_t i = 0;
 	for (auto &v : pv.get()) {
 		REQUIRE(v == i);
 		REQUIRE(v == pv[i]);
 		i++;
 	}
+}
+
+#include <filesystem>
+#include <stacktrace>
+
+struct Track_function {
+	private:
+	enum class Function_part { before_name, name, after_name };
+	static constexpr std::string_view function_part(std::string_view function, Function_part fp) {
+		auto name_end_pos = function.find('(');
+		if (name_end_pos == function.npos) {
+			name_end_pos = function.size() - 1;
+		}
+		if (fp == Function_part::after_name) {
+			function.remove_prefix(name_end_pos);
+			return function;
+		}
+
+		auto name_start_pos = std::find_if(std::rbegin(function) + static_cast<long int>(function.size()) -
+											   static_cast<long int>(name_end_pos),
+										   std::rend(function), [](char c) { return c == ':' or c == ' '; }) -
+							  std::rbegin(function);
+		name_start_pos = static_cast<long int>(function.size()) - name_start_pos;
+		if (fp == Function_part::before_name) {
+			function.remove_suffix(function.size() - static_cast<std::size_t>(name_start_pos));
+			return function;
+		}
+		function.remove_suffix(function.size() - name_end_pos);
+		function.remove_prefix(static_cast<std::size_t>(name_start_pos));
+		return function;
+	}
+
+	static std::string_view unquoted(std::string_view v) {
+		if (v.size() < 2) {
+			return v;
+		}
+		if (v.front() == '"') {
+			v.remove_prefix(1);
+		}
+		if (v.back() == '"') {
+			v.remove_suffix(1);
+		}
+		return v;
+	}
+
+	static constexpr std::stacktrace::size_type max_level = 4;
+	struct Trace {
+		friend std::ostream &operator<<(std::ostream &os, Trace) {
+			auto current_stacktrace = std::stacktrace::current();
+			for (auto level = decltype(max_level){2}; level <= max_level; level++) {
+				auto &stacktrace = current_stacktrace[level];
+				if (not stacktrace) {
+					break;
+				}
+				if (stacktrace.source_file() == "") {
+					break;
+				}
+				os << prop::Color::static_text << "Required from " << prop::Color::file
+				   << unquoted(std::filesystem::path{stacktrace.source_file()}.filename().string())
+				   << prop::Color::static_text << ':' << prop::Color::file << stacktrace.source_line()
+				   << prop::Color::reset << '\n';
+			}
+			return os;
+		}
+	} static trace;
+
+	public:
+	int operator()() {
+		std::clog << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
+				  << prop::Color::address << this << '\n'
+				  << trace;
+		return 42;
+	}
+	Track_function() {
+		std::clog << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
+				  << prop::Color::address << this << '\n'
+				  << trace;
+	}
+	~Track_function() {
+		std::clog << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
+				  << prop::Color::address << this << '\n'
+				  << trace;
+	}
+	Track_function(Track_function &&other) {
+		std::clog << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
+				  << prop::Color::address << this << prop::Color::static_text << " from " << prop::Color::address
+				  << &other << '\n'
+				  << trace;
+	}
+	Track_function &operator=(Track_function &&other) {
+		std::clog << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
+				  << prop::Color::address << this << prop::Color::static_text << " from " << prop::Color::address
+				  << &other << '\n'
+				  << trace;
+		return *this;
+	}
+	Track_function(const Track_function &) = delete;
+	Track_function &operator=(const Track_function &) = delete;
+};
+
+TEST_CASE("Value-captured property") {
+	prop::Property ptest{Track_function{}};
+	prop::Property p{42};
+	prop::Property p2{[p] mutable -> int { return p; }};
+	prop::print_status(p2);
+	REQUIRE(p2 == 42);
+	p++; //no effect since we're not actually bound to p
+	REQUIRE(p2 == 42);
 }

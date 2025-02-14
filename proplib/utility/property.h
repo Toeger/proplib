@@ -3,6 +3,7 @@
 #include "callable.h"
 #include "color.h"
 #include "exceptions.h"
+#include "proplib/utility/utility.h"
 #include "raii.h"
 #include "type_list.h"
 #include "type_name.h"
@@ -63,7 +64,6 @@ namespace prop {
 			std::set<Property_base *>::const_iterator cend() const;
 			std::set<Property_base *> set; //TODO: Try out flat_set or something to save some nanoseconds
 		};
-		std::ostream &operator<<(std::ostream &os, const Binding_set &set);
 
 		struct Binding_list {
 			bool has(const Property_base *property) const;
@@ -76,7 +76,6 @@ namespace prop {
 			std::vector<Property_base *>::const_iterator end() const;
 			std::vector<Property_base *> list; //TODO: Try out other things like std::forward_list
 		};
-		std::ostream &operator<<(std::ostream &os, const prop::detail::Binding_list &list);
 
 		void swap(Property_base &lhs, Property_base &rhs);
 
@@ -122,11 +121,10 @@ namespace prop {
 			std::string_view type;
 			std::string custom_name;
 			std::string get_name() const {
-				std::string auto_name = prop::to_string(prop::Console_text_color{prop::Color::type}) +
-										std::string{type} +
-										prop::to_string(prop::Console_text_color{prop::Color::static_text}) + "@" +
-										prop::to_string(prop::Console_text_color{prop::Color::address}) +
-										prop::detail::to_string(this) + prop::to_string(prop::console_reset_text_color);
+				std::string auto_name = prop::to_string(prop::Color::type) + std::string{type} +
+										prop::to_string(prop::Color::static_text) + "@" +
+										prop::to_string(prop::Color::address) + prop::detail::to_string(this) +
+										prop::to_string(prop::Color::reset);
 				if (custom_name.empty()) {
 					return auto_name;
 				}
@@ -147,9 +145,7 @@ namespace prop {
 		struct Property_name_base : Property_base {
 #ifdef PROPERTY_NAMES
 			Property_name_base()
-				: prop::detail::Property_base("") {
-				type = prop::type_name<T>();
-			}
+				: prop::detail::Property_base(prop::type_name<T>()) {}
 
 			protected:
 			~Property_name_base() = default;
@@ -157,11 +153,15 @@ namespace prop {
 		};
 
 		template <class Property>
-		constexpr bool is_property_v = is_type_specialization_v<std::remove_cvref_t<Property>, prop::Property>;
+		constexpr bool is_property_v =
+			prop::is_template_specialization_v<std::remove_cvref_t<Property>, prop::Property>;
 
 		template <class Compatible_type, class Inner_property_type>
 		concept Property_value =
 			std::convertible_to<Compatible_type, Inner_property_type> && !is_property_v<Compatible_type>;
+
+		template <class From, class To>
+		concept assignable_to = std::is_assignable_v<To, From>;
 
 		template <class Property, class Inner_property_type>
 		concept Compatible_property =
@@ -169,27 +169,19 @@ namespace prop {
 				{ p.get() } -> Property_value<Inner_property_type>;
 			});
 
-		namespace {
-			template <class Function, class T, class... Properties>
-			concept Property_value_function = requires(Function &&f) {
-				{ f(std::declval<Properties>()...) } -> Property_value<T>;
-			};
-
-			template <class Function, class T, class... Properties>
-			concept Compatible_property_function = requires(Function &&f) {
-				{ f(std::declval<Properties>()...) } -> Compatible_property<T>;
-			};
-
-			template <class Function, class T, class... Properties>
-			concept Value_result_function = requires(Function &&f) {
-				{ f(std::declval<T &>(), std::declval<Properties>()...) } -> std::same_as<prop::Value>;
-			};
-		} // namespace
+		template <class Function, class T, class... Properties>
+		concept Property_value_function = requires(Function &&f) {
+			{ f(std::declval<Properties &>()...) } -> prop::detail::assignable_to<T &>;
+		};
 
 		template <class Function, class T, class... Properties>
-		concept Property_update_function = Property_value_function<Function, T, Properties...> ||
-										   Compatible_property_function<Function, T, Properties...> ||
-										   Value_result_function<Function, T, Properties...>;
+		concept Value_result_function = requires(Function &&f) {
+			{ f(std::declval<T &>(), std::declval<Properties &>()...) } -> std::same_as<prop::Value>;
+		};
+
+		template <class Function, class T, class... Properties>
+		concept Property_update_function =
+			Property_value_function<Function, T, Properties...> || Value_result_function<Function, T, Properties...>;
 
 		template <class T>
 		Property_base *get_property_base_pointer(const prop::Property<T> *p) {
@@ -216,12 +208,63 @@ namespace prop {
 			return false;
 		}
 
-		template <class Function_args_list, class Properties_list, std::size_t... indexes>
+		template <class T, class Function_args_list, class Properties_list, std::size_t... indexes>
 		consteval bool are_compatible_function_args_for_properties(std::index_sequence<indexes...>) {
-			return (is_compatible_function_arg_for_property<typename Function_args_list::template at<indexes>,
-															typename Properties_list::template at<indexes>>() &&
-					...);
+			if constexpr (Function_args_list::size == Properties_list::size) {
+				return (is_compatible_function_arg_for_property<typename Function_args_list::template at<indexes>,
+																typename Properties_list::template at<indexes>>() and
+						...);
+			}
 		}
+
+		template <class T, class Function, class Properties_list, std::size_t... indexes>
+		consteval bool is_viable_source_helper(Properties_list, std::index_sequence<indexes...>) {
+			if constexpr (not prop::is_callable_v<Function>) {
+				//not a callable
+				return false;
+			} else {
+				using Function_info = prop::Callable_info_for<Function>;
+				if constexpr (Properties_list::size == Function_info::Args::size) {
+					//source function candidate
+					if (not std::is_assignable_v<T &, typename Function_info::Return_type>) {
+						//return type not assignable to value
+						return false;
+					}
+					if (not(is_compatible_function_arg_for_property<
+								typename Function_info::Args::template at<indexes>,
+								typename Properties_list::template at<indexes>>() and
+							...)) {
+						//incompatible properties
+						return false;
+					}
+					return true;
+				} else if constexpr (Properties_list::size + 1 == Function_info::Args::size) {
+					//value update candidate
+					if (not std::is_same_v<typename Function_info::Return_type, prop::Value>) {
+						//return type not prop::Value
+						return false;
+					}
+					if (not std::is_constructible_v<typename Function_info::Args::template at<0>, T &>) {
+						//first parameter must be compatible to T&
+						return false;
+					}
+					if (not(is_compatible_function_arg_for_property<
+								typename Function_info::Args::template at<indexes + 1>,
+								typename Properties_list::template at<indexes>>() and
+							...)) {
+						//incompatible properties
+						return false;
+					}
+					return true;
+				}
+				//mismatching number of arguments/parameters
+				return false;
+			}
+		}
+
+		template <class T, class Function, class... Properties>
+		constexpr bool is_viable_source = is_viable_source_helper<T, Function>(
+			prop::Type_list<Properties...>{}, std::index_sequence_for<Properties...>{});
 
 		template <class Function_arg, class Property>
 		consteval bool requires_valid_property() {
@@ -352,23 +395,17 @@ namespace prop {
 		}
 
 #define PROP_ACTUALLY_PROPERTIES                                                                                       \
-	prop::is_type_specialization_v<std::remove_cvref_t<std::remove_pointer_t<std::remove_cvref_t<Properties>>>,        \
-								   prop::Property> and...
-		//TODO: Compatible function test
+	(prop::is_template_specialization_v<std::remove_cvref_t<std::remove_pointer_t<std::remove_cvref_t<Properties>>>,   \
+										prop::Property> and                                                            \
+	 ...)
 		template <class T>
 		struct Property_function_binder {
 			template <class... Properties, class Function>
-				requires(PROP_ACTUALLY_PROPERTIES)
 			Property_function_binder(Function &&function_, Properties &&...properties)
+				requires prop::detail::is_viable_source<T, Function, Properties...>
 				: function{create_explicit_caller<T, decltype(function_), Properties...>(
 					  std::forward<decltype(function_)>(function_), std::index_sequence_for<Properties...>{})}
 				, explicit_dependencies{{prop::detail::get_property_base_pointer(properties)...}} {}
-
-			template <class... Properties, class Function>
-				requires(sizeof...(Properties) > 0 and not(PROP_ACTUALLY_PROPERTIES))
-			Property_function_binder(Function &&, Properties &&...) {
-				static_assert((PROP_ACTUALLY_PROPERTIES), "Passed argument is not a prop::Property");
-			}
 
 			std::move_only_function<prop::Value(T &, const Binding_list &)> function;
 			Binding_list explicit_dependencies;
@@ -378,14 +415,14 @@ namespace prop {
 		struct Property_function_binder<void> {
 			template <class Function, class... Properties>
 			Property_function_binder(Function &&function_, Properties &&...properties)
-				requires(PROP_ACTUALLY_PROPERTIES)
+				requires PROP_ACTUALLY_PROPERTIES
 				: function{create_explicit_caller<void, Function, Properties...>(
 					  std::forward<Function>(function_), std::index_sequence_for<Properties...>{})}
 				, explicit_dependencies{{prop::detail::get_property_base_pointer(properties)...}} {
 				static_assert(prop::Callable_info_for<Function>::Args::size == sizeof...(Properties),
 							  "Number of function arguments and properties don't match");
 				static_assert(
-					are_compatible_function_args_for_properties<typename prop::Callable_info_for<Function>::Args,
+					are_compatible_function_args_for_properties<void, typename prop::Callable_info_for<Function>::Args,
 																prop::Type_list<Properties...>>(
 						std::index_sequence_for<Properties...>{}),
 					"Callable arguments and parameters are incompatible");
@@ -394,7 +431,7 @@ namespace prop {
 			template <class Function, class... Properties>
 				requires(not PROP_ACTUALLY_PROPERTIES)
 			Property_function_binder(Function &&, Properties &&...) {
-				static_assert((PROP_ACTUALLY_PROPERTIES),
+				static_assert(PROP_ACTUALLY_PROPERTIES,
 							  "Arguments to update function must be specializations of prop::Property");
 			}
 
@@ -418,7 +455,7 @@ namespace prop {
 
 		template <class T>
 		std::move_only_function<prop::Value(T &, const prop::detail::Binding_list &)>
-		make_direct_update_function(Compatible_property_function<T> auto &&f) {
+		make_direct_update_function(Property_update_function<T> auto &&f) {
 			return [source = std::forward<decltype(f)>(f)](T &t, const prop::detail::Binding_list &) mutable {
 				if constexpr (prop::detail::is_equal_comparable_v<std::decay_t<decltype(source())>, T>) {
 					auto value = source();
@@ -438,17 +475,7 @@ namespace prop {
 		std::move_only_function<prop::Value(T &, const prop::detail::Binding_list &)>
 		make_direct_update_function(Value_result_function<T> auto &&f) {
 			return [source = std::forward<decltype(f)>(f)](T &t, const prop::detail::Binding_list &) mutable {
-				if constexpr (prop::detail::is_equal_comparable_v<std::decay_t<decltype(source())>, T>) {
-					auto value = source();
-					//if (is_equal(value, t)) {
-					//	return prop::Value::unchanged;
-					//}
-					t = std::move(value);
-					return prop::Value::changed;
-				} else {
-					t = source();
-					return prop::Value::changed;
-				}
+				return source(t);
 			};
 		}
 
@@ -470,27 +497,52 @@ namespace prop {
 		};
 
 		template <class T>
-		std::ostream &operator<<(std::ostream &os, Printer<T> &&printer) {
-			return printer.print(os);
-		}
-
-		template <typename T>
 		concept has_operator_arrow_v = requires(T &&t) { t.operator->(); } || std::is_pointer_v<T>;
 
-		template <class T, class U>
-		constexpr auto &&forward_like(U &&x) noexcept {
-			constexpr bool is_adding_const = std::is_const_v<std::remove_reference_t<T>>;
-			if constexpr (std::is_lvalue_reference_v<T &&>) {
-				if constexpr (is_adding_const)
-					return std::as_const(x);
-				else
-					return static_cast<U &>(x);
-			} else {
-				if constexpr (is_adding_const)
-					return std::move(std::as_const(x));
-				else
-					return std::move(x);
+		template <class... Args>
+		struct Type_list {};
+
+		template <class T>
+		auto converts_to(T &) -> Type_list<>;
+		template <class T>
+		auto converts_to(const T &) -> Type_list<>;
+
+		template <class From, class To, bool is_const_qualified>
+		struct Converter {
+			operator To()
+				requires(not is_const_qualified and not std::is_reference_v<To>)
+			{
+				return static_cast<To>(static_cast<From &>(static_cast<prop::Property<From> &>(*this).apply()));
 			}
+			operator To() const
+				requires(is_const_qualified)
+			{
+				return static_cast<To>(static_cast<const prop::Property<From> &>(*this).get());
+			}
+		};
+
+		template <class, bool, class>
+		struct Conversion_provider;
+		template <class T, bool is_const_qualified, class... Conversions>
+		struct Conversion_provider<T, is_const_qualified, Type_list<Conversions...>>
+			: Converter<T, Conversions, is_const_qualified>... {
+			static_assert(((is_const_qualified or not std::is_reference_v<Conversions>) and ...),
+						  "Non-const conversion to reference not supported because it's would likely leak modfiyable "
+						  "internal state");
+			using Converter<T, Conversions, is_const_qualified>::operator Conversions...;
+			Conversion_provider() = default;
+			template <class... Args>
+			Conversion_provider(Type_list<Args...>);
+
+			protected:
+			~Conversion_provider() = default;
+		};
+
+		std::ostream &operator<<(std::ostream &os, const prop::detail::Binding_set &set);
+		std::ostream &operator<<(std::ostream &os, const prop::detail::Binding_list &list);
+		template <class T>
+		std::ostream &operator<<(std::ostream &os, prop::detail::Printer<T> &&printer) {
+			return printer.print(os);
 		}
 	} // namespace detail
 
@@ -500,8 +552,13 @@ namespace prop {
 	template <class U>
 	void print_status(const prop::Property<U> &p, std::ostream &os = std::clog);
 
+	using detail::converts_to;
+
 	template <class T>
-	class Property final : prop::detail::Property_name_base<T> {
+	class Property final
+		: public detail::Conversion_provider<T, false, decltype(converts_to(std::declval<T &>()))>,
+		  public detail::Conversion_provider<T, true, decltype(converts_to(std::declval<const T &>()))>,
+		  private prop::detail::Property_name_base<T> {
 		using prop::detail::Property_base::explicit_dependencies;
 		using prop::detail::Property_base::need_update;
 		using prop::detail::Property_base::read_notify;
@@ -516,21 +573,78 @@ namespace prop {
 		struct Write_notifier;
 
 		public:
-		Property();
-		Property(Property<T> &&other);
-		Property(prop::detail::Property_value_function<T> auto &&f);
-		Property(prop::detail::Compatible_property_function<T> auto &&f);
-		Property(prop::detail::Compatible_property<T> auto const &p);
-		Property(prop::detail::Compatible_property<T> auto &p);
-		Property(prop::detail::Compatible_property<T> auto &&p) = delete;
-		Property(prop::detail::Property_value<T> auto &&v);
-		Property(prop::detail::Property_function_binder<T> binder);
+		struct Value {
+			T value;
+		};
 
+		struct Generator_data {
+			Generator_data(prop::detail::Property_value_function<T> auto &&f)
+				: value{f()}
+				, source{prop::detail::make_direct_update_function(std::forward<decltype(f)>(f))} {}
+			template <class... Properties>
+			Generator_data(prop::detail::Property_value_function<T, Properties...> auto &&f,
+						   Properties &&...properties) {
+				detail::Property_function_binder<T> binder{std::forward<decltype(f)>(f),
+														   std::forward<Properties>(properties)...};
+				source = std::move(binder.function);
+				explicit_dependencies = std::move(binder.explicit_dependencies);
+			}
+			T value;
+			std::move_only_function<prop::Value(T &, const prop::detail::Binding_list &)> source;
+			detail::Binding_list explicit_dependencies;
+		};
+
+		struct Generator {
+			Generator_data generator;
+		};
+
+		struct Updater_data {
+			template <class F>
+			Updater_data(F &&f)
+				: source{prop::detail::make_direct_update_function(std::forward<F>(f))} {}
+			template <class F, class... Properties>
+			Updater_data(F &&f, Properties &&...properties) {
+				detail::Property_function_binder<T> binder{std::forward<F>(f), std::forward<Properties>(properties)...};
+				source = std::move(binder.function);
+				explicit_dependencies = std::move(binder.explicit_dependencies);
+			}
+			std::move_only_function<prop::Value(T &, const prop::detail::Binding_list &)> source;
+			detail::Binding_list explicit_dependencies;
+		};
+
+		struct Updater {
+			Updater_data updater;
+		};
+
+		public:
+		Property();
+		Property(const Property<T> &other);
+		Property(Property<T> &&other);
+		template <class... Args>
+		Property(Args &&...args)
+			requires std::constructible_from<T, Args &&...>;
+		Property(Value &&v);
+		Property(Generator &&generator);
+		Property(prop::detail::Property_value_function<T> auto &&f);
+		Property(prop::detail::Value_result_function<T> auto &&f, T t);
+		Property(prop::detail::Property_function_binder<T> binder);
+		~Property() {
+			//prevents infinite recursion when source is a lambda that captures a property by value and depends on it
+			auto{std::move(source)};
+		}
+
+		Property &operator=(const Property<T> &other);
 		Property &operator=(Property<T> &&other);
-		Property &operator=(prop::detail::Property_update_function<T> auto &&f);
-		Property &operator=(prop::detail::Compatible_property<T> auto &&p);
-		Property &operator=(prop::detail::Property_value<T> auto &&v);
+		template <class U>
+		Property &operator=(U &&u)
+			requires std::is_assignable_v<T &, U &&>;
+		Property &operator=(Value &&v);
+		Property &operator=(Generator &&generator);
+		Property &operator=(Updater &&updater);
+		Property &operator=(prop::detail::Property_value_function<T> auto &&f);
+		Property &operator=(prop::detail::Value_result_function<T> auto &&f);
 		Property &operator=(prop::detail::Property_function_binder<T> binder);
+
 		void set(T t);
 		const T &get() const;
 		bool is_bound() const;
@@ -554,8 +668,24 @@ namespace prop {
 		bool is_explicit_dependent_of(const Property<U> &other) const;
 		template <class U>
 		bool is_dependent_on(const Property<U> &other) const;
+		void print_status(std::ostream &os = std::clog) const {
+			prop::print_status(*this, os);
+		}
 
+		template <class U>
+		operator U() const
+			requires(std::convertible_to<const T &, U> and not std::same_as<T, std::remove_cvref_t<U>>)
+		{
+			read_notify();
+			return static_cast<U>(value);
+		}
 		operator const T &() const;
+		template <class Widget>
+			requires(std::is_same_v<T, prop::Self>)
+		operator Widget &() {
+			return value.operator Widget &();
+		}
+
 		const T *operator->() const {
 			this->read_notify();
 			return &value;
@@ -618,60 +748,6 @@ namespace prop {
 			Write_notifier wn{this};
 			return value--;
 		}
-
-#define PROP_OP(OP)                                                                                                    \
-	template <class U>                                                                                                 \
-	decltype(auto) operator OP(U &&u) const                                                                            \
-		requires(requires { value OP std::forward<U>(u); })                                                            \
-	{                                                                                                                  \
-		read_notify();                                                                                                 \
-		return value OP std::forward<U>(u);                                                                            \
-	}                                                                                                                  \
-	template <class U>                                                                                                 \
-	decltype(auto) operator OP(U &&u)                                                                                  \
-		requires(                                                                                                      \
-			not requires { std::as_const(value) OP std::forward<U>(u); } and                                           \
-			requires { value OP std::forward<U>(u); })                                                                 \
-	{                                                                                                                  \
-		Write_notifier wn{this};                                                                                       \
-		return value OP std::forward<U>(u);                                                                            \
-	}
-
-		//Binary ops: + - * / % ^ | = < > += -= *= /= %= ^= &= |= << >> >>= <<= == != <= >= <=> && || , ->* ( ) [ ]
-		PROP_OP(+)
-		PROP_OP(-)
-		PROP_OP(*)
-		PROP_OP(/)
-		PROP_OP(%)
-		PROP_OP(^)
-		PROP_OP(|)
-		//PROP_OP(=) //done manually for more overloads
-		PROP_OP(+=)
-		PROP_OP(-=)
-		PROP_OP(*=)
-		PROP_OP(/=)
-		PROP_OP(%=)
-		PROP_OP(^=)
-		PROP_OP(&=)
-		PROP_OP(|=)
-		PROP_OP(<<)
-		PROP_OP(>>)
-		PROP_OP(>>=)
-		PROP_OP(<<=)
-		//PROP_OP(<)
-		//PROP_OP(>)
-		//PROP_OP(==)
-		//PROP_OP(!=)
-		//PROP_OP(<=)
-		//PROP_OP(>=)
-		//PROP_OP(<=>)
-		PROP_OP(&&)
-		PROP_OP(||)
-		//PROP_OP(,) //does not compile due to preprocessor limitations
-		PROP_OP(->*)
-		//PROP_OP(()) //variadic parameters
-		//PROP_OP([]) //different syntax
-#undef PROP_OP
 
 		template <class U>
 		decltype(auto) operator,(U &&u) const
@@ -898,6 +974,11 @@ namespace prop {
 		: value{} {}
 
 	template <class T>
+	Property<T>::Property(const Property<T> &other)
+		: value{other.value} {
+		other.read_notify();
+	}
+	template <class T>
 	Property<T>::Property(Property<T> &&other)
 		: value{std::move(other.value)}
 		, source{std::move(other.source)} {
@@ -919,78 +1000,61 @@ namespace prop {
 
 	template <class T>
 	Property<T>::Property(prop::detail::Property_value_function<T> auto &&f)
-		: value{[&f, this] {
-			prop::detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
-			return f();
-		}()}
-		, source{prop::detail::make_direct_update_function<T>(std::forward<decltype(f)>(f))} {}
-	template <class T>
-
-	Property<T>::Property(prop::detail::Compatible_property_function<T> auto &&f)
-		: value{[&f, this] {
-			prop::detail::RAII updater{[this] { update_start(); }, [this] { update_complete(); }};
-			return f();
-		}()}
-		, source{prop::detail::make_direct_update_function<T>(std::forward<decltype(f)>(f))} {}
-
-	template <class T>
-	Property<T>::Property(prop::detail::Compatible_property<T> auto const &p)
-		: value(p.value) {
-		p.read_notify();
+		: value{[&] {
+			if constexpr (std::is_default_constructible_v<T>) {
+				return T{};
+			} else {
+				return f();
+			}
+		}()} {
+		update_source(prop::detail::make_direct_update_function<T>(std::forward<decltype(f)>(f)));
 	}
 
 	template <class T>
-	Property<T>::Property(prop::detail::Compatible_property<T> auto &p)
-		: value{std::as_const(p.value)} {
-		p.read_notify();
+	Property<T>::Property(prop::detail::Value_result_function<T> auto &&f, T t)
+		: value{std::move(t)} {
+		update_source(prop::detail::make_direct_update_function<T>(std::forward<decltype(f)>(f)));
 	}
 
 	template <class T>
-	Property<T>::Property(prop::detail::Property_value<T> auto &&v)
-		: value{std::forward<decltype(v)>(v)} {}
+	template <class... Args>
+	Property<T>::Property(Args &&...args)
+		requires std::constructible_from<T, Args &&...>
+		: value{std::forward<Args>(args)...} {}
 
 	template <class T>
-	Property<T> &Property<T>::operator=(prop::detail::Property_update_function<T> auto &&f) {
+	Property<T>::Property(Value &&v)
+		: value{std::move(v.value)} {}
+
+	template <class T>
+	Property<T>::Property(Generator &&generator)
+		: value{std::move(generator.generator.value)} {
+		update_source(std::move(generator.generator.source));
+	}
+
+	template <class T>
+	template <class U>
+	Property<T> &Property<T>::operator=(U &&u)
+		requires std::is_assignable_v<T &, U &&>
+	{
+		value = std::forward<U>(u);
+		write_notify();
+		return *this;
+	}
+
+	template <class T>
+	Property<T> &Property<T>::operator=(Generator &&generator) {
+		return *this;
+	}
+
+	template <class T>
+	Property<T> &Property<T>::operator=(prop::detail::Property_value_function<T> auto &&f) {
 		return *this = prop::detail::Property_function_binder<T>{std::forward<decltype(f)>(f)};
 	}
-
 	template <class T>
-	Property<T> &Property<T>::operator=(prop::detail::Compatible_property<T> auto &&p) {
-		unbind();
-		p.read_notify();
-#ifdef __cpp_lib_forward_like
-		using Forward_t = decltype(std::forward_like<decltype(p)>(p.value));
-#else
-		using Forward_t = decltype(prop::detail::forward_like<decltype(p)>(p.value));
-#endif
-
-		if constexpr (prop::detail::is_equal_comparable_v<T, Forward_t>) {
-			if (not prop::detail::is_equal(value, static_cast<Forward_t>(p.value))) {
-				Write_notifier wn{this};
-				value = static_cast<Forward_t>(p.value);
-			}
-		} else {
-			Write_notifier wn{this};
-			value = static_cast<Forward_t>(p.value);
-		}
-		return *this;
+	Property<T> &Property<T>::operator=(prop::detail::Value_result_function<T> auto &&f) {
+		return *this = prop::detail::Property_function_binder<T>{std::forward<decltype(f)>(f)};
 	}
-
-	template <class T>
-	Property<T> &Property<T>::operator=(prop::detail::Property_value<T> auto &&v) {
-		unbind();
-		if constexpr (prop::detail::is_equal_comparable_v<T, decltype(v)>) {
-			if (not prop::detail::is_equal(value, v)) {
-				Write_notifier wn{this};
-				value = std::forward<decltype(v)>(v);
-			}
-		} else {
-			Write_notifier wn{this};
-			value = std::forward<decltype(v)>(v);
-		}
-		return *this;
-	}
-
 	template <class T>
 	Property<T> &Property<T>::operator=(prop::detail::Property_function_binder<T> binder) {
 		prop::detail::Property_base::set_explicit_dependencies(std::move(binder.explicit_dependencies));
@@ -1186,27 +1250,21 @@ namespace prop {
 
 	template <class T>
 	void print_status(const prop::Property<T> &p, std::ostream &os) {
-		const auto &static_text_color = prop::Console_text_color{prop::Color::static_text};
-		os << static_text_color;
+		os << prop::Color::static_text;
 #ifdef PROPERTY_NAMES
 		os << "Property " << p.get_name() << '\n';
 #else
-		os << "Property " << prop::Console_text_color{prop::Color::address} << &p << '\n';
+		os << "Property " << prop::Color::address << &p << '\n';
 #endif
-		os << static_text_color << "\tvalue: " << prop::console_reset_text_color << prop::detail::Printer{p.value}
-		   << "\n";
-		os << static_text_color << "\tsource: " << prop::console_reset_text_color << (p.source ? "Yes" : "No") << "\n";
-		os << static_text_color << "\tExplicit dependencies: [" << prop::console_reset_text_color
-		   << p.explicit_dependencies << static_text_color << "]\n";
-		os << static_text_color << "\tImplicit dependencies: [" << prop::console_reset_text_color
-		   << p.get_implicit_dependencies() << static_text_color << "]\n";
-		os << static_text_color << "\tDependents: [" << prop::console_reset_text_color << p.get_dependents()
-		   << static_text_color << "]\n"
-		   << prop::console_reset_text_color;
-	}
-
-	Property<void>::Property(std::convertible_to<std::move_only_function<void()>> auto &&f) {
-		update_source([source_ = std::forward<decltype(f)>(f)](const prop::detail::Binding_list &) { source_(); });
+		os << prop::Color::static_text << "\tvalue: " << prop::Color::reset << prop::detail::Printer{p.value} << "\n";
+		os << prop::Color::static_text << "\tsource: " << prop::Color::reset << (p.source ? "Yes" : "No") << "\n";
+		os << prop::Color::static_text << "\tExplicit dependencies: [" << prop::Color::reset << p.explicit_dependencies
+		   << prop::Color::static_text << "]\n";
+		os << prop::Color::static_text << "\tImplicit dependencies: [" << prop::Color::reset
+		   << p.get_implicit_dependencies() << prop::Color::static_text << "]\n";
+		os << prop::Color::static_text << "\tDependents: [" << prop::Color::reset << p.get_dependents()
+		   << prop::Color::static_text << "]\n"
+		   << prop::Color::reset;
 	}
 
 	Property<void> &Property<void>::operator=(std::convertible_to<std::move_only_function<void()>> auto &&f) {
@@ -1217,28 +1275,148 @@ namespace prop {
 	template <class T>
 	Property(T &&t) -> Property<detail::inner_type_t<T>>;
 
+	template <class U, class V>
+		decltype(auto) operator +(U &&u, V &&v)
+		requires((	prop::is_template_specialization_v<std::remove_cvref_t<U>, prop::Property>
+					and
+					(	requires { u.get() + std::forward<V>(v); }
+						or
+						requires { u.apply() + std::forward<V>(v); }
+				    )
+				 )
+				 or
+				 (	prop::is_template_specialization_v<std::remove_cvref_t<V>, prop::Property>
+					and
+					(	requires { std::forward<U>(u) + v.get(); }
+						or
+						requires { std::forward<U>(u) + v.apply(); }
+					)
+				 )
+				)
+	{
+		if constexpr (prop::is_template_specialization_v<std::remove_cvref_t<U>, prop::Property>) {
+			if constexpr (requires { u.get() + std::forward<V>(v); }) {
+				return u.get() + std::forward<V>(v);
+			} else {
+				return u.apply() + std::forward<V>(v);
+			}
+		} else {
+			if constexpr (requires { std::forward<U>(u) + v.get(); }) {
+				return std::forward<U>(u) + v.get();
+			} else {
+				return std::forward<U>(u) + v.apply();
+			}
+		}
+	}
+
+#define PROP_OP(OP)                                                                                                    \
+	template <class U, class V>                                                                 \
+	decltype(auto) operator OP(U &&u, V &&v)                                                     \
+		requires((	prop::is_template_specialization_v<std::remove_cvref_t<U>, prop::Property>    \
+				  and                                                                              \
+				  (	requires { u.get() OP std::forward<V>(v); }                                     \
+				   or                                                                                \
+				   requires { u.apply() OP std::forward<V>(v); }                                      \
+				   )                                                                                   \
+				  )                                                                                     \
+				 or                                                                                      \
+				 (	prop::is_template_specialization_v<std::remove_cvref_t<V>, prop::Property>            \
+				  and                                                                                      \
+				  (	requires { std::forward<U>(u) OP v.get(); }                                             \
+				   or                                                                                        \
+				   requires { std::forward<U>(u) OP v.apply(); }                                              \
+				   )                                                                                           \
+				  )                                                                                             \
+				 )                                                                                               \
+	{                      \
+		if constexpr (prop::is_template_specialization_v<std::remove_cvref_t<U>, prop::Property>) {                    \
+			if constexpr (requires { u.get() OP std::forward<V>(v); }) {                                               \
+				return u.get() OP std::forward<V>(v);                                                                  \
+			} else {                                                                                                   \
+				return u.apply() OP std::forward<V>(v);                                                                \
+			}                                                                                                          \
+		} else {                                                                                                       \
+			if constexpr (requires { std::forward<U>(u) OP v.get(); }) {                                               \
+				return std::forward<U>(u) OP v.get();                                                                  \
+			} else {                                                                                                   \
+				return std::forward<U>(u) OP v.apply();                                                                \
+			}                                                                                                          \
+		}                                                                                                              \
+	}
+
+	//Binary ops: + - * / % ^ | = < > += -= *= /= %= ^= &= |= << >> >>= <<= == != <= >= <=> && || , ->* ( ) [ ]
+	//PROP_OP(+)
+	PROP_OP(-)
+	PROP_OP(*)
+	PROP_OP(/)
+	PROP_OP(%)
+	PROP_OP(^)
+	PROP_OP(|)
+	//PROP_OP(=) //done manually for more overloads
+	PROP_OP(+=)
+	PROP_OP(-=)
+	PROP_OP(*=)
+	PROP_OP(/=)
+	PROP_OP(%=)
+	PROP_OP(^=)
+	PROP_OP(&=)
+	PROP_OP(|=)
+	PROP_OP(<<)
+	PROP_OP(>>)
+	PROP_OP(>>=)
+	PROP_OP(<<=)
+	//PROP_OP(<)
+	//PROP_OP(>)
+	//PROP_OP(==)
+	//PROP_OP(!=)
+	//PROP_OP(<=)
+	//PROP_OP(>=)
+	//PROP_OP(<=>)
+	PROP_OP(&&)
+	PROP_OP(||)
+	//PROP_OP(,) //does not compile due to preprocessor limitations
+	PROP_OP(->*)
+//PROP_OP(()) //variadic parameters
+//PROP_OP([]) //different syntax
+#undef PROP_OP
+
 #define PROP_BINOPS PROP_X(<=>) PROP_X(==) PROP_X(!=) PROP_X(<) PROP_X(<=) PROP_X(>) PROP_X(>=)
 #define PROP_X(OP)                                                                                                     \
 	template <class T, class U>                                                                                        \
-		requires(prop::is_type_specialization_v<T, prop::Property> and                                                 \
-				 not prop::is_type_specialization_v<U, prop::Property>)                                                \
+		requires(prop::is_template_specialization_v<T, prop::Property> and                                             \
+				 not prop::is_template_specialization_v<U, prop::Property>)                                            \
 	auto operator OP(const T &lhs, const U &rhs)->decltype(lhs.get() OP rhs) {                                         \
 		return lhs.get() OP rhs;                                                                                       \
 	}                                                                                                                  \
 	template <class T, class U>                                                                                        \
-		requires(not prop::is_type_specialization_v<T, prop::Property> and                                             \
-				 prop::is_type_specialization_v<U, prop::Property>)                                                    \
+		requires(not prop::is_template_specialization_v<T, prop::Property> and                                         \
+				 prop::is_template_specialization_v<U, prop::Property>)                                                \
 	auto operator OP(const T &lhs, const U &rhs)->decltype(lhs OP rhs.get()) {                                         \
 		return lhs OP rhs.get();                                                                                       \
 	}                                                                                                                  \
 	template <class T, class U>                                                                                        \
-		requires(prop::is_type_specialization_v<T, prop::Property> and                                                 \
-				 prop::is_type_specialization_v<U, prop::Property>)                                                    \
+		requires(prop::is_template_specialization_v<T, prop::Property> and                                             \
+				 prop::is_template_specialization_v<U, prop::Property>)                                                \
 	auto operator OP(const T &lhs, const U &rhs)->decltype(lhs.get() OP rhs.get()) {                                   \
 		return lhs.get() OP rhs.get();                                                                                 \
 	}
 	PROP_BINOPS
 #undef PROP_X
 #undef PROP_BINOPS
-
 } // namespace prop
+
+template <class U, class V>
+decltype(auto) operator+(U &&u, V &&v)
+	requires(prop::is_template_specialization_v<U, prop::Property> or
+			 prop::is_template_specialization_v<V, prop::Property>)
+{
+	if constexpr (prop::is_template_specialization_v<U, prop::Property>) {
+		if constexpr (requires { u.get() + std::forward<V>(v); }) {
+			return u.get() + std::forward<V>(v);
+		} else {
+			return u.apply() + std::forward<V>(v);
+		}
+	} else {
+		return std::forward<U>(u) + v.get();
+	}
+}

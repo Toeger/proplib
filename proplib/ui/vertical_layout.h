@@ -1,7 +1,7 @@
 #pragma once
 
 #include "proplib/ui/widget.h"
-#include "proplib/utility/orientation.h"
+#include "proplib/utility/alignment.h"
 #include "proplib/utility/polywrap.h"
 
 #include <boost/pfr/core.hpp>
@@ -41,7 +41,7 @@ namespace prop {
 #endif
 
 		prop::Property<std::vector<prop::Polywrap<prop::Widget>>> children;
-		prop::Property<prop::Orientation> orientation;
+		prop::Property<prop::Alignment> alignment;
 
 		private:
 		struct Child_positioner {

@@ -28,7 +28,7 @@ struct SFML_window : prop::platform::Window {
 	}
 	SFML_window(const SFML_window &) = delete;
 	~SFML_window() {
-		std::remove(std::begin(sfml_windows), std::end(sfml_windows), this);
+		sfml_windows.erase(std::remove(std::begin(sfml_windows), std::end(sfml_windows), this), std::end(sfml_windows));
 	}
 	bool pump(bool exclusive) {
 		sf::Event event;

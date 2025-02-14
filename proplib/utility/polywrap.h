@@ -27,7 +27,8 @@ namespace prop {
 
 	namespace detail {
 		template <class Polywrap>
-		constexpr bool is_polywrap_v = is_type_specialization_v<std::remove_cvref_t<Polywrap>, prop::Polywrap>;
+		constexpr bool is_polywrap_v =
+			prop::is_template_specialization_v<std::remove_cvref_t<Polywrap>, prop::Polywrap>;
 
 		template <class Compatible_type, class Polywrap_inner_type>
 		concept Compatible_polywrap_value =

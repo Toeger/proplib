@@ -30,7 +30,10 @@ TEST_CASE("Multiple properties") {
 
 TEST_CASE("Property with dependents") {
 	prop::Property p = 42;
-	prop::Property<double> pd = [&p] { return static_cast<double>(p); };
+	prop::Property pd = [&p] { return static_cast<double>(p); };
+	REQUIRE(p.is_dependency_of(pd));
+	REQUIRE(p.is_implicit_dependency_of(pd));
+	REQUIRE(pd.is_dependent_on(p));
 	WHEN("Adding only dependency") {
 		prop::Dependency_tracer tracer;
 		PROP_TRACE(tracer, p);

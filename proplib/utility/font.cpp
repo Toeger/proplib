@@ -2,7 +2,7 @@
 #include "proplib/utility/style.h"
 
 #define PROP_MEMBERS                                                                                                   \
-	PROP_X(color), PROP_X(name), PROP_X(orientation), PROP_X(pixel_size), PROP_X(bold), PROP_X(italic),                \
+	PROP_X(color), PROP_X(name), PROP_X(alignment), PROP_X(pixel_size), PROP_X(bold), PROP_X(italic),                  \
 		PROP_X(strikeout), PROP_X(underline)
 
 prop::Font::Font()

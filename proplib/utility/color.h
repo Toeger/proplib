@@ -61,22 +61,18 @@ namespace prop {
 
 		//prop colors
 		static Color static_text, type, variable_name, address, file, path, function_name, function_type;
+
+		struct Reset {
+		} static constexpr reset{};
 	};
 
-	struct Console_text_color {
+	struct Background {
 		prop::Color color = Color::black;
-		friend std::ostream &operator<<(std::ostream &os, Console_text_color cc);
 	};
-	std::string to_string(Console_text_color ctc);
-	struct Console_background_text_color {
-		prop::Color color = Color::black;
-		friend std::ostream &operator<<(std::ostream &os, Console_background_text_color cc);
-	};
-	std::string to_string(Console_background_text_color cbtc);
-	struct Console_reset_text_color {
-		friend std::ostream &operator<<(std::ostream &os, Console_reset_text_color cc);
-	} constexpr console_reset_text_color;
-	std::string to_string(Console_reset_text_color crtc);
+
+	std::ostream &operator<<(std::ostream &os, prop::Color color);
+	std::ostream &operator<<(std::ostream &os, prop::Background background);
+	std::ostream &operator<<(std::ostream &os, prop::Color::Reset);
 } // namespace prop
 
 inline constexpr prop::Color prop::Color::white{{.rgb = 0xFFFFFF}};
@@ -97,9 +93,9 @@ inline constexpr prop::Color prop::Color::fuchsia{{.rgb = 0xFF00FF}};
 inline constexpr prop::Color prop::Color::purple{{.rgb = 0x800080}};
 
 inline prop::Color prop::Color::static_text = prop::Color::silver;
-inline prop::Color prop::Color::type = prop::Color::fuchsia;
+inline prop::Color prop::Color::type = prop::Color::yellow;
 inline prop::Color prop::Color::variable_name = prop::Color::aqua;
-inline prop::Color prop::Color::address = prop::Color::purple;
+inline prop::Color prop::Color::address = prop::Color::olive;
 inline prop::Color prop::Color::file = prop::Color::aqua;
 inline prop::Color prop::Color::path = prop::Color::teal;
 inline prop::Color prop::Color::function_name = prop::Color::aqua;

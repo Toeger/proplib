@@ -21,3 +21,7 @@
 	- std::vector::operator== not SFINAE-friendly, comparability is semi-decidable
 	- Inheritance to force members
 	- Lack of operator. hurts
+
+- Random gripes
+	- std::move_only_function::target does not exist. I need that!
+	- name lookup being restricted to closest namespace is extremely annoying

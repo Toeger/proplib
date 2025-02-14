@@ -71,25 +71,26 @@ constexpr std::string_view function_part(std::string_view function, Function_par
 
 struct Tracer {
 	Tracer(std::ostream &output_stream = std::clog, std::source_location sl = std::source_location::current())
-		: os{output_stream} {
+		: os{output_stream}
+		, source_location{sl} {
 		//std::move(*this) << prop::Color::path << path(sl.file_name());
-		std::move(*this) << prop::Color::file << file(sl.file_name()) << ':' << prop::Color::file << sl.line();
-		std::move(*this) << ' ';
+		//std::move(*this) << prop::Color::file << file(sl.file_name()) << ':' << prop::Color::file << sl.line();
+		//std::move(*this) << ' ';
 		//std::move(*this) << prop::Color::function_type << function_part(sl.function_name(), Function_part::before_name);
-		std::move(*this) << prop::Color::function_name << function_part(sl.function_name(), Function_part::name);
+		//std::move(*this) << prop::Color::function_name << function_part(sl.function_name(), Function_part::name);
 		//std::move(*this) << prop::Color::function_type << function_part(sl.function_name(), Function_part::after_name);
-		std::move(*this) << ": ";
+		//std::move(*this) << ": ";
 	}
 	Tracer &&operator<<(prop::Color color) && {
-		os << prop::Console_text_color{color};
+		os << color;
 		return std::move(*this);
 	}
 	Tracer &&operator<<(const char *s) && {
-		os << prop::Console_text_color{prop::Color::static_text} << s;
+		os << prop::Color::static_text << s;
 		return std::move(*this);
 	}
 	Tracer &&operator<<(char c) && {
-		os << prop::Console_text_color{prop::Color::static_text} << c;
+		os << prop::Color::static_text << c;
 		return std::move(*this);
 	}
 	Tracer &&operator<<(std::string_view s) && {
@@ -101,13 +102,15 @@ struct Tracer {
 		return std::move(*this);
 	}
 	Tracer &&operator<<(const void *p) && {
-		os << prop::Console_text_color{prop::Color::pointer} << p;
+		os << prop::Color::address << p;
 		return std::move(*this);
 	}
 	~Tracer() {
-		os << prop::console_reset_text_color << '\n';
+		os << prop::Color::static_text << " in " << prop::Color::function_name
+		   << function_part(source_location.function_name(), Function_part::name) << prop::Color::reset << '\n';
 	}
 	std::ostream &os;
+	std::source_location source_location;
 };
 
 #define TRACE(...) Tracer{} << __VA_ARGS__
@@ -115,14 +118,14 @@ struct Tracer {
 int property_base_counter;
 static std::string propnames(const prop::detail::Binding_set &set) {
 	std::stringstream ss;
-	ss << prop::Console_text_color{prop::Color::static_text} << '[';
+	ss << prop::Color::static_text << '[';
 	const char *separator = "";
 	for (const auto &binding : set) {
-		ss << prop::Console_text_color{prop::Color::static_text} << separator;
+		ss << prop::Color::static_text << separator;
 		separator = ", ";
 		ss << binding->get_name();
 	}
-	ss << prop::Console_text_color{prop::Color::static_text} << ']';
+	ss << prop::Color::static_text << ']';
 	return ss.str();
 }
 #else
@@ -165,7 +168,7 @@ void prop::detail::Property_base::unbind_depends() {
 
 void prop::detail::Property_base::read_notify() {
 	if (current_binding && dependents.add(current_binding)) {
-		TRACE("Added " << get_name() << " as an implicit dependency of " << current_binding->get_name());
+		TRACE("Added      " << get_name() << " as an implicit dependency of " << current_binding->get_name());
 		current_binding->implicit_dependencies.add(this);
 	}
 }
@@ -175,7 +178,7 @@ void prop::detail::Property_base::read_notify() const {
 }
 
 void prop::detail::Property_base::write_notify() {
-	TRACE(get_name() << "->" << propnames(dependents));
+	TRACE("Notifying  " << get_name() << "->" << propnames(dependents));
 	for (const auto &dependent : dependents) {
 		dependent->need_update = true;
 	}
@@ -187,14 +190,14 @@ void prop::detail::Property_base::write_notify() {
 }
 
 void prop::detail::Property_base::update_start() {
-	TRACE(get_name());
+	TRACE("Updating   " << get_name());
 	previous_binding = current_binding;
 	clear_implicit_dependencies();
 	current_binding = this;
 }
 
 void prop::detail::Property_base::update_complete() {
-	TRACE(get_name());
+	TRACE("Completed  " << get_name());
 	current_binding = previous_binding;
 }
 
@@ -242,12 +245,12 @@ prop::detail::Property_base::Property_base
 	: type{type_name}
 
 {
-	TRACE("Created " << get_name() << prop::Color::static_text
-					 << (creation_binding ? " with creation binding " + creation_binding->get_name() : ""));
+	TRACE("Created    " << get_name() << prop::Color::static_text
+						<< (creation_binding ? " with creation binding " + creation_binding->get_name() : ""));
 #else
 	() {
-	TRACE("Created " << get_name() << prop::Color::static_text
-					 << (creation_binding ? " with creation binding " + prop::to_string(creation_binding) : ""));
+	TRACE("Created    " << get_name() << prop::Color::static_text
+						<< (creation_binding ? " with creation binding " + prop::to_string(creation_binding) : ""));
 #endif
 }
 
@@ -270,7 +273,7 @@ prop::detail::Property_base::Property_base(Property_base &&other) {
 }
 
 void prop::detail::Property_base::operator=(Property_base &&other) {
-	TRACE(other.get_name() << " was moved to " << get_name());
+	TRACE("Moving     " << other.get_name() << " to " << get_name());
 	sever_implicit_dependents();
 	other.sever_implicit_dependents();
 	take_explicit_dependents(std::move(other));
@@ -283,14 +286,14 @@ prop::detail::Property_base::~Property_base() {
 	//clear explicit dependencies
 	for (const auto &dependency : explicit_dependencies) {
 		if (dependency) {
-			TRACE("Removed " << get_name() << " from dependents of " << dependency->get_name());
+			TRACE("Removed    " << get_name() << " from dependents of " << dependency->get_name());
 			dependency->dependents.remove(this);
 		}
 	}
 	//clear creation dependency
 	if (dependents.has(creation_binding)) {
-		TRACE("Removed " << get_name() << " as dependency from " << creation_binding->get_name() << " because "
-						 << get_name() << " is a temporary getting destroyed");
+		TRACE("Removed    " << get_name() << " as dependency from " << creation_binding->get_name() << " because "
+							<< get_name() << " is a temporary getting destroyed");
 		dependents.remove(creation_binding);
 		creation_binding->implicit_dependencies.remove(this);
 	}
@@ -308,7 +311,7 @@ prop::detail::Property_base::~Property_base() {
 		}
 		dependent->update();
 	}
-	TRACE(get_name() << " destroyed");
+	TRACE("Destroyed  " << get_name());
 #ifdef PROPERTY_DEBUG
 	custom_name = "~" + custom_name;
 #endif
@@ -318,9 +321,9 @@ void prop::detail::Property_base::clear_implicit_dependencies() {
 	if (implicit_dependencies.is_empty()) {
 		return;
 	}
-	TRACE(get_name());
+	TRACE("Clearing   " << get_name());
 	for (const auto &dependency : implicit_dependencies) {
-		TRACE("Removed " << get_name() << " from dependents of " << dependency->get_name());
+		TRACE("Removed    " << get_name() << " from dependents of " << dependency->get_name());
 		assert(dependency->dependents.has(this));
 		dependency->dependents.remove(this);
 	}
@@ -331,7 +334,7 @@ void prop::detail::Property_base::sever_implicit_dependents() {
 	if (dependents.is_empty()) {
 		return;
 	}
-	TRACE(get_name());
+	TRACE("Severing   " << get_name());
 	for (auto dep_it = std::cbegin(dependents); dep_it != std::cend(dependents);) {
 		auto &dependent = *dep_it;
 		++dep_it;
@@ -340,8 +343,8 @@ void prop::detail::Property_base::sever_implicit_dependents() {
 			if (dependent->explicit_dependencies.has(this)) {
 				dependent->implicit_dependencies.remove(this);
 			} else {
-				TRACE("Unbound " << dependent->get_name() << " because it implicitly depends on " << get_name()
-								 << " which is getting severed");
+				TRACE("Unbound    " << dependent->get_name() << " because it implicitly depends on " << get_name()
+									<< " which is getting severed");
 				on_property_severed(dependent, this);
 				dependent->unbind();
 			}
@@ -382,7 +385,7 @@ const prop::detail::Binding_set &prop::detail::Property_base::get_dependents() c
 }
 
 void prop::detail::swap(Property_base &lhs, Property_base &rhs) {
-	TRACE("Swapping " << lhs.get_name() << " and " << rhs.get_name());
+	TRACE("Swapping   " << lhs.get_name() << " and " << rhs.get_name());
 	using std::swap;
 	swap(lhs.explicit_dependencies, rhs.explicit_dependencies);
 	swap(lhs.implicit_dependencies, rhs.implicit_dependencies);
@@ -524,10 +527,10 @@ bool prop::Property<void>::is_bound() const {
 }
 
 std::ostream &prop::detail::operator<<(std::ostream &os, const prop::detail::Binding_set &set) {
-	const auto &static_text_color = prop::Console_text_color{prop::Color::static_text};
+	const auto &static_text_color = prop::Color::static_text;
 	const char *separator = "";
 	for (const auto &element : set) {
-		os << static_text_color << separator << prop::console_reset_text_color;
+		os << static_text_color << separator << prop::Color::reset;
 #ifdef PROPERTY_NAMES
 		os << element->get_name();
 #else
@@ -539,10 +542,10 @@ std::ostream &prop::detail::operator<<(std::ostream &os, const prop::detail::Bin
 }
 
 std::ostream &prop::detail::operator<<(std::ostream &os, const prop::detail::Binding_list &list) {
-	const auto &static_text_color = prop::Console_text_color{prop::Color::static_text};
+	const auto &static_text_color = prop::Color::static_text;
 	const char *separator = "";
 	for (const auto &element : list) {
-		os << static_text_color << separator << prop::console_reset_text_color;
+		os << static_text_color << separator << prop::Color::reset;
 #ifdef PROPERTY_NAMES
 		os << element->get_name();
 #else
@@ -554,19 +557,19 @@ std::ostream &prop::detail::operator<<(std::ostream &os, const prop::detail::Bin
 }
 
 void prop::print_status(const prop::Property<void> &p, std::ostream &os) {
-	const auto &static_text_color = prop::Console_text_color{prop::Color::static_text};
-	os << static_text_color << "Property " << prop::console_reset_text_color;
+	const auto &static_text_color = prop::Color::static_text;
+	os << static_text_color << "Property   " << prop::Color::reset;
 #ifdef PROPERTY_NAMES
 	os << p.get_name();
 #else
 	os << &p;
 #endif
 	os << '\n';
-	os << static_text_color << "\tsource: " << prop::console_reset_text_color << (p.source ? "Yes" : "No") << "\n";
-	os << static_text_color << "\tExplicit dependencies: [" << prop::console_reset_text_color << p.explicit_dependencies
+	os << static_text_color << "\tsource: " << prop::Color::reset << (p.source ? "Yes" : "No") << "\n";
+	os << static_text_color << "\tExplicit dependencies: [" << prop::Color::reset << p.explicit_dependencies
 	   << static_text_color << "]\n";
-	os << static_text_color << "\tImplicit dependencies: [" << prop::console_reset_text_color
-	   << p.get_implicit_dependencies() << static_text_color << "]\n";
-	os << static_text_color << "\tDependents: [" << prop::console_reset_text_color << p.get_dependents()
+	os << static_text_color << "\tImplicit dependencies: [" << prop::Color::reset << p.get_implicit_dependencies()
 	   << static_text_color << "]\n";
+	os << static_text_color << "\tDependents: [" << prop::Color::reset << p.get_dependents() << static_text_color
+	   << "]\n";
 }
