@@ -36,6 +36,7 @@ set(PROP_LIBRARY_UTILITY_NAMES
 	font
 	polywrap
 	property
+	property_details
 	raii
 	rect
 	signal

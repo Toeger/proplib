@@ -4,17 +4,6 @@
 #include <catch2/catch_all.hpp>
 #include <memory>
 
-#ifdef PROPERTY_DEBUG
-#include <iostream>
-#define RESET_COUNTER                                                                                                  \
-	extern int property_base_counter;                                                                                  \
-	property_base_counter = 0;                                                                                         \
-	std::clog << '\n' << __LINE__ << '\n';
-#else
-#define RESET_COUNTER
-#define print_status(PROPERTY)
-#endif
-
 TEST_CASE("Compile time checks") {
 	//Primitive types
 	static_assert(std::is_same_v<prop::detail::inner_value_type_t<int>, int>);
@@ -113,7 +102,6 @@ TEST_CASE("Basic Property tests") {
 }
 
 TEST_CASE("Property<Move_only>") {
-	RESET_COUNTER
 	prop::Property<std::unique_ptr<int>> p1;
 	REQUIRE(p1 == nullptr);
 	p1 = std::make_unique<int>(42);
@@ -144,7 +132,6 @@ TEST_CASE("Conversion property value") {
 }
 
 TEST_CASE("Dereference") {
-	RESET_COUNTER
 	struct S {
 		int i = 42;
 	};
@@ -166,7 +153,6 @@ TEST_CASE("Dereference") {
 }
 
 TEST_CASE("Property assignment and value capturing") {
-	RESET_COUNTER
 	prop::Property p1 = 1;
 	prop::Property p2 = p1;
 	REQUIRE(p2 == 1);
@@ -179,7 +165,6 @@ TEST_CASE("Property assignment and value capturing") {
 }
 
 TEST_CASE("Moving properties while maintaining binding") {
-	RESET_COUNTER
 	prop::Property p1 = 1;
 	prop::Property<int> p2;
 	p2 = {[](int &p1_value) { return p1_value + 1; }, p1};
@@ -234,7 +219,6 @@ TEST_CASE("Property binding mismatch compilation failures") {
 }
 
 TEST_CASE("Explicit bindings") {
-	RESET_COUNTER
 	prop::Property p1 = 42;
 	prop::Property<int> p2;
 	p2 = {[](const int &i) { return i + 2; }, p1};
@@ -257,7 +241,6 @@ TEST_CASE("Explicit bindings") {
 }
 
 TEST_CASE("Expiring explicit bindings") {
-	RESET_COUNTER
 	prop::Property<int> p1;
 	prop::Property p2 = 2;
 	{
@@ -287,7 +270,6 @@ struct S {
 };
 
 TEST_CASE("Inner property") {
-	RESET_COUNTER
 	prop::Property<S> p1;
 	prop::Property<void> p3;
 	p3 = {[](S &s) { s.inner = 42; }, p1};
@@ -308,7 +290,6 @@ struct SS {
 };
 
 TEST_CASE("Inner inner property") {
-	RESET_COUNTER
 	prop::Property<SS> p1;
 	prop::Property<void> p4;
 	p4 = {[](SS &ss) { ss.s.apply_guarded([](S &s) { s.inner = 42; }); }, p1};
@@ -325,14 +306,12 @@ TEST_CASE("Inner inner property") {
 }
 
 TEST_CASE("Apply operators") {
-	RESET_COUNTER
 	prop::Property p1 = 42;
 	//p1.apply()++;
 	//REQUIRE(p1 == 43);
 }
 
 TEST_CASE("Apply member function calls") {
-	RESET_COUNTER
 	prop::Property<std::vector<int>> p1;
 	p1.apply()->push_back(42);
 	REQUIRE(p1.get().size() == 1);
@@ -340,7 +319,6 @@ TEST_CASE("Apply member function calls") {
 }
 
 TEST_CASE("Dependency checks") {
-	RESET_COUNTER
 	prop::Property p1 = 42;
 	prop::Property p2 = [&] { return p1; };
 	print_status(p1);
