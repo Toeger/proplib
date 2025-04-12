@@ -26,7 +26,7 @@ namespace prop {
 		using prop::detail::Property_base::write_notify;
 		//using prop::detail::Property_base::need_update;
 
-		T value{};
+		mutable T value{};
 		std::move_only_function<prop::Value(T &, const prop::detail::Binding_list &)> source;
 		struct Write_notifier;
 
@@ -319,9 +319,11 @@ namespace prop {
 	void print_status(const prop::Property<void> &p, std::ostream &os = std::clog);
 
 	template <>
-	class Property<void> final : prop::detail::Property_name_base<prop::Property<void>> {
+	class Property<void> final : prop::detail::Property_name_base<void> {
 		public:
 		Property();
+		Property(Property &&other);
+		Property &operator=(Property &&other);
 		Property(std::convertible_to<std::move_only_function<void()>> auto &&f);
 		Property &operator=(std::convertible_to<std::move_only_function<void()>> auto &&f);
 		Property &operator=(prop::detail::Property_function_binder<void> binder);
@@ -502,6 +504,8 @@ namespace prop {
 
 	template <class T>
 	Property<T> &Property<T>::operator=(Generator &&generator) {
+		assert(!"Unimplemented");
+		throw std::logic_error{"Unimplemented"};
 		return *this;
 	}
 

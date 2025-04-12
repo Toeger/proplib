@@ -5,7 +5,7 @@ prop::Style prop::Style::default_style = {
 	.font{prop::Font{{
 		.color = prop::Color::black,
 		.name = "/usr/share/fonts/truetype/ubuntu/Ubuntu-M.ttf",
-		.alignment = prop::Alignment::top_left,
+		.alignment = top_left,
 		.pixel_size = 12,
 		.bold = 1.f,
 		.italic = false,

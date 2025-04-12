@@ -22,10 +22,10 @@ void prop::Canvas::draw_text(std::string_view text, Font font_) {
 
 prop::Canvas prop::Canvas::sub_canvas_for(const prop::Widget &widget) {
 	prop::Canvas canvas{{
-							.top = rect.top + widget.rect->top,
-							.left = rect.left + widget.rect->left,
-							.bottom = rect.top + widget.rect->bottom,
-							.right = rect.left + widget.rect->right,
+							.top = rect.top + widget.position->top,
+							.left = rect.left + widget.position->left,
+							.bottom = rect.top + widget.position->bottom,
+							.right = rect.left + widget.position->right,
 						},
 						*canvas_context};
 	return canvas;

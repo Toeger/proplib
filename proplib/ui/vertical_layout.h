@@ -39,6 +39,7 @@ namespace prop {
 			set_name(name);
 		}
 #endif
+		void trace(Dependency_tracer &dependency_tracer) const override;
 
 		prop::Property<std::vector<prop::Polywrap<prop::Widget>>> children;
 		prop::Property<prop::Alignment> alignment;

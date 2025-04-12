@@ -1,7 +1,7 @@
 #pragma once
 
 namespace prop {
-	enum Alignment {
+	enum Alignment : unsigned char {
 		none,
 		left,
 		right,

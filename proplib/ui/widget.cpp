@@ -9,7 +9,7 @@
 #endif
 
 #define PROP_WIDGET_PROPERTY_MEMBERS                                                                                   \
-	PROP_X(rect), PROP_X(visible), PROP_X(min_size), PROP_X(max_size), PROP_X(preferred_size)
+	PROP_X(position), PROP_X(visible), PROP_X(min_size), PROP_X(max_size), PROP_X(preferred_size)
 
 prop::Widget::Widget()
 	: Widget{Parameters{}} {
@@ -52,7 +52,7 @@ void prop::Widget::set_name(std::string_view name) {
 }
 
 void prop::Widget::trace(Dependency_tracer &dependency_tracer) const {
-	PROP_TRACE(dependency_tracer, *this);
+	Dependency_tracer::Make_current _{this, dependency_tracer};
 #define PROP_X(X) PROP_TRACE(dependency_tracer, X)
 	(PROP_WIDGET_PROPERTY_MEMBERS);
 #undef PROP_X

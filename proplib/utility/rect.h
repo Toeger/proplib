@@ -2,6 +2,7 @@
 
 #include <compare>
 #include <numeric>
+#include <ostream>
 
 namespace prop {
 	struct Size { //TODO: extract into size.h?
@@ -27,6 +28,8 @@ namespace prop {
 		}
 		constexpr auto operator<=>(const Rect &) const = default;
 	};
+
+	std::ostream &operator<<(std::ostream &os, const Rect &rect);
 } // namespace prop
 
 constexpr prop::Size prop::Size::max{.width = std::numeric_limits<decltype(prop::Size::width)>::max(),

@@ -60,3 +60,12 @@ void prop::print_status(const prop::Property<void> &p, std::ostream &os) {
 	os << static_text_color << "\tDependents: [" << prop::Color::reset << p.get_dependents() << static_text_color
 	   << "]\n";
 }
+
+prop::Property<void>::Property(prop::Property<void> &&other) {
+	std::swap(source, other.source);
+}
+
+prop::Property<void> &prop::Property<void>::operator=(prop::Property<void> &&other) {
+	std::swap(source, other.source);
+	return *this;
+}

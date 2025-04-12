@@ -18,7 +18,7 @@ namespace prop {
 	class Widget {
 		public:
 		struct Parameters {
-			Property<prop::Rect> rect;
+			Property<prop::Rect> position;
 			Property<bool> visible = true;
 			Property<prop::Size> min_size = prop::Size{0, 0};
 			Property<prop::Size> max_size = prop::Size::max;
@@ -39,7 +39,7 @@ namespace prop {
 		friend void swap(Widget &lhs, Widget &rhs);
 
 		prop::Property<prop::Self> self;
-		Property<prop::Rect> rect;
+		Property<prop::Rect> position;
 		Property<bool> visible = true;
 		const Property<prop::Size> &get_min_size() const {
 			return min_size;
