@@ -2,6 +2,7 @@
 
 #include "proplib/ui/widget.h"
 #include "proplib/utility/alignment.h"
+#include "proplib/utility/dependency_tracer.h"
 #include "proplib/utility/polywrap.h"
 
 #include <boost/pfr/core.hpp>
@@ -62,6 +63,7 @@ template <class... Children>
 prop::Vertical_layout::Vertical_layout(Children &&...children_)
 	requires(std::is_convertible_v<decltype(std::forward<Children>(children_)), prop::Polywrap<prop::Widget>> && ...)
 	: Vertical_layout{} {
+	PROP_TRACER(*this).to_image("/home/toeger/Projects/Prop/dot test/vl.png");
 	std::vector<prop::Polywrap<prop::Widget>> children_list;
 	children_list.reserve(sizeof...(children_));
 	(children_list.emplace_back(std::forward<Children>(children_)), ...);

@@ -13,10 +13,9 @@ namespace prop {
 	using detail::converts_to;
 
 	template <class T>
-	class Property final
-		: public detail::Conversion_provider<T, false, decltype(converts_to(std::declval<T &>()))>,
-		  public detail::Conversion_provider<T, true, decltype(converts_to(std::declval<const T &>()))>,
-		  private prop::detail::Property_name_base<T> {
+	class Property : public detail::Conversion_provider<T, false, decltype(converts_to(std::declval<T &>()))>,
+					 public detail::Conversion_provider<T, true, decltype(converts_to(std::declval<const T &>()))>,
+					 private prop::detail::Property_name_base<T> {
 		using prop::detail::Property_base::explicit_dependencies;
 		using prop::detail::Property_base::need_update;
 		using prop::detail::Property_base::read_notify;
@@ -86,7 +85,7 @@ namespace prop {
 		Property(prop::detail::Property_value_function<T> auto &&f);
 		Property(prop::detail::Value_result_function<T> auto &&f, T t);
 		Property(prop::detail::Property_function_binder<T> binder);
-		~Property() {
+		virtual ~Property() {
 			//prevents infinite recursion when source is a lambda that captures a property by value and depends on it
 			auto{std::move(source)};
 		}
@@ -107,6 +106,9 @@ namespace prop {
 		const T &get() const;
 		bool is_bound() const;
 		void unbind() final override;
+		std::string displayed_value() const final {
+			return "";
+		}
 		void sever();
 		Write_notifier apply();
 		template <class Functor>
@@ -131,11 +133,18 @@ namespace prop {
 		}
 
 		template <class U>
-		operator U() const
-			requires(std::convertible_to<const T &, U> and not std::same_as<T, std::remove_cvref_t<U>>)
+		operator U &() const
+			requires(std::convertible_to<const T &, U &> and not std::same_as<T, std::remove_cvref_t<U>>)
 		{
 			read_notify();
-			return static_cast<U>(value);
+			return value;
+		}
+		template <class U>
+		operator U() const
+			requires std::convertible_to<const T &, U &&>
+		{
+			read_notify();
+			return value;
 		}
 		operator const T &() const;
 		template <class Widget>
@@ -144,9 +153,13 @@ namespace prop {
 			return value.operator Widget &();
 		}
 
-		const T *operator->() const {
-			this->read_notify();
-			return &value;
+		auto operator->() const {
+			read_notify();
+			if constexpr (std::is_pointer_v<T>) {
+				return value;
+			} else {
+				return &value;
+			}
 		}
 		const T &operator*() const {
 			read_notify();
@@ -319,7 +332,7 @@ namespace prop {
 	void print_status(const prop::Property<void> &p, std::ostream &os = std::clog);
 
 	template <>
-	class Property<void> final : prop::detail::Property_name_base<void> {
+	class Property<void> : prop::detail::Property_name_base<void> {
 		public:
 		Property();
 		Property(Property &&other);
@@ -348,6 +361,7 @@ namespace prop {
 #ifdef PROPERTY_NAMES
 		using prop::detail::Property_base::custom_name;
 #endif
+		virtual ~Property() = default;
 
 		private:
 		void update_source(std::move_only_function<void(const prop::detail::Binding_list &)> f);

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <concepts>
 #include <sstream>
+#include <type_traits>
 #include <utility>
 
 namespace prop {
@@ -63,4 +64,18 @@ namespace prop {
 		ss << t;
 		return std::move(ss).str();
 	}
+
+	template <class From, class To>
+	using copy_cv_t =
+		std::conditional_t<std::is_volatile_v<From>, volatile std::conditional_t<std::is_const_v<From>, const To, To>,
+						   std::conditional_t<std::is_const_v<From>, const To, To>>;
+	template <class From, class To>
+	using copy_ref_t = std::conditional_t<std::is_lvalue_reference_v<From>, To &,
+										  std::conditional_t<std::is_rvalue_reference_v<From>, To &&, To>>;
+
+	template <class From, class To>
+	using copy_cvref_t = copy_ref_t<From, copy_cv_t<std::remove_reference_t<From>, std::remove_cvref_t<To>>>;
+
+	template <class T, class U>
+	concept Match_cvr = std::is_same_v<U, copy_cv_t<T, U>>;
 } // namespace prop

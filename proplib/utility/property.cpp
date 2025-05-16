@@ -29,6 +29,10 @@ void prop::Property<void>::update() {
 	}
 }
 
+std::string prop::detail::Property_base::displayed_value() const {
+	return {};
+}
+
 void prop::Property<void>::unbind() {
 	source = nullptr;
 	Property_base::unbind();

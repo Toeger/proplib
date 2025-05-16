@@ -80,6 +80,7 @@ namespace prop {
 		struct Property_base {
 			virtual void update();
 			virtual void unbind();
+			virtual std::string displayed_value() const;
 			void unbind_depends();
 			void read_notify() const;
 			void read_notify();

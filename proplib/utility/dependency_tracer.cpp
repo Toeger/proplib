@@ -1,6 +1,7 @@
 #include "dependency_tracer.h"
 #include "color.h"
 
+#include <algorithm>
 #include <format>
 #include <fstream>
 
@@ -20,6 +21,14 @@ void prop::Dependency_tracer::print_widget_trace(std::ostream &os) const {
 	}
 	os << prop::Color::reset;
 }
+
+std::intptr_t prop::Dependency_tracer::global_base_address = reinterpret_cast<std::intptr_t>(&global_base_address);
+std::intptr_t prop::Dependency_tracer::stack_base_address = [] {
+	int i;
+	return reinterpret_cast<std::intptr_t>(std::launder(&i));
+}();
+std::intptr_t prop::Dependency_tracer::heap_base_address =
+	reinterpret_cast<std::intptr_t>(std::launder(std::make_unique<int>().get()));
 
 namespace Dot {
 	static std::string html_encode(std::string_view sv) {
@@ -151,20 +160,30 @@ namespace Dot {
 	}
 
 	static std::string color_code(const void *address) {
-		std::uintptr_t value = reinterpret_cast<std::uintptr_t>(address);
+		const std::array bases = {
+			prop::Dependency_tracer::global_base_address,
+			prop::Dependency_tracer::stack_base_address,
+			prop::Dependency_tracer::heap_base_address,
+		};
+		auto min_base_index = std::min_element(std::begin(bases), std::end(bases),
+											   [&](std::intptr_t l, std::intptr_t r) {
+												   return std::abs(l - reinterpret_cast<std::intptr_t>(address)) <
+														  std::abs(r - reinterpret_cast<std::intptr_t>(address));
+											   }) -
+							  std::begin(bases);
+
+		std::intptr_t value = reinterpret_cast<std::intptr_t>(address) - bases[min_base_index];
 		while (value > 0x1fffff) {
 			value >>= 1;
 		}
-		std::uint32_t r{0x80}, g{0x80}, b{0x80};
+		std::uint32_t rgb[3] = {0x80, 0x80, 0x80};
 		for (int i = 0; i < 7; i++) {
-			r |= (value & 1) << i;
-			value >>= 1;
-			g |= (value & 1) << i;
-			value >>= 1;
-			b |= (value & 1) << i;
-			value >>= 1;
+			for (int ci = 0; ci < 3; ci++) {
+				rgb[ci] |= (value & 1) << i;
+				value >>= 1;
+			}
 		}
-		value = r << 16 | g << 8 | b;
+		value = rgb[min_base_index] << 16 | rgb[(min_base_index + 1) % 3] << 8 | rgb[(min_base_index + 2) % 3];
 		return (std::stringstream{} << std::hex << value).str();
 	}
 } // namespace Dot
@@ -245,7 +264,7 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 					if (auto dit = properties.find(dependent);
 						dit != std::end(properties) && dit->second.widget == pit->second.widget) {
 						//same widget
-						//Command _{dot_name(address) + " -> " + dot_name(dependent) + " [color=\"red\" style=\"bold\"]"};
+						Command _{dot_name(address) + " -> " + dot_name(dependent) + " [color=\"red\" style=\"bold\"]"};
 						continue;
 						static int i = 1;
 						const auto color = i == 1 ? "red" : "red";

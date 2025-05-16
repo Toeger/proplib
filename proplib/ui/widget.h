@@ -39,6 +39,10 @@ namespace prop {
 		friend void swap(Widget &lhs, Widget &rhs);
 
 		prop::Property<prop::Self> self;
+		template <class Widget>
+		prop::Property<Widget *> selfie(this Widget &widget) {
+			return {{[](prop::Self self_) { return static_cast<Widget *>(self_.self); }, widget.self}};
+		}
 		Property<prop::Rect> position;
 		Property<bool> visible = true;
 		const Property<prop::Size> &get_min_size() const {

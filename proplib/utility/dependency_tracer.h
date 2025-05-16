@@ -133,6 +133,10 @@ namespace prop {
 			}
 		}
 
+		static std::intptr_t heap_base_address;
+		static std::intptr_t stack_base_address;
+		static std::intptr_t global_base_address;
+
 		private:
 		template <class T>
 		void add(std::string_view name, const prop::Property<T> &property) {

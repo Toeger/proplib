@@ -11,33 +11,32 @@
 	PROP_X(name_updater), PROP_X(children), PROP_X(alignment), PROP_X(child_positioners)
 
 prop::Vertical_layout::Vertical_layout()
-	: child_positioners{[this](std::vector<Child_positioner> &positioners) {
+	: child_positioners{[self = selfie()](std::vector<Child_positioner> &positioners) {
 		//return prop::Value::unchanged;
 		auto changed = prop::Value::unchanged;
-		positioners.resize(children->size());
+		positioners.resize(self->children->size());
 		for (std::size_t i = 0; i < positioners.size(); i++) {
-			auto child = children[i].get();
+			auto child = self->children[i].get();
 			auto &positioner = positioners[i];
 			if (positioner.widget != child or positioner.index != i) {
 				changed = prop::Value::changed;
 				positioner.widget = child;
 				positioner.index = i;
-				positioner.position.sever();
-				positioner.position = [this, i] {
+				positioner.position = [self_ = self->selfie(), i] {
 					const auto preferred_size =
-						children->size() < i ? children[i]->get_preferred_size().get() : prop::Size{};
-					auto &&prev_pos = i ? child_positioners[i - 1].position.get() :
+						self_->children->size() < i ? self_->children[i]->get_preferred_size().get() : prop::Size{};
+					auto &&prev_pos = i ? self_->child_positioners[i - 1].position.get() :
 										  Rect{
-											  .top = position->top,
-											  .left = position->left,
-											  .bottom = position->top,
-											  .right = position->right,
+											  .top = self_->position->top,
+											  .left = self_->position->left,
+											  .bottom = self_->position->top,
+											  .right = self_->position->right,
 										  };
 					return Rect{
 						.top = prev_pos.bottom,
-						.left = position->left,
+						.left = self_->position->left,
 						.bottom = prev_pos.bottom + preferred_size.height,
-						.right = position->right,
+						.right = self_->position->right,
 					};
 				};
 			}
