@@ -237,7 +237,7 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 			if (data.widget) {
 				continue;
 			}
-			Block _{dot_name(address), "[", "];"};
+			Block _{dot_property_name(address), "[", "];"};
 			Command _{"shape=rect"};
 			Command _{"label=\"" + std::string{data.type} + " " +
 					  (data.name.empty() ? "<unnamed>" : std::string{data.name}) + " " + prop::to_string(address) +
@@ -264,23 +264,24 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 					if (auto dit = properties.find(dependent);
 						dit != std::end(properties) && dit->second.widget == pit->second.widget) {
 						//same widget
-						Command _{dot_name(address) + " -> " + dot_name(dependent) + " [color=\"red\" style=\"bold\"]"};
+						Command _{dot_property_name(address) + " -> " + dot_property_name(dependent) +
+								  " [color=\"red\" style=\"bold\"]"};
 						continue;
 						static int i = 1;
 						const auto color = i == 1 ? "red" : "red";
 						if (i == 1) {
 							Command _{"dummy [shape=circle,width=.01,height=.01,label=\"\"]"};
 							Command _{std::format("{} -> {} [color=\"{}\" style=\"bold\" arrowhead=none]",
-												  dot_name(address), "dummy", color)};
+												  dot_property_name(address), "dummy", color)};
 						}
-						Command _{
-							std::format("{} -> {} [color=\"{}\" style=\"bold\"]", "dummy", dot_name(dependent), color)};
-						Command _{std::format("{{rank=same {} {}}}", "dummy", dot_name(address))};
+						Command _{std::format("{} -> {} [color=\"{}\" style=\"bold\"]", "dummy",
+											  dot_property_name(dependent), color)};
+						Command _{std::format("{{rank=same {} {}}}", "dummy", dot_property_name(address))};
 						i++;
 						continue;
 					}
 				}
-				Command _{dot_name(address) + " -> " + dot_name(dependent)};
+				Command _{dot_property_name(address) + " -> " + dot_property_name(dependent)};
 			}
 		}
 	}
@@ -326,7 +327,7 @@ void prop::Dependency_tracer::add(const prop::detail::Property_base *pb) {
 	}
 }
 
-std::string prop::Dependency_tracer::dot_name(const void *p, prop::Alignment alignment) const {
+std::string prop::Dependency_tracer::dot_property_name(const void *p, prop::Alignment alignment) const {
 	if (alignment > center) {
 		alignment = none;
 	}
@@ -348,9 +349,6 @@ std::string prop::Dependency_tracer::dot_name(const void *p, prop::Alignment ali
 		":e",  //center_right,
 		":c",  //center,
 	};
-	if (widgets.contains(static_cast<const Widget *>(p))) {
-		return "widget_" + prop::to_string(p);
-	}
 	if (auto pit = properties.find(p); pit != std::end(properties)) {
 		if (pit->second.widget) {
 			return std::format("widget_{}:property_{}{}", prop::to_string(pit->second.widget), prop::to_string(p),

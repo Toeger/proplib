@@ -25,3 +25,13 @@
 - Random gripes
 	- std::move_only_function::target does not exist. I need that!
 	- name lookup being restricted to closest namespace is extremely annoying
+
+- Fun code
+	- auto{std::move(source)}; //prevent infinite recursion
+	- std::intptr_t prop::Dependency_tracer::global_base_address = reinterpret_cast<std::intptr_t>(&global_base_address);
+	- std::intptr_t prop::Dependency_tracer::stack_base_address = [] {
+		int i;
+		return reinterpret_cast<std::intptr_t>(std::launder(&i));
+	}();
+	- std::intptr_t prop::Dependency_tracer::heap_base_address =
+		reinterpret_cast<std::intptr_t>(std::launder(std::make_unique<int>().get()));

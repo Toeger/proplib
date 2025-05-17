@@ -156,7 +156,15 @@ namespace prop {
 		}
 
 		void add(const prop::detail::Property_base *pb);
-		std::string dot_name(const void *p, prop::Alignment alignment = none) const;
+		std::string dot_name(Widget_id wid) const {
+			return "widget_" + prop::to_string(wid.widget_id);
+		}
+		template <class Property>
+			requires prop::is_template_specialization_v<Property, prop::Property>
+		std::string dot_name(const Property *p, prop::Alignment alignment = none) const {
+			return dot_property_name(p, alignment);
+		}
+		std::string dot_property_name(const void *p, prop::Alignment alignment = none) const;
 
 		const prop::Widget *current_widget = nullptr;
 		Widget_base_data *current_sub_widget = nullptr;
