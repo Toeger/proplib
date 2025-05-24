@@ -112,7 +112,11 @@ namespace prop {
 		bool is_bound() const;
 		void unbind() final override;
 		std::string displayed_value() const final {
-			return "";
+			if constexpr (requires { prop::to_string(value); }) {
+				return prop::to_string(value);
+			} else {
+				return "<unprintable>";
+			}
 		}
 		void sever();
 		Write_notifier apply();
@@ -330,6 +334,9 @@ namespace prop {
 		void bind(Function &&source, Property<Property_types> &...properties);
 		bool is_bound() const;
 		void unbind() final override;
+		std::string displayed_value() const final {
+			return "<void>";
+		}
 
 		template <class U>
 		bool is_implicit_dependency_of(const Property<U> &other) const;

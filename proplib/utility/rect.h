@@ -12,6 +12,8 @@ namespace prop {
 		static const Size max;
 	};
 
+	std::ostream &operator<<(std::ostream &os, const Size &size);
+
 	struct Rect {
 		int top = 0;
 		int left = 0;

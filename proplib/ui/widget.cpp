@@ -56,6 +56,7 @@ void prop::Widget::trace(Dependency_tracer &dependency_tracer) const {
 #define PROP_X(X) PROP_TRACE(dependency_tracer, X)
 	(PROP_WIDGET_PROPERTY_MEMBERS);
 #undef PROP_X
+	PROP_TRACE(dependency_tracer, self);
 }
 
 prop::Widget::Widget(std::string_view name)
@@ -67,5 +68,8 @@ prop::Widget::Widget(std::string_view name)
 void prop::swap(Widget &lhs, Widget &rhs) {
 #define PROP_X(MEMBER) prop::utility::swap(lhs.MEMBER, rhs.MEMBER)
 	(PROP_WIDGET_PROPERTY_MEMBERS);
+	prop::utility::swap(lhs.self, rhs.self);
+	lhs.self = &lhs;
+	rhs.self = &rhs;
 #undef PROP_X
 }

@@ -41,6 +41,7 @@ namespace prop {
 
 		prop::Widget *self;
 	};
+	std::ostream &operator<<(std::ostream &os, const Self &self);
 
 	template <class T>
 	std::make_signed_t<T> signed_cast(T t) {
@@ -61,7 +62,7 @@ namespace prop {
 		requires(requires(std::stringstream &ss) { ss << t; })
 	{
 		std::stringstream ss;
-		ss << t;
+		ss << std::boolalpha << t;
 		return std::move(ss).str();
 	}
 

@@ -99,6 +99,7 @@ namespace prop {
 		struct Property_data {
 			std::string_view type;
 			std::string_view name;
+			std::string value;
 			std::vector<const void *> dependents;
 			std::vector<const void *> dependencies;
 			const prop::Widget *widget;
@@ -146,6 +147,7 @@ namespace prop {
 			prop.type = prop::type_name<T>();
 #endif
 			prop.name = name;
+			prop.value = property.displayed_value();
 			if constexpr (requires { std::is_base_of_v<prop::Widget, decltype(*property.get())>; }) {
 				//prop.widget = property.get();
 			}
