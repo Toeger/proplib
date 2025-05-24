@@ -78,4 +78,17 @@ namespace prop {
 
 	template <class T, class U>
 	concept Match_cvr = std::is_same_v<U, copy_cv_t<T, U>>;
+
+	constexpr std::string to_string(std::size_t size) {
+		if (size == 0) {
+			return "0";
+		}
+		std::string retval;
+		while (size) {
+			retval += (size % 10) + '0';
+			size /= 10;
+		}
+		std::reverse(std::begin(retval), std::end(retval));
+		return retval;
+	}
 } // namespace prop

@@ -26,7 +26,7 @@ namespace prop {
 		//using prop::detail::Property_base::need_update;
 
 		mutable T value{};
-		std::move_only_function<prop::Value(T &, const prop::detail::Binding_list &)> source;
+		std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)> source;
 		struct Write_notifier;
 
 		public:
@@ -35,19 +35,19 @@ namespace prop {
 		};
 
 		struct Generator_data {
-			Generator_data(prop::detail::Property_value_function<T> auto &&f)
+			Generator_data(prop::detail::Generator_function<T> auto &&f)
 				: value{f()}
 				, source{prop::detail::make_direct_update_function(std::forward<decltype(f)>(f))} {}
 			template <class... Properties>
-			Generator_data(prop::detail::Property_value_function<T, Properties...> auto &&f,
-						   Properties &&...properties) {
+			Generator_data(prop::detail::Generator_function<T, Properties...> auto &&f, Properties &&...properties) {
 				detail::Property_function_binder<T> binder{std::forward<decltype(f)>(f),
 														   std::forward<Properties>(properties)...};
 				source = std::move(binder.function);
 				explicit_dependencies = std::move(binder.explicit_dependencies);
 			}
 			T value;
-			std::move_only_function<prop::Value(T &, const prop::detail::Binding_list &)> source;
+			std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)>
+				source;
 			detail::Binding_list explicit_dependencies;
 		};
 
@@ -65,7 +65,8 @@ namespace prop {
 				source = std::move(binder.function);
 				explicit_dependencies = std::move(binder.explicit_dependencies);
 			}
-			std::move_only_function<prop::Value(T &, const prop::detail::Binding_list &)> source;
+			std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)>
+				source;
 			detail::Binding_list explicit_dependencies;
 		};
 
@@ -82,24 +83,28 @@ namespace prop {
 			requires std::constructible_from<T, Args &&...>;
 		Property(Value &&v);
 		Property(Generator &&generator);
-		Property(prop::detail::Property_value_function<T> auto &&f);
-		Property(prop::detail::Value_result_function<T> auto &&f, T t);
+		Property(prop::detail::Generator_function<T> auto &&f);
+		Property(prop::detail::Updater_function<T> auto &&f, T t = {});
 		Property(prop::detail::Property_function_binder<T> binder);
 		virtual ~Property() {
 			//prevents infinite recursion when source is a lambda that captures a property by value and depends on it
 			auto{std::move(source)};
 		}
 
-		Property &operator=(const Property<T> &other);
-		Property &operator=(Property<T> &&other);
+		Property<T> &operator=(Property<T> &&other) {
+			value = std::move(other.value);
+			source = std::move(other.source);
+			static_cast<prop::detail::Property_base &>(*this) = static_cast<prop::detail::Property_base &&>(other);
+			return *this;
+		}
 		template <class U>
 		Property &operator=(U &&u)
 			requires std::is_assignable_v<T &, U &&>;
 		Property &operator=(Value &&v);
 		Property &operator=(Generator &&generator);
 		Property &operator=(Updater &&updater);
-		Property &operator=(prop::detail::Property_value_function<T> auto &&f);
-		Property &operator=(prop::detail::Value_result_function<T> auto &&f);
+		Property &operator=(prop::detail::Updater_function<T> auto &&updater);
+		Property &operator=(prop::detail::Generator_function<T> auto &&generator);
 		Property &operator=(prop::detail::Property_function_binder<T> binder);
 
 		void set(T t);
@@ -131,28 +136,7 @@ namespace prop {
 		void print_status(std::ostream &os = std::clog) const {
 			prop::print_status(*this, os);
 		}
-
-		template <class U>
-		operator U &() const
-			requires(std::convertible_to<const T &, U &> and not std::same_as<T, std::remove_cvref_t<U>>)
-		{
-			read_notify();
-			return value;
-		}
-		template <class U>
-		operator U() const
-			requires std::convertible_to<const T &, U &&>
-		{
-			read_notify();
-			return value;
-		}
 		operator const T &() const;
-		template <class Widget>
-			requires(std::is_same_v<T, prop::Self>)
-		operator Widget &() {
-			return value.operator Widget &();
-		}
-
 		auto operator->() const {
 			read_notify();
 			if constexpr (std::is_pointer_v<T>) {
@@ -310,14 +294,15 @@ namespace prop {
 			friend class prop::Property<T>;
 			prop::Property<T> *p;
 		};
-		void update_source(std::move_only_function<prop::Value(T &, const prop::detail::Binding_list &)> f);
+		void update_source(
+			std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)> f);
 		void update() override final;
 		friend class Binding;
 		friend prop::detail::Property_base *detail::get_property_base_pointer<T>(const Property &p);
 		friend prop::detail::Property_base *detail::get_property_base_pointer<T>(const Property *p);
 		template <class T_, class Function, class... Properties, std::size_t... indexes>
 			requires(not std::is_same_v<T_, void>)
-		friend std::move_only_function<prop::Value(T_ &, const prop::detail::Binding_list &)>
+		friend std::move_only_function<prop::Updater_result(prop::Property<T_> &, const prop::detail::Binding_list &)>
 		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
 		template <class T_, class Function, class... Properties, std::size_t... indexes>
 			requires(std::is_same_v<T_, void>)
@@ -372,7 +357,7 @@ namespace prop {
 		friend Property_base *detail::get_property_base_pointer<void>(const Property *p);
 		template <class T, class Function, class... Properties, std::size_t... indexes>
 			requires(not std::is_same_v<T, void>)
-		friend std::move_only_function<prop::Value(T &, const prop::detail::Binding_list &)>
+		friend std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)>
 		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
 		template <class T, class Function, class... Properties, std::size_t... indexes>
 			requires(std::is_same_v<T, void>)
@@ -465,15 +450,7 @@ namespace prop {
 	}
 
 	template <class T>
-	Property<T> &Property<T>::operator=(Property<T> &&other) {
-		value = std::move(other.value);
-		source = std::move(other.source);
-		static_cast<prop::detail::Property_base &>(*this) = static_cast<prop::detail::Property_base &&>(other);
-		return *this;
-	}
-
-	template <class T>
-	Property<T>::Property(prop::detail::Property_value_function<T> auto &&f)
+	Property<T>::Property(prop::detail::Generator_function<T> auto &&f)
 		: value{[&] {
 			if constexpr (std::is_default_constructible_v<T>) {
 				return T{};
@@ -485,7 +462,7 @@ namespace prop {
 	}
 
 	template <class T>
-	Property<T>::Property(prop::detail::Value_result_function<T> auto &&f, T t)
+	Property<T>::Property(prop::detail::Updater_function<T> auto &&f, T t)
 		: value{std::move(t)} {
 		update_source(prop::detail::make_direct_update_function<T>(std::forward<decltype(f)>(f)));
 	}
@@ -524,11 +501,11 @@ namespace prop {
 	}
 
 	template <class T>
-	Property<T> &Property<T>::operator=(prop::detail::Property_value_function<T> auto &&f) {
+	Property<T> &Property<T>::operator=(prop::detail::Generator_function<T> auto &&f) {
 		return *this = prop::detail::Property_function_binder<T>{std::forward<decltype(f)>(f)};
 	}
 	template <class T>
-	Property<T> &Property<T>::operator=(prop::detail::Value_result_function<T> auto &&f) {
+	Property<T> &Property<T>::operator=(prop::detail::Updater_function<T> auto &&f) {
 		return *this = prop::detail::Property_function_binder<T>{std::forward<decltype(f)>(f)};
 	}
 	template <class T>
@@ -663,7 +640,8 @@ namespace prop {
 	}
 
 	template <class T>
-	void Property<T>::update_source(std::move_only_function<prop::Value(T &, const prop::detail::Binding_list &)> f) {
+	void Property<T>::update_source(
+		std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)> f) {
 		std::swap(f, source);
 		update();
 	}
@@ -678,9 +656,17 @@ namespace prop {
 									   need_update = false;
 								   }};
 		try {
-			if (source(value, explicit_dependencies) == prop::Value::changed) {
-				updater.early_exit();
-				write_notify();
+			switch (source(*this, explicit_dependencies)) {
+				case prop::Updater_result::sever:
+					unbind();
+					[[fallthrough]];
+				case prop::Updater_result::changed:
+					updater.early_exit();
+					write_notify();
+					break;
+				case prop::Updater_result::unchanged:
+					updater.early_exit();
+					break;
 			}
 		} catch (const prop::Property_expired &) {
 			unbind();

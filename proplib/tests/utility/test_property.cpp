@@ -491,3 +491,39 @@ TEST_CASE("Value-captured property") {
 	p++; //no effect since we're not actually bound to p
 	REQUIRE(p2 == 42);
 }
+
+TEST_CASE("Sever via update function") {
+	prop::Property<bool> sever = false;
+	prop::Property<int> p{[&sever](int &i) {
+		if (i == 42) {
+			return sever ? prop::Updater_result::sever : prop::Updater_result::unchanged;
+		}
+		i = 42;
+		return sever ? prop::Updater_result::sever : prop::Updater_result::changed;
+	}};
+	REQUIRE(p == 42);
+	REQUIRE(p.is_bound());
+	sever = true;
+	REQUIRE(not p.is_bound());
+}
+
+TEST_CASE("All types of supported explicit parameters") {
+	prop::Property<int> pi;
+	pi = prop::detail::Property_function_binder<int>{
+		[](int &, int &, int, int *, const int &, const int, const int *, prop::Property<int>, prop::Property<int> &,
+		   prop::Property<int> *, const prop::Property<int>, const prop::Property<int> &,
+		   const prop::Property<int> *) { return prop::Updater_result::unchanged; },
+		pi,
+		pi,
+		pi,
+		pi,
+		pi,
+		pi,
+		pi,
+		pi,
+		pi,
+		pi,
+		pi,
+		pi,
+	};
+}

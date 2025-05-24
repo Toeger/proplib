@@ -41,7 +41,18 @@ namespace prop {
 		prop::Property<prop::Self> self;
 		template <class Widget>
 		prop::Property<Widget *> selfie(this Widget &widget) {
-			return {{[](prop::Self self_) { return static_cast<Widget *>(self_.self); }, widget.self}};
+			return {{[](Widget *&w, prop::Self *self_) {
+						 if (self_) {
+							 if (w == static_cast<Widget *>(self_->self)) {
+								 return prop::Updater_result::unchanged;
+							 }
+							 w = static_cast<Widget *>(self_->self);
+							 return prop::Updater_result::changed;
+						 }
+						 w = nullptr;
+						 return prop::Updater_result::sever;
+					 },
+					 widget.self}};
 		}
 		Property<prop::Rect> position;
 		Property<bool> visible = true;

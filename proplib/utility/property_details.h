@@ -23,7 +23,7 @@ namespace prop {
 	template <class T>
 	class Property;
 
-	enum struct Value : bool { unchanged, changed };
+	enum struct Updater_result : char { unchanged, changed, sever };
 
 	class Dependency_tracer;
 
@@ -186,18 +186,20 @@ namespace prop {
 			});
 
 		template <class Function, class T, class... Properties>
-		concept Property_value_function = requires(Function &&f) {
+		concept Generator_function = requires(Function &&f) {
 			{ f(std::declval<Properties &>()...) } -> prop::detail::assignable_to<T &>;
 		};
 
 		template <class Function, class T, class... Properties>
-		concept Value_result_function = requires(Function &&f) {
-			{ f(std::declval<T &>(), std::declval<Properties &>()...) } -> std::same_as<prop::Value>;
+		concept Updater_function = requires(Function &&f) {
+			{
+				f(std::declval<prop::Property<T> &>(), std::declval<Properties &>()...)
+			} -> std::same_as<prop::Updater_result>;
 		};
 
 		template <class Function, class T, class... Properties>
 		concept Property_update_function =
-			Property_value_function<Function, T, Properties...> || Value_result_function<Function, T, Properties...>;
+			Generator_function<Function, T, Properties...> || Updater_function<Function, T, Properties...>;
 
 		template <class T>
 		Property_base *get_property_base_pointer(const prop::Property<T> *p) {
@@ -256,8 +258,8 @@ namespace prop {
 					return true;
 				} else if constexpr (Properties_list::size + 1 == Function_info::Args::size) {
 					//value update candidate
-					if (not std::is_same_v<typename Function_info::Return_type, prop::Value>) {
-						//return type not prop::Value
+					if (not std::is_same_v<typename Function_info::Return_type, prop::Updater_result>) {
+						//return type not prop::Updater_result
 						return false;
 					}
 					if (not std::is_constructible_v<typename Function_info::Args::template at<0>, T &>) {
@@ -354,44 +356,92 @@ namespace prop {
 			}
 		}
 
+		template <class... Params, class... Args>
+		constexpr std::string type_comparer(const bool (&highlights)[sizeof...(Params)], prop::Type_list<Params...>,
+											prop::Type_list<Args...>) {
+			std::vector<std::string> args = {std::string{prop::type_name<std::remove_reference_t<Args>>()}...};
+			std::vector<std::string> params = {std::string{prop::type_name<std::remove_reference_t<Params>>()}...};
+			std::string argss = "Arguments:  ";
+			std::string paramss = "Parameters: ";
+			for (std::size_t i = 0; i < sizeof...(Params); i++) {
+				if (i) {
+					for (auto &s : {&argss, &paramss}) {
+						*s += ", ";
+					}
+				}
+				auto length = std::max(args[i].size(), params[i].size());
+				for (auto &s : {&args[i], &params[i]}) {
+					while (s->size() < length) {
+						s->push_back(' ');
+					}
+				}
+				constexpr auto highlight = [](std::string s) { return "\033[1;38;2;255;40;0m" + s + "\033[0m"; };
+				argss += highlights[i] ? highlight(args[i]) : args[i];
+				paramss += highlights[i] ? highlight(params[i]) : params[i];
+			}
+			return paramss + '\n' + argss + '\n';
+		};
+
 		template <class T, class Function, class... Properties, std::size_t... indexes>
 			requires(not std::is_same_v<T, void>)
-		std::move_only_function<prop::Value(T &, const Binding_list &)>
+		std::move_only_function<prop::Updater_result(prop::Property<T> &, const Binding_list &)>
 		create_explicit_caller(Function &&function, std::index_sequence<indexes...>) {
-#define PROP_ARGS                                                                                                      \
-	convert_to_function_arg<typename Args_list::template at<indexes>>(                                                 \
-		static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(explicit_dependencies[indexes]))
 			return [source = std::forward<Function>(function)](
-					   T &t, const Binding_list &explicit_dependencies) mutable -> prop::Value {
-				using Args_list = prop::Callable_info_for<Function>::Args;
-				if constexpr (Args_list::size == sizeof...(indexes)) {
+					   prop::Property<T> &p,
+					   const Binding_list &explicit_dependencies) mutable -> prop::Updater_result {
+				using Function_parameter_list = prop::Callable_info_for<Function>::Args;
+				if constexpr (Function_parameter_list::size == sizeof...(indexes)) {
+#define PROP_ARGS                                                                                                      \
+	convert_to_function_arg<typename Function_parameter_list::template at<indexes>>(                                   \
+		static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(explicit_dependencies[indexes]))
 					if constexpr (prop::detail::is_equal_comparable_v<T, decltype(source(PROP_ARGS...))>) {
 						auto value = source(PROP_ARGS...);
-						if (prop::detail::is_equal(t, value)) {
-							return prop::Value::unchanged;
+						if (prop::detail::is_equal(p, value)) {
+							return prop::Updater_result::unchanged;
 						} else {
-							t = std::move(value);
-							return prop::Value::changed;
+							p = std::move(value);
+							return prop::Updater_result::changed;
 						}
 					} else {
-						t = source(PROP_ARGS...);
-						return prop::Value::changed;
+						p = source(PROP_ARGS...);
+						return prop::Updater_result::changed;
 					}
-				} else if constexpr (Args_list::size == sizeof...(indexes) + 1) {
-					static_assert(std::is_invocable_v<decltype(source), decltype(t), decltype(PROP_ARGS)...>,
-								  "Updating function parameters do not match property type(s)");
+#undef PROP_ARGS
+				} else if constexpr (Function_parameter_list::size == sizeof...(indexes) + 1) {
+					constexpr bool conversion_failures[] = {
+						std::is_same_v<
+							void, decltype(convert_to_function_arg<typename Function_parameter_list::template at<0>>(
+									  static_cast<prop::Property<T> *>(nullptr)))>,
+						std::is_same_v<void, decltype(convert_to_function_arg<
+													  typename Function_parameter_list::template at<indexes + 1>>(
+												 static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(
+													 nullptr)))>...,
+					};
+#if __cpp_static_assert >= 202306L
+					static_assert(not conversion_failures[0] and (... and not conversion_failures[indexes + 1]),
+								  "Updater function cannot be called due to type mismatch:\n" +
+									  type_comparer(conversion_failures, Function_parameter_list{},
+													prop::Type_list<prop::Property<T>, Properties...>{}));
 					static_assert(
-						std::is_same_v<std::invoke_result_t<decltype(source), decltype(t), decltype(PROP_ARGS)...>,
-									   prop::Value>,
-						"Updating function taking value reference must return prop::Value::changed or "
-						"prop::Value::unchanged");
-
-					return source(t, PROP_ARGS...);
+						std::is_same_v<typename prop::Callable_info_for<Function>::Return_type, prop::Updater_result>,
+						"Updating function must return prop::Updater_result, got " +
+							std::string{prop::type_name<typename prop::Callable_info_for<Function>::Return_type>()} +
+							" instead.");
+#else
+					static_assert(not conversion_failures[0] and (... and not conversion_failures[indexes + 1]),
+								  "Updater function cannot be called due to type mismatch.\n");
+					static_assert(
+						std::is_same_v<typename prop::Callable_info_for<Function>::Return_type, prop::Updater_result>,
+						"Updating function must return prop::Updater_result.");
+#endif
+					return source(convert_to_function_arg<typename Function_parameter_list::template at<0>>(&p),
+								  convert_to_function_arg<typename Function_parameter_list::template at<indexes + 1>>(
+									  static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(
+										  explicit_dependencies[indexes]))...);
 				} else {
 					static_assert(false, "Number of parameters does not match number of given properties");
 				}
 			};
-#undef PROP_ARGS
 		}
 
 		template <class T, class Function, class... Properties, std::size_t... indexes>
@@ -418,12 +468,12 @@ namespace prop {
 		struct Property_function_binder {
 			template <class... Properties, class Function>
 			Property_function_binder(Function &&function_, Properties &&...properties)
-				requires prop::detail::is_viable_source<T, Function, Properties...>
+				//requires prop::detail::is_viable_source<T, Function, Properties...>
 				: function{create_explicit_caller<T, decltype(function_), Properties...>(
 					  std::forward<decltype(function_)>(function_), std::index_sequence_for<Properties...>{})}
 				, explicit_dependencies{{prop::detail::get_property_base_pointer(properties)...}} {}
 
-			std::move_only_function<prop::Value(T &, const Binding_list &)> function;
+			std::move_only_function<prop::Updater_result(prop::Property<T> &, const Binding_list &)> function;
 			Binding_list explicit_dependencies;
 		};
 
@@ -457,42 +507,43 @@ namespace prop {
 #undef PROP_ACTUALLY_PROPERTIES
 
 		template <class T>
-		std::move_only_function<prop::Value(T &, const prop::detail::Binding_list &)>
-		make_direct_update_function(Property_value_function<T> auto &&f) {
-			return [source = std::forward<decltype(f)>(f)](T &t, const prop::detail::Binding_list &) mutable {
+		std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)>
+		make_direct_update_function(Generator_function<T> auto &&f) {
+			return [source = std::forward<decltype(f)>(f)](prop::Property<T> &t,
+														   const prop::detail::Binding_list &) mutable {
 				auto value = source();
 				if (is_equal(value, t)) {
-					return prop::Value::unchanged;
+					return prop::Updater_result::unchanged;
 				}
 				t = std::move(value);
-				return prop::Value::changed;
+				return prop::Updater_result::changed;
 			};
 		}
 
 		template <class T>
-		std::move_only_function<prop::Value(T &, const prop::detail::Binding_list &)>
+		std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)>
 		make_direct_update_function(Property_update_function<T> auto &&f) {
-			return [source = std::forward<decltype(f)>(f)](T &t, const prop::detail::Binding_list &) mutable {
+			return [source = std::forward<decltype(f)>(f)](prop::Property<T> &t,
+														   const prop::detail::Binding_list &) mutable {
 				if constexpr (prop::detail::is_equal_comparable_v<std::decay_t<decltype(source())>, T>) {
 					auto value = source();
 					if (is_equal(value, t)) {
-						return prop::Value::unchanged;
+						return prop::Updater_result::unchanged;
 					}
 					t = std::move(value);
-					return prop::Value::changed;
+					return prop::Updater_result::changed;
 				} else {
 					t = source();
-					return prop::Value::changed;
+					return prop::Updater_result::changed;
 				}
 			};
 		}
 
 		template <class T>
-		std::move_only_function<prop::Value(T &, const prop::detail::Binding_list &)>
-		make_direct_update_function(Value_result_function<T> auto &&f) {
-			return [source = std::forward<decltype(f)>(f)](T &t, const prop::detail::Binding_list &) mutable {
-				return source(t);
-			};
+		std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)>
+		make_direct_update_function(Updater_function<T> auto &&f) {
+			return [source = std::forward<decltype(f)>(f)](
+					   prop::Property<T> &t, const prop::detail::Binding_list &) mutable { return source(t); };
 		}
 
 		template <class T>

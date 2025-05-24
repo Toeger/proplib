@@ -108,7 +108,7 @@ namespace prop {
 		void trace(std::string_view names, const Args &...args) {
 			std::ranges::split_view split_names(names, std::string_view{", "});
 			auto current_name = std::begin(split_names);
-			(add(std::string_view{*current_name++}, args), ...);
+			(..., add(std::string_view{*current_name++}, args));
 		}
 
 		std::map<Widget_id, Widget_object_data> widgets;
@@ -141,11 +141,14 @@ namespace prop {
 		template <class T>
 		void add(std::string_view name, const prop::Property<T> &property) {
 			add(prop::detail::get_property_base_pointer(property));
-			auto &prop = properties[&property];
+			Property_data &prop = properties[&property];
 #ifndef PROPERTY_NAMES
 			prop.type = prop::type_name<T>();
 #endif
-			properties[&property].name = name;
+			prop.name = name;
+			if constexpr (requires { std::is_base_of_v<prop::Widget, decltype(*property.get())>; }) {
+				//prop.widget = property.get();
+			}
 		}
 
 		template <class Widget>

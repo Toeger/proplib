@@ -71,24 +71,26 @@ TODO: guarded
 As seen in the example, it is possible to assign functions to properties that are called automatically when a dependency changes. 
 There are two forms such update functions can take, return functions and value functions.
 
-### Return Functions
+### Generator Functions
 
-A return function is a function that returns the underlying type or something convertible to it.
+A generator function is a function that returns the underlying type or something convertible to it.
 For example, the update function for a `prop::Property<double>` might return an `int`.
 This is suitable for simple functions.
 TODO: Example  
 However, sometimes it is necessary for an update function to take the previous value into account, in which case the value function form should be used.
 
-### Value Functions
+### Updater Functions
 
-A value function is a function that returns a `prop::Value` and takes a the underlying type as its first parameter (possibly via (`const`) `*`/`&`).
-`prop::Value` is an enum with the following values:
+An updater function is a function that returns a `prop::Update_result` and takes the underlying type as its first parameter (possibly via (`const`) `*`/`&`).
+`prop::Update_result` is an enum with the following values:
 
 | Value | Meaning |
 | --- | --- |
-| `prop::Value::changed` | The value has been changed and dependents of this property will be updated. |
-| `prop::Value::unchanged` | The value has not been changed and dependents of this property will not be updated. |
-| `prop::Value::sever` | The update function will be removed from this property. Dependents will be updated. |
+| `prop::Update_result::changed` | The value has been changed and dependents of this property will be updated. |
+| `prop::Update_result::unchanged` | The value has not been changed and dependents of this property will not be updated. |
+| `prop::Update_result::sever` | The updater function will be removed from this property. Dependents will be updated. |
+
+Note: If a property is constructed with an updater function, the value to be updated will be value-constructed (`T value{};`).
 
 TODO: Example
 
@@ -142,7 +144,7 @@ However, to avoid unnecessary work on updating properties that did not change it
 
 ### No Ambiguous Functions
 
-TODO: No overloading, no templating, no `auto`, no 
+TODO: No overloading, no templating, no `auto`
 
 ## Capturing `this`
 

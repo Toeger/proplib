@@ -12,14 +12,14 @@
 
 prop::Vertical_layout::Vertical_layout()
 	: child_positioners{[self = selfie()](std::vector<Child_positioner> &positioners) {
-		//return prop::Value::unchanged;
-		auto changed = prop::Value::unchanged;
+		//return prop::Updater_result::unchanged;
+		auto changed = prop::Updater_result::unchanged;
 		positioners.resize(self->children->size());
 		for (std::size_t i = 0; i < positioners.size(); i++) {
 			auto child = self->children[i].get();
 			auto &positioner = positioners[i];
 			if (positioner.widget != child or positioner.index != i) {
-				changed = prop::Value::changed;
+				changed = prop::Updater_result::changed;
 				positioner.widget = child;
 				positioner.index = i;
 				positioner.position = [self_ = self->selfie(), i] {
