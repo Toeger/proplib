@@ -112,11 +112,7 @@ namespace prop {
 		bool is_bound() const;
 		void unbind() final override;
 		std::string displayed_value() const final {
-			if constexpr (requires { prop::to_string(value); }) {
-				return prop::to_string(value);
-			} else {
-				return "<unprintable>";
-			}
+			return prop::to_display_string(value, 30);
 		}
 		void sever();
 		Write_notifier apply();

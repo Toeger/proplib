@@ -1,7 +1,9 @@
 #pragma once
 
+#include "proplib/platform/external/magic_enum.hpp"
 #include <algorithm>
 #include <concepts>
+#include <ranges>
 #include <sstream>
 #include <type_traits>
 #include <utility>
@@ -62,8 +64,57 @@ namespace prop {
 		requires(requires(std::stringstream &ss) { ss << t; })
 	{
 		std::stringstream ss;
-		ss << std::boolalpha << t;
 		return std::move(ss).str();
+	}
+
+	template <class T>
+	std::string to_display_string(const T &t, const std::size_t max_length = static_cast<std::size_t>(-1)) {
+		if (max_length == 0) {
+			return "";
+		}
+		std::stringstream ss;
+		if constexpr (std::is_same_v<T, unsigned char> or std::is_same_v<T, signed char>) {
+			ss << static_cast<int>(t);
+		} else if constexpr (std::is_same_v<T, char>) {
+			if (t >= ' ' && t <= '~') {
+				ss << '\'' << t << '\'';
+			} else {
+				ss << static_cast<int>(t);
+			}
+		} else if constexpr (std::is_same_v<T, bool>) {
+			ss << std::boolalpha << t;
+		} else if constexpr (std::is_enum_v<T>) {
+			ss << magic_enum::enum_name(t);
+		} else if constexpr (std::is_same_v<T, std::string>) {
+			ss << '"' << t << '"';
+		} else if constexpr (requires { ss << t; }) {
+			ss << t;
+		} else if constexpr (std::is_same_v<T, void>) {
+			ss << std::boolalpha << t;
+		} else if constexpr (requires { requires std::ranges::input_range<T>; }) {
+			ss << '[';
+			bool first = true;
+			for (const auto &e : t) {
+				if (static_cast<std::size_t>(ss.tellp()) < max_length) {
+					break;
+				}
+				if (!first) {
+					ss << ", ";
+				} else {
+					first = false;
+				}
+				ss << to_display_string(e, max_length - static_cast<std::size_t>(ss.tellp()));
+			}
+			ss << ']';
+		} else {
+			ss << "<void>";
+		}
+		auto result = std::move(ss).str();
+		if (result.size() > max_length) {
+			result.resize(max_length - 1);
+			result.push_back('~');
+		}
+		return result;
 	}
 
 	template <class From, class To>
