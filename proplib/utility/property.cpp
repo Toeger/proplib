@@ -8,7 +8,7 @@ void (*prop::on_property_update_exception)(std::exception_ptr exception) = [](st
 prop::Property<void>::Property() {}
 
 prop::Property<void> &prop::Property<void>::operator=(prop::detail::Property_function_binder<void> binder) {
-	Property_base::set_explicit_dependencies(std::move(binder.explicit_dependencies));
+	Property_base::set_explicit_dependencies(std::move(binder.dependencies));
 	update_source(std::move(binder.function));
 	return *this;
 }
@@ -17,20 +17,10 @@ void prop::Property<void>::update() {
 	if (!source) {
 		return;
 	}
-	prop::detail::RAII updater{[this] { update_start(); },
-							   [this] {
-								   update_complete();
-								   need_update = false;
-							   }};
-	try {
-		source(explicit_dependencies);
-	} catch (const prop::Property_expired &) {
-		unbind();
-	}
-}
-
-std::string prop::detail::Property_base::displayed_value() const {
-	return {};
+	Property_base *previous_binding;
+	prop::detail::RAII updater{[this, &previous_binding] { update_start(previous_binding); },
+							   [this, &previous_binding] { update_complete(previous_binding); }};
+	source(get_explicit_dependencies());
 }
 
 void prop::Property<void>::unbind() {
@@ -38,7 +28,8 @@ void prop::Property<void>::unbind() {
 	Property_base::unbind();
 }
 
-void prop::Property<void>::update_source(std::move_only_function<void(const prop::detail::Binding_list &)> f) {
+void prop::Property<void>::update_source(
+	std::move_only_function<void(std::span<const prop::detail::Property_link>)> f) {
 	std::swap(f, source);
 	update();
 }
@@ -46,6 +37,23 @@ void prop::Property<void>::update_source(std::move_only_function<void(const prop
 bool prop::Property<void>::is_bound() const {
 	return !!source;
 }
+
+namespace prop {
+	static std::ostream &operator<<(std::ostream &os, const std::span<const prop::detail::Property_link> list) {
+		const auto &static_text_color = prop::Color::static_text;
+		const char *separator = "";
+		for (const auto &element : list) {
+			os << static_text_color << separator << prop::Color::reset;
+#ifdef PROPERTY_NAMES
+			os << element->get_name();
+#else
+			os << &element;
+#endif
+			separator = ", ";
+		}
+		return os;
+	}
+} // namespace prop
 
 void prop::print_status(const prop::Property<void> &p, std::ostream &os) {
 	const auto &static_text_color = prop::Color::static_text;
@@ -57,7 +65,7 @@ void prop::print_status(const prop::Property<void> &p, std::ostream &os) {
 #endif
 	os << '\n';
 	os << static_text_color << "\tsource: " << prop::Color::reset << (p.source ? "Yes" : "No") << "\n";
-	os << static_text_color << "\tExplicit dependencies: [" << prop::Color::reset << p.explicit_dependencies
+	os << static_text_color << "\tExplicit dependencies: [" << prop::Color::reset << p.get_explicit_dependencies()
 	   << static_text_color << "]\n";
 	os << static_text_color << "\tImplicit dependencies: [" << prop::Color::reset << p.get_implicit_dependencies()
 	   << static_text_color << "]\n";

@@ -304,6 +304,9 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 }
 
 void prop::Dependency_tracer::add(const prop::detail::Property_base *pb) {
+	if (pb == nullptr) {
+		return;
+	}
 	if (current_sub_widget) {
 		auto &ps = current_sub_widget->properties;
 		if (auto it = std::lower_bound(std::begin(ps), std::end(ps), pb); it == std::end(ps) or *it != pb) {
@@ -317,22 +320,18 @@ void prop::Dependency_tracer::add(const prop::detail::Property_base *pb) {
 	if (properties.contains(pb)) {
 		return;
 	}
+	auto &&dependents = pb->get_dependents();
+	auto &&dependencies = pb->get_dependencies();
 	properties[pb] = {
-#ifdef PROPERTY_NAMES
-		.type = pb->type,
-#else
-		.type = "",
-#endif
+		.type = pb->type(),
 		.name = pb->custom_name,
-		.dependents = {std::begin(pb->dependents.set), std::end(pb->dependents.set)},
-		.dependencies = {std::begin(pb->implicit_dependencies.set), std::end(pb->implicit_dependencies.set)},
+		.value = pb->displayed_value(),
+		.dependents = {std::begin(dependents), std::end(dependents)},
+		.dependencies = {std::begin(dependencies), std::end(dependencies)},
 		.widget = current_widget,
 	};
 	Make_current _{nullptr, *this};
-	for (auto deps : pb->dependents.set) {
-		add(deps);
-	}
-	for (auto deps : pb->implicit_dependencies.set) {
+	for (auto &deps : pb->dependencies) {
 		add(deps);
 	}
 }

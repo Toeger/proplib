@@ -61,6 +61,8 @@ namespace prop {
 				if (not tracer.current_sub_widget) {
 					widget_object_data.bases.push_back({
 						.type = sub_widget_type,
+						.properties = {},
+						.children = {},
 					});
 					tracer.current_sub_widget = &widget_object_data.bases.back();
 				}
@@ -126,6 +128,7 @@ namespace prop {
 			if (not widgets.contains(&widget)) {
 				widgets[&widget] = {
 					.name = "<unnamed>",
+					.bases = {},
 				};
 				widget.trace(*this);
 			}

@@ -11,37 +11,40 @@
 	PROP_X(name_updater), PROP_X(children), PROP_X(alignment), PROP_X(child_positioners)
 
 prop::Vertical_layout::Vertical_layout()
-	: child_positioners{[self = selfie()](std::vector<Child_positioner> &positioners) {
-		//return prop::Updater_result::unchanged;
-		auto changed = prop::Updater_result::unchanged;
-		positioners.resize(self->children->size());
-		for (std::size_t i = 0; i < positioners.size(); i++) {
-			auto child = self->children[i].get();
-			auto &positioner = positioners[i];
-			if (positioner.widget != child or positioner.index != i) {
-				changed = prop::Updater_result::changed;
-				positioner.widget = child;
-				positioner.index = i;
-				positioner.position = [self_ = self->selfie(), i] {
-					const auto preferred_size =
-						self_->children->size() < i ? self_->children[i]->get_preferred_size().get() : prop::Size{};
-					auto &&prev_pos = i ? self_->child_positioners[i - 1].position.get() :
-										  Rect{
-											  .top = self_->position->top,
-											  .left = self_->position->left,
-											  .bottom = self_->position->top,
-											  .right = self_->position->right,
-										  };
-					return Rect{
-						.top = prev_pos.bottom,
-						.left = self_->position->left,
-						.bottom = prev_pos.bottom + preferred_size.height,
-						.right = self_->position->right,
-					};
-				};
+	: child_positioners{[self_ = selfie()] mutable {
+		//return;
+		self_->children.apply([self = std::move(self_)](std::vector<prop::Polywrap<prop::Widget>> &children_) {
+			if (children_.empty()) {
+				self->min_size = prop::Size{0, 0};
+				self->max_size = prop::Size::max;
+				self->preferred_size = prop::Size{0, 0};
+				return;
 			}
-		}
-		return changed;
+			int min_width = 0;
+			int min_height = 0;
+			int max_width = 0;
+			int max_height = 0;
+			int ypos = 0;
+			const int width = self->position->width();
+			for (auto &child : children_) {
+				//TODO: Don't just go with minimum size, instead take actual size into account and spread leftover space across widgets
+				const auto &min_size = child->get_min_size().get();
+				const auto &max_size = child->get_max_size().get();
+				min_width = std::max(min_width, min_size.width);
+				min_height += min_size.height;
+				max_width = std::min(max_width, max_size.width);
+				max_height += max_size.height;
+				child->position = Rect{
+					.top = ypos,
+					.left = 0,
+					.bottom = ypos + min_size.height,
+					.right = width,
+				};
+				ypos += min_size.height;
+			}
+			self->min_size = prop::Size{min_width, min_height};
+			self->max_size = prop::Size{max_width, max_height};
+		});
 	}} {
 	//assert(child_positioners.is_dependent_on(children));
 }
@@ -66,23 +69,14 @@ void prop::Vertical_layout::draw(Canvas context) const {
 #ifdef PROPERTY_NAMES
 void prop::Vertical_layout::set_name(std::string_view name) {
 	name_updater = {
-		[name_ = std::string{name.data(), name.size()}](
-			decltype(children) &children_, [[maybe_unused]] decltype(child_positioners) &child_positioners_) {
+		[name_ = std::string{name.data(), name.size()}](decltype(children) &children_) {
 			std::size_t counter;
 			counter = 0;
 			for (auto &child : const_cast<std::remove_cvref_t<decltype(children.get())> &>(children_.get())) {
 				child->set_name(name_ + ".children[" + std::to_string(counter++) + "]");
 			}
-#ifdef PROPERTY_NAMES
-			counter = 0;
-			for (auto &child_pos :
-				 const_cast<std::remove_cvref_t<decltype(child_positioners_.get())> &>(child_positioners_.get())) {
-				child_pos.position.custom_name = name_ + ".children[" + std::to_string(counter++) + "]";
-			}
-#endif
 		},
 		children,
-		child_positioners,
 	};
 #define PROP_X(MEMBER) MEMBER.custom_name = std::string{name.data(), name.size()} + "." + #MEMBER
 	(PROP_VERTICAL_LAYOUT_PROPERTY_MEMBERS);

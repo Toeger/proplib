@@ -12,7 +12,8 @@ namespace prop {
 		template <class... Args>
 		struct Signal_binder {
 			template <class... Extra_args>
-			Signal_binder(std::regular_invocable<const Args &...> auto &&functor, Extra_args &&...extra_args)
+			Signal_binder(std::regular_invocable<const Args &...> auto &&functor)
+				requires(sizeof...(Args) > 0)
 				: connection{std::forward<decltype(functor)>(functor)} {}
 			Signal_binder(std::regular_invocable<> auto &&functor)
 				: connection{[f = std::forward<decltype(functor)>(functor)](const Args &...) { f(); }} {}

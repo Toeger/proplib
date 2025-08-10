@@ -103,8 +103,8 @@ This may trigger further updates if there are dependents on the updated property
 ### Severing
 
 Severing means a property loses its update function.
-This can be done explicitly using the `.sever()` function on a `prop::Property`, returning `prop::Value::sever` from a value function or implicitly when a dependency is destroyed.
-Severing helps avoid memory errors by not running update functions that access a destroyed property.
+This can be done explicitly using the `.unbind()` function on a `prop::Property`, returning `prop::Value::sever` from an updater function or implicitly when a required dependency is destroyed.
+Severing helps avoid memory errors by not running update functions that access a destroyed property. Severing can be prevented by marking dependencies as not required.
 
 ### Explicit Dependencies
 

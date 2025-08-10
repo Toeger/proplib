@@ -4,6 +4,7 @@
 #include "proplib/utility/alignment.h"
 #include "proplib/utility/dependency_tracer.h"
 #include "proplib/utility/polywrap.h"
+#include "proplib/utility/property.h"
 
 #include <boost/pfr/core.hpp>
 #include <vector>
@@ -46,15 +47,10 @@ namespace prop {
 		prop::Property<prop::Alignment> alignment;
 
 		private:
-		struct Child_positioner {
-			const prop::Widget *widget = nullptr;
-			std::size_t index = 0;
-			prop::Property<prop::Rect> position;
-		};
-		prop::Property<std::vector<Child_positioner>> child_positioners;
 		template <class... Args, std::size_t... indexes>
 		static void add_children(std::vector<prop::Polywrap<prop::Widget>> &container, std::index_sequence<indexes...>,
 								 Args &&...args);
+		prop::Property<void> child_positioners;
 	};
 } // namespace prop
 

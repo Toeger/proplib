@@ -7,72 +7,96 @@ namespace prop {
 	extern void (*on_property_severed)(prop::detail::Property_base *severed, prop::detail::Property_base *reason);
 	extern void (*on_property_update_exception)(std::exception_ptr exception);
 
-	template <class U>
-	void print_status(const prop::Property<U> &p, std::ostream &os = std::clog);
+	template <class T>
+	void print_status(const prop::Property<T> &p, std::ostream &os = std::clog);
 
 	using detail::converts_to;
 
+	template <class T, bool with_initial_value>
+	struct Generator_data;
+
 	template <class T>
-	class Property : public detail::Conversion_provider<T, false, decltype(converts_to(std::declval<T &>()))>,
-					 public detail::Conversion_provider<T, true, decltype(converts_to(std::declval<const T &>()))>,
-					 private prop::detail::Property_name_base<T> {
-		using prop::detail::Property_base::explicit_dependencies;
-		using prop::detail::Property_base::need_update;
+	struct Generator_data<T, true> {
+		Generator_data(prop::detail::Generator_function<T> auto &&f)
+			: value{f()}
+			, source{prop::detail::make_direct_update_function(std::forward<decltype(f)>(f))} {}
+		template <class... Properties>
+		Generator_data(prop::detail::Generator_function<T, Properties...> auto &&f, Properties &&...properties) {
+			detail::Property_function_binder<T> binder{std::forward<decltype(f)>(f),
+													   std::forward<Properties>(properties)...};
+			source = std::move(binder.function);
+			dependencies = std::move(binder.dependencies);
+		}
+		T value;
+		std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const prop::detail::Property_link>)>
+			source;
+		std::vector<prop::detail::Property_link> dependencies;
+	};
+
+	template <class T>
+	struct Generator_data<T, false> {
+		Generator_data(prop::detail::Generator_function<T> auto &&f)
+			: source{prop::detail::make_direct_update_function(std::forward<decltype(f)>(f))} {}
+		template <class... Properties>
+		Generator_data(prop::detail::Generator_function<T, Properties...> auto &&f, Properties &&...properties) {
+			detail::Property_function_binder<T> binder{std::forward<decltype(f)>(f),
+													   std::forward<Properties>(properties)...};
+			source = std::move(binder.function);
+			dependencies = std::move(binder.dependencies);
+		}
+		std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const prop::detail::Property_link>)>
+			source;
+		std::vector<prop::detail::Property_link> dependencies;
+	};
+
+	template <class T, bool with_initial_value>
+	struct Generator {
+		Generator_data<T, with_initial_value> data;
+	};
+
+	template <class T>
+	struct Updater_data {
+		template <class F>
+		Updater_data(F &&f)
+			: source{prop::detail::make_direct_update_function(std::forward<F>(f))} {}
+		template <class F, class... Properties>
+		Updater_data(F &&f, Properties &&...properties) {
+			detail::Property_function_binder<T> binder{std::forward<F>(f), std::forward<Properties>(properties)...};
+			source = std::move(binder.function);
+			dependencies = std::move(binder.dependencies);
+		}
+		std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const prop::detail::Property_link>)>
+			source;
+		std::vector<prop::detail::Property_link> dependencies;
+	};
+
+	template <class T>
+	struct Updater {
+		Updater_data<T> data;
+	};
+
+	template <class T>
+	class Property : private prop::detail::Property_base {
 		using prop::detail::Property_base::read_notify;
-		using prop::detail::Property_base::sever_implicit_dependents;
 		using prop::detail::Property_base::update_complete;
 		using prop::detail::Property_base::update_start;
 		using prop::detail::Property_base::write_notify;
 		//using prop::detail::Property_base::need_update;
 
 		mutable T value{};
-		std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)> source;
+		std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const prop::detail::Property_link>)>
+			source;
 		struct Write_notifier;
 
 		public:
+		using Value_type = T;
 		struct Value {
 			T value;
 		};
 
-		struct Generator_data {
-			Generator_data(prop::detail::Generator_function<T> auto &&f)
-				: value{f()}
-				, source{prop::detail::make_direct_update_function(std::forward<decltype(f)>(f))} {}
-			template <class... Properties>
-			Generator_data(prop::detail::Generator_function<T, Properties...> auto &&f, Properties &&...properties) {
-				detail::Property_function_binder<T> binder{std::forward<decltype(f)>(f),
-														   std::forward<Properties>(properties)...};
-				source = std::move(binder.function);
-				explicit_dependencies = std::move(binder.explicit_dependencies);
-			}
-			T value;
-			std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)>
-				source;
-			detail::Binding_list explicit_dependencies;
-		};
-
-		struct Generator {
-			Generator_data generator;
-		};
-
-		struct Updater_data {
-			template <class F>
-			Updater_data(F &&f)
-				: source{prop::detail::make_direct_update_function(std::forward<F>(f))} {}
-			template <class F, class... Properties>
-			Updater_data(F &&f, Properties &&...properties) {
-				detail::Property_function_binder<T> binder{std::forward<F>(f), std::forward<Properties>(properties)...};
-				source = std::move(binder.function);
-				explicit_dependencies = std::move(binder.explicit_dependencies);
-			}
-			std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)>
-				source;
-			detail::Binding_list explicit_dependencies;
-		};
-
-		struct Updater {
-			Updater_data updater;
-		};
+		std::string_view type() const override {
+			return prop::type_name<T>();
+		}
 
 		public:
 		Property();
@@ -82,7 +106,7 @@ namespace prop {
 		Property(Args &&...args)
 			requires std::constructible_from<T, Args &&...>;
 		Property(Value &&v);
-		Property(Generator &&generator);
+		Property(Generator<T, true> &&generator);
 		Property(prop::detail::Generator_function<T> auto &&f);
 		Property(prop::detail::Updater_function<T> auto &&f, T t = {});
 		Property(prop::detail::Property_function_binder<T> binder);
@@ -91,18 +115,37 @@ namespace prop {
 			auto{std::move(source)};
 		}
 
+		Property<T> &operator=(const T &t)
+			requires std::assignable_from<T &, const T &>
+		{
+			unbind();
+			value = t;
+			return *this;
+		}
+		Property<T> &operator=(T &&t)
+			requires std::assignable_from<T &, T &&>
+		{
+			unbind();
+			value = std::move(t);
+			return *this;
+		}
 		Property<T> &operator=(Property<T> &&other) {
 			value = std::move(other.value);
 			source = std::move(other.source);
 			static_cast<prop::detail::Property_base &>(*this) = static_cast<prop::detail::Property_base &&>(other);
 			return *this;
 		}
+		Property<T> &operator=(const Property<T> &other) {
+			unbind();
+			value = other.value;
+			return *this;
+		}
 		template <class U>
 		Property &operator=(U &&u)
 			requires std::is_assignable_v<T &, U &&>;
 		Property &operator=(Value &&v);
-		Property &operator=(Generator &&generator);
-		Property &operator=(Updater &&updater);
+		Property &operator=(Generator<T, false> &&generator);
+		Property &operator=(Updater<T> &&updater);
 		Property &operator=(prop::detail::Updater_function<T> auto &&updater);
 		Property &operator=(prop::detail::Generator_function<T> auto &&generator);
 		Property &operator=(prop::detail::Property_function_binder<T> binder);
@@ -118,8 +161,6 @@ namespace prop {
 		Write_notifier apply();
 		template <class Functor>
 		std::invoke_result_t<Functor, T &> apply(Functor &&f);
-		template <class Functor>
-		std::invoke_result_t<Functor, T &> apply_guarded(Functor &&f);
 
 		template <class U>
 		bool is_implicit_dependency_of(const Property<U> &other) const;
@@ -135,6 +176,30 @@ namespace prop {
 		bool is_dependent_on(const Property<U> &other) const;
 		void print_status(std::ostream &os = std::clog) const {
 			prop::print_status(*this, os);
+		}
+		template <class U>
+		operator U &()
+			requires(prop::detail::Conversion_type<T, U>::pass_by_ref)
+		{
+			return value;
+		}
+		template <class U>
+		operator U &&()
+			requires(prop::detail::Conversion_type<T, U>::pass_by_temp_ref)
+		{
+			return value;
+		}
+		template <class U>
+		operator U()
+			requires(prop::detail::Conversion_type<T, U>::pass_by_value)
+		{
+			return value;
+		}
+		template <class U>
+		operator const U()
+			requires(prop::detail::Conversion_type<T, U>::pass_by_const_value)
+		{
+			return value;
 		}
 		operator const T &() const;
 		auto operator->() const {
@@ -294,44 +359,49 @@ namespace prop {
 			friend class prop::Property<T>;
 			prop::Property<T> *p;
 		};
-		void update_source(
-			std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)> f);
+		void update_source(std::move_only_function<prop::Updater_result(prop::Property<T> &,
+																		std::span<const prop::detail::Property_link>)>
+							   f);
 		void update() override final;
 		friend class Binding;
 		friend prop::detail::Property_base *detail::get_property_base_pointer<T>(const Property &p);
 		friend prop::detail::Property_base *detail::get_property_base_pointer<T>(const Property *p);
 		template <class T_, class Function, class... Properties, std::size_t... indexes>
 			requires(not std::is_same_v<T_, void>)
-		friend std::move_only_function<prop::Updater_result(prop::Property<T_> &, const prop::detail::Binding_list &)>
+		friend std::move_only_function<prop::Updater_result(prop::Property<T_> &,
+															std::span<prop::detail::Property_link>)>
 		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
 		template <class T_, class Function, class... Properties, std::size_t... indexes>
 			requires(std::is_same_v<T_, void>)
-		friend std::move_only_function<void(const prop::detail::Binding_list &)>
+		friend std::move_only_function<void(std::span<prop::detail::Property_link>)>
 		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
 		template <class U>
 		friend void prop::print_status(const prop::Property<U> &p, std::ostream &os);
 		template <class U>
 		friend class Property;
+		friend struct prop::detail::Property_link;
 	};
 
 	void print_status(const prop::Property<void> &p, std::ostream &os = std::clog);
 
 	template <>
-	class Property<void> : prop::detail::Property_name_base<void> {
+	class Property<void> : prop::detail::Property_base {
 		public:
+		using Value_type = void;
 		Property();
 		Property(Property &&other);
 		Property &operator=(Property &&other);
-		Property(std::convertible_to<std::move_only_function<void()>> auto &&f);
+		Property(std::convertible_to<std::move_only_function<void()>> auto &&f)
+			: source{prop::detail::create_explicit_caller<void>(std::forward<decltype(f)>(f), {})} {}
 		Property &operator=(std::convertible_to<std::move_only_function<void()>> auto &&f);
 		Property &operator=(prop::detail::Property_function_binder<void> binder);
-		template <class... Property_types,
-				  prop::detail::Property_update_function<void, const Property<Property_types> *...> Function>
-		void bind(Function &&source, Property<Property_types> &...properties);
 		bool is_bound() const;
 		void unbind() final override;
 		std::string displayed_value() const final {
 			return "<void>";
+		}
+		std::string_view type() const override {
+			return "void";
 		}
 
 		template <class U>
@@ -352,19 +422,20 @@ namespace prop {
 		virtual ~Property() = default;
 
 		private:
-		void update_source(std::move_only_function<void(const prop::detail::Binding_list &)> f);
+		void update_source(std::move_only_function<void(std::span<const prop::detail::Property_link>)> f);
 		void update() override final;
-		std::move_only_function<void(const prop::detail::Binding_list &)> source;
+		std::move_only_function<void(std::span<const prop::detail::Property_link>)> source;
 		friend class Binding;
 		friend Property_base *detail::get_property_base_pointer<void>(const Property &p);
 		friend Property_base *detail::get_property_base_pointer<void>(const Property *p);
 		template <class T, class Function, class... Properties, std::size_t... indexes>
 			requires(not std::is_same_v<T, void>)
-		friend std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)>
+		friend std::move_only_function<prop::Updater_result(prop::Property<T> &,
+															std::span<const prop::detail::Property_link>)>
 		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
 		template <class T, class Function, class... Properties, std::size_t... indexes>
 			requires(std::is_same_v<T, void>)
-		friend std::move_only_function<void(const prop::detail::Binding_list &)>
+		friend std::move_only_function<void(std::span<const prop::detail::Property_link>)>
 		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
 		friend void prop::print_status(const prop::Property<void> &p, std::ostream &os);
 		template <class U>
@@ -437,7 +508,8 @@ namespace prop {
 
 	template <class T>
 	Property<T>::Property(const Property<T> &other)
-		: value{other.value} {
+		: prop::detail::Property_base{}
+		, value{other.value} {
 		other.read_notify();
 	}
 	template <class T>
@@ -481,7 +553,7 @@ namespace prop {
 		: value{std::move(v.value)} {}
 
 	template <class T>
-	Property<T>::Property(Generator &&generator)
+	Property<T>::Property(Generator<T, true> &&generator)
 		: value{std::move(generator.generator.value)} {
 		update_source(std::move(generator.generator.source));
 	}
@@ -497,9 +569,10 @@ namespace prop {
 	}
 
 	template <class T>
-	Property<T> &Property<T>::operator=(Generator &&generator) {
-		assert(!"Unimplemented");
-		throw std::logic_error{"Unimplemented"};
+	Property<T> &Property<T>::operator=(Generator<T, false> &&generator) {
+		unbind();
+		set_explicit_dependencies(std::move(generator.data.dependencies));
+		update_source(std::move(generator.data.source));
 		return *this;
 	}
 
@@ -513,7 +586,7 @@ namespace prop {
 	}
 	template <class T>
 	Property<T> &Property<T>::operator=(prop::detail::Property_function_binder<T> binder) {
-		prop::detail::Property_base::set_explicit_dependencies(std::move(binder.explicit_dependencies));
+		prop::detail::Property_base::set_explicit_dependencies(std::move(binder.dependencies));
 		update_source(std::move(binder.function));
 		return *this;
 	}
@@ -547,11 +620,6 @@ namespace prop {
 	void Property<T>::unbind() {
 		source = nullptr;
 		prop::detail::Property_base::unbind();
-	}
-
-	template <class T>
-	void Property<T>::sever() {
-		sever_implicit_dependents();
 	}
 
 	template <class T>
@@ -615,51 +683,20 @@ namespace prop {
 	}
 
 	template <class T>
-	template <class Functor>
-	std::invoke_result_t<Functor, T &> Property<T>::apply_guarded(Functor &&f) {
-		Write_notifier wn{this};
-		prop::detail::RAII guard{[] { prop::detail::Property_base::current_binding = nullptr; },
-								 [binding = prop::detail::Property_base::current_binding] {
-									 prop::detail::Property_base::current_binding = binding;
-								 }};
-		read_notify();
-		if constexpr (std::is_fundamental_v<T> || std::is_pointer_v<T>) {
-			T t = value;
-			try {
-				auto retval = f(value);
-				if (t == value) {
-					wn.p = nullptr;
-				}
-				return retval;
-			} catch (...) {
-				if (t == value) {
-					wn.p = nullptr;
-				}
-				throw;
-			}
-		} else {
-			return f(value);
-		}
-	}
-
-	template <class T>
 	void Property<T>::update_source(
-		std::move_only_function<prop::Updater_result(prop::Property<T> &, const prop::detail::Binding_list &)> f) {
+		std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const prop::detail::Property_link>)>
+			f) {
 		std::swap(f, source);
 		update();
 	}
 
 	template <class T>
 	void Property<T>::update() {
-		prop::detail::RAII updater{[this] {
-									   update_start(); //
-								   },
-								   [this] {
-									   update_complete();
-									   need_update = false;
-								   }};
+		prop::detail::Property_base *previous_binding;
+		prop::detail::RAII updater{[this, &previous_binding] { update_start(previous_binding); },
+								   [this, &previous_binding] { update_complete(previous_binding); }};
 		try {
-			switch (source(*this, explicit_dependencies)) {
+			switch (source(*this, this->get_explicit_dependencies())) {
 				case prop::Updater_result::sever:
 					unbind();
 					[[fallthrough]];
@@ -671,20 +708,15 @@ namespace prop {
 					updater.early_exit();
 					break;
 			}
-		} catch (const prop::Property_expired &) {
-			unbind();
 		} catch (...) {
 			unbind();
 			throw;
 		}
 #if 0
 		Write_notifier wn{this};
-		auto call_source = [this] {
-			prop::detail::RAII updater{[this] { update_start(); },
-									   [this] {
-										   update_complete();
-										   need_update = false;
-									   }};
+		auto call_source = [this, &previous_binding] {
+			prop::detail::RAII updater{[this, &previous_binding] { update_start(previous_binding); },
+									   [this, &previous_binding] { update_complete(previous_binding); }};
 			return source(explicit_dependencies);
 		};
 		if constexpr (prop::detail::is_equal_comparable_v<T>) {
@@ -713,8 +745,25 @@ namespace prop {
 #endif
 	}
 
+	namespace detail {
+		struct P {
+			P(std::span<const prop::detail::Property_link> s)
+				: l{s} {}
+			std::span<const prop::detail::Property_link> l;
+		};
+		inline std::ostream &operator<<(std::ostream &os, const P &p) {
+			const char *sep = "";
+			for (auto &link : p.l) {
+				os << sep << link;
+				sep = ", ";
+			}
+			return os;
+		}
+	} // namespace detail
+
 	template <class T>
 	void print_status(const prop::Property<T> &p, std::ostream &os) {
+		using prop::detail::P;
 		os << prop::Color::static_text;
 #ifdef PROPERTY_NAMES
 		os << "Property   " << p.get_name() << '\n';
@@ -723,17 +772,17 @@ namespace prop {
 #endif
 		os << prop::Color::static_text << "\tvalue: " << prop::Color::reset << prop::detail::Printer{p.value} << "\n";
 		os << prop::Color::static_text << "\tsource: " << prop::Color::reset << (p.source ? "Yes" : "No") << "\n";
-		os << prop::Color::static_text << "\tExplicit dependencies: [" << prop::Color::reset << p.explicit_dependencies
-		   << prop::Color::static_text << "]\n";
+		os << prop::Color::static_text << "\tExplicit dependencies: [" << prop::Color::reset
+		   << P(p.get_explicit_dependencies()) << prop::Color::static_text << "]\n";
 		os << prop::Color::static_text << "\tImplicit dependencies: [" << prop::Color::reset
-		   << p.get_implicit_dependencies() << prop::Color::static_text << "]\n";
-		os << prop::Color::static_text << "\tDependents: [" << prop::Color::reset << p.get_dependents()
+		   << P(p.get_implicit_dependencies()) << prop::Color::static_text << "]\n";
+		os << prop::Color::static_text << "\tDependents: [" << prop::Color::reset << P(p.get_dependents())
 		   << prop::Color::static_text << "]\n"
 		   << prop::Color::reset;
 	}
 
 	Property<void> &Property<void>::operator=(std::convertible_to<std::move_only_function<void()>> auto &&f) {
-		update_source([source_ = std::forward<decltype(f)>(f)](const prop::detail::Binding_list &) { source_(); });
+		update_source([source_ = std::forward<decltype(f)>(f)](std::span<prop::detail::Property_link>) { source_(); });
 		return *this;
 	}
 
@@ -868,7 +917,13 @@ namespace prop {
 	PROP_BINOPS
 #undef PROP_X
 #undef PROP_BINOPS
+
 } // namespace prop
+
+template <class T>
+prop::detail::Property_link::operator prop::Property<T> *() const {
+	return static_cast<prop::Property<T> *>(get_pointer());
+}
 
 template <class U, class V>
 decltype(auto) operator+(U &&u, V &&v)

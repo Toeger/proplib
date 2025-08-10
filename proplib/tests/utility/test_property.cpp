@@ -3,6 +3,7 @@
 
 #include <catch2/catch_all.hpp>
 #include <memory>
+#include <numeric>
 
 TEST_CASE("Compile time checks") {
 	//Primitive types
@@ -292,7 +293,17 @@ struct SS {
 TEST_CASE("Inner inner property") {
 	prop::Property<SS> p1;
 	prop::Property<void> p4;
-	p4 = {[](SS &ss) { ss.s.apply_guarded([](S &s) { s.inner = 42; }); }, p1};
+	p4 = {[](SS &ss) {
+			  ss.s = [](S &s) {
+				  if (s.inner == 42) {
+					  return prop::Updater_result::unchanged;
+				  } else {
+					  s.inner = 42;
+					  return prop::Updater_result::changed;
+				  }
+			  };
+		  },
+		  p1};
 	print_status(p1);
 	print_status(p4);
 	p1 = SS{};
