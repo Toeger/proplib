@@ -40,6 +40,7 @@ set(PROP_LIBRARY_UTILITY_NAMES
 	property_details
 	raii
 	rect
+	screen_units
 	signal
 	style
 	type_list
@@ -102,6 +103,7 @@ add_executable(PropExperiments
 	${PROP_LIBRARY_HEADERS}
 )
 target_include_directories(PropExperiments PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(PropExperiments PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/cppdecl/include)
 if (PROP_PLATFORM STREQUAL "SFML")
 	target_link_libraries(PropExperiments PRIVATE
 		sfml-graphics
