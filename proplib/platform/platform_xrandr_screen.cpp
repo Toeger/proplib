@@ -1,18 +1,17 @@
 #include "platform_xrandr_screen.h"
 
-#include <iostream>
+#include <cstdio>
 #include <memory>
 #include <mutex>
 #include <regex>
 
 //TODO: Extract to utility file
-static std::mutex popen_mutex;
 static std::string get_output_from_command(std::string_view command) {
-	std::unique_ptr<FILE, decltype(pclose) *> fp{nullptr, &pclose};
+	std::unique_ptr<FILE, decltype([](FILE *f) { pclose(f); })> fp;
 	{
-		std::lock_guard<std::mutex> popen_lock(popen_mutex); //unfortunately popen doesn't seem to be thread safe
-		std::unique_ptr<FILE, decltype(pclose) *> p{popen(command.data(), "r"), &pclose};
-		fp = std::move(p);
+		static std::mutex popen_mutex;
+		std::lock_guard<std::mutex> _(popen_mutex); //popen doesn't seem to be thread-safe
+		fp.reset(popen(command.data(), "r"));
 	}
 	if (!fp) {
 		return {};
@@ -21,7 +20,8 @@ static std::string get_output_from_command(std::string_view command) {
 	const int buffersize = 1024;
 	for (;;) {
 		buffer.resize(buffer.size() + buffersize);
-		std::size_t read = fread(&buffer[buffer.size() - buffersize], sizeof *buffer.data(), buffersize, fp.get());
+		const std::size_t read =
+			fread(&buffer[buffer.size() - buffersize], sizeof *buffer.data(), buffersize, fp.get());
 		if (read < buffersize) {
 			buffer.resize(buffer.size() - buffersize + read);
 			break;
@@ -33,7 +33,7 @@ static std::string get_output_from_command(std::string_view command) {
 std::vector<prop::platform::Screen> get_xandr_screens() {
 	std::vector<prop::platform::Screen> screens;
 	auto output = get_output_from_command("xrandr --listactivemonitors");
-	std::regex r(R"(\s(\d+)\/(\d+)x(\d+)\/(\d+)\+(\d+)\+(\d+)\s)");
+	const std::regex r(R"(\s(\d+)\/(\d+)x(\d+)\/(\d+)\+(\d+)\+(\d+)\s)");
 	for (std::smatch sm; regex_search(output, sm, r); output = sm.suffix()) {
 		prop::platform::Screen screen;
 		screen.width_pixels = std::atoi(sm[1].str().c_str());

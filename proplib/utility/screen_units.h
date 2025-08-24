@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <iterator>
+#include <ostream>
 #include <type_traits>
 
 #if __GNUG__
@@ -160,20 +161,23 @@ namespace prop {
 	namespace literals {
 		inline namespace Screen_units_literals {
 #define PROP_UDL(NAME, UDL)                                                                                            \
-	[[nodiscard]] constexpr inline auto operator""##UDL(long double value) {                                           \
+	[[nodiscard]] constexpr inline auto operator""##_##UDL(long double value) {                                        \
 		return NAME{static_cast<Screen_unit_precision>(value)};                                                        \
 	}                                                                                                                  \
-	[[nodiscard]] constexpr inline auto operator""##UDL(unsigned long long int value) {                                \
+	[[nodiscard]] constexpr inline auto operator""##_##UDL(unsigned long long int value) {                             \
 		return NAME{static_cast<Screen_unit_precision>(value)};                                                        \
+	}                                                                                                                  \
+	inline std::ostream &operator<<(std::ostream &os, NAME value) {                                                    \
+		return os << value.amount << #UDL;                                                                             \
 	}
 
-			PROP_UDL(Pixels, _px)
-			PROP_UDL(X_millimeters, _xmm)
-			PROP_UDL(Y_millimeters, _ymm)
-			PROP_UDL(Points, _pt)
-			PROP_UDL(Screen_width_percents, _swp)
-			PROP_UDL(Screen_height_percents, _shp)
-			PROP_UDL(Screen_size_percents, _ssp)
+			PROP_UDL(Pixels, px)
+			PROP_UDL(X_millimeters, xmm)
+			PROP_UDL(Y_millimeters, ymm)
+			PROP_UDL(Points, pt)
+			PROP_UDL(Screen_width_percents, swp)
+			PROP_UDL(Screen_height_percents, shp)
+			PROP_UDL(Screen_size_percents, ssp)
 #undef PROP_UDL
 		} // namespace Screen_units_literals
 	} // namespace literals
@@ -186,34 +190,34 @@ namespace prop {
 			Screen_dimension_type right;
 			Screen_dimension_type result = left;
 		};
-		constexpr Operator_set addable[] = {
+		constexpr auto addable = std::to_array<Operator_set>({
 			{Screen_dimension_type::xpos, Screen_dimension_type::width},
 			{Screen_dimension_type::ypos, Screen_dimension_type::height},
 			{Screen_dimension_type::width, Screen_dimension_type::width},
 			{Screen_dimension_type::height, Screen_dimension_type::height},
-		};
-		constexpr Operator_set subtractable[] = {
+		});
+		constexpr auto subtractable = std::to_array<Operator_set>({
 			{Screen_dimension_type::xpos, Screen_dimension_type::width},
 			{Screen_dimension_type::ypos, Screen_dimension_type::height},
 			{Screen_dimension_type::width, Screen_dimension_type::width},
 			{Screen_dimension_type::height, Screen_dimension_type::height},
 			{Screen_dimension_type::xpos, Screen_dimension_type::xpos, Screen_dimension_type::width},
 			{Screen_dimension_type::ypos, Screen_dimension_type::ypos, Screen_dimension_type::height},
-		};
-		constexpr Operator_set multiplicable[] = {
+		});
+		constexpr auto multiplicable = std::to_array<Operator_set>({
 			{Screen_dimension_type::width, Screen_dimension_type::scalar},
 			{Screen_dimension_type::height, Screen_dimension_type::scalar},
 			{Screen_dimension_type::scalar, Screen_dimension_type::width, Screen_dimension_type::width},
 			{Screen_dimension_type::scalar, Screen_dimension_type::height, Screen_dimension_type::height},
-		};
-		constexpr Operator_set dividable[] = {
+		});
+		constexpr auto dividable = std::to_array<Operator_set>({
 			{Screen_dimension_type::width, Screen_dimension_type::scalar},
 			{Screen_dimension_type::height, Screen_dimension_type::scalar},
 			{Screen_dimension_type::scalar, Screen_dimension_type::width, Screen_dimension_type::width},
 			{Screen_dimension_type::scalar, Screen_dimension_type::height, Screen_dimension_type::height},
 			{Screen_dimension_type::width, Screen_dimension_type::width, Screen_dimension_type::scalar},
 			{Screen_dimension_type::height, Screen_dimension_type::height, Screen_dimension_type::scalar},
-		};
+		});
 
 		template <Screen_dimension_type left, Screen_dimension_type right, Screen_dimension_type result,
 				  auto &operator_set>

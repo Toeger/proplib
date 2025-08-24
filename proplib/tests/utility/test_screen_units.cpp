@@ -2,6 +2,7 @@
 #include "proplib/utility/screen_units.h"
 
 #include <catch2/catch_all.hpp>
+#include <iostream>
 #include <print>
 
 #if __GNUG__
@@ -32,12 +33,11 @@ TEST_CASE("Screen units Units") {
 TEST_CASE("Screen units details") {
 	using namespace prop;
 	using namespace prop::detail;
-	static constexpr Operator_set ops[] = {
-		{Screen_dimension_type::xpos, Screen_dimension_type::width},
-		{Screen_dimension_type::ypos, Screen_dimension_type::height},
-		{Screen_dimension_type::width, Screen_dimension_type::width},
-		{Screen_dimension_type::height, Screen_dimension_type::height},
-	};
+	static constexpr auto ops =
+		std::to_array<Operator_set>({{Screen_dimension_type::xpos, Screen_dimension_type::width},
+									 {Screen_dimension_type::ypos, Screen_dimension_type::height},
+									 {Screen_dimension_type::width, Screen_dimension_type::width},
+									 {Screen_dimension_type::height, Screen_dimension_type::height}});
 	static_assert(
 		has_operator<Screen_dimension_type::xpos, Screen_dimension_type::width, Screen_dimension_type::xpos, ops>);
 	static_assert(
@@ -63,7 +63,9 @@ TEST_CASE("Screen dimensions") {
 		std::print("Screen {} with resolution {}x{} and size {}x{}mm\n", ++screen_count, screen.width_pixels,
 				   screen.height_pixels, screen.width_mm, screen.height_mm);
 	}
-	std::print("1xmm = {}px\n1ymm = {}px\n", prop::Pixels{1_xmm}.amount, prop::Pixels{1_ymm}.amount);
+	std::cout << "1xmm = " << prop::Pixels{1_xmm} << "\n1ymm = " << prop::Pixels{1_ymm} << "\n";
+	std::cout << prop::X_millimeters{1_px} << 'x' << prop::Y_millimeters{1_px} << '\n';
+	//std::print("1xmm = {}\n1ymm = {}\n", prop::Pixels{1_xmm}, prop::Pixels{1_ymm});
 }
 
 #if __GNUG__
