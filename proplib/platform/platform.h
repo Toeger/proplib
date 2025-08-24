@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string_view>
+#include <vector>
 
 namespace prop {
 	class Window;
@@ -48,6 +49,16 @@ namespace prop {
 			void set_background_text_color(std::ostream &os, prop::Color color);
 			void reset_text_color(std::ostream &os);
 		} // namespace Console
+
+		struct Screen {
+			long double width_pixels;
+			long double height_pixels;
+			long double width_mm;
+			long double height_mm;
+			long double x_origin_pixels;
+			long double y_origin_pixels;
+		};
+		std::vector<Screen> get_screens();
 
 		//TODO: font dimensions
 	} // namespace platform

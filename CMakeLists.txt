@@ -61,6 +61,10 @@ else()
 	message(FATAL_ERROR "Select a platform by setting the `PROP_PLATFORM` variable, for example with `cmake -DPROP_PLATFORM=<platform>`. Valid platforms are `SFML`. `PROP_PLATFORM` is currently set to `${PROP_PLATFORM}`.")
 endif()
 
+if (UNIX)
+	list(APPEND PROP_PLATFORM_NAMES platform_xrandr_screen.cpp)
+endif (UNIX)
+
 list(TRANSFORM PROP_LIBRARY_UI_NAMES PREPEND "proplib/ui/" OUTPUT_VARIABLE PROP_LIBRARY_UI_SOURCES)
 list(TRANSFORM PROP_LIBRARY_UTILITY_NAMES PREPEND "proplib/utility/" OUTPUT_VARIABLE PROP_LIBRARY_UTILITY_SOURCES)
 list(TRANSFORM PROP_PLATFORM_NAMES PREPEND "proplib/platform/" OUTPUT_VARIABLE PROP_PLATFORM_NAMES)

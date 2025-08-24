@@ -1,6 +1,8 @@
+#include "proplib/platform/platform.h"
 #include "proplib/utility/screen_units.h"
 
 #include <catch2/catch_all.hpp>
+#include <print>
 
 #if __GNUG__
 #pragma GCC diagnostic push
@@ -8,8 +10,9 @@
 #pragma GCC diagnostic ignored "-Wdouble-promotion"
 #endif
 
+using namespace prop::literals;
+
 TEST_CASE("Screen units Units") {
-	using namespace prop::literals;
 	prop::Pixels px;
 	REQUIRE(px.amount == 0);
 	REQUIRE(px == 0_px);
@@ -44,7 +47,6 @@ TEST_CASE("Screen units details") {
 }
 
 TEST_CASE("Screen units Dimensions") {
-	using namespace prop::literals;
 	prop::Xpos xpos;
 	REQUIRE(xpos.amount == 0_px);
 	REQUIRE(xpos == 0_px);
@@ -53,6 +55,15 @@ TEST_CASE("Screen units Dimensions") {
 	REQUIRE(xpos == 42_px);
 	REQUIRE(xpos - xpos == 0_px);
 	REQUIRE(xpos - 42_px == 0_px);
+}
+
+TEST_CASE("Screen dimensions") {
+	int screen_count{};
+	for (auto &screen : prop::platform::get_screens()) {
+		std::print("Screen {} with resolution {}x{} and size {}x{}mm\n", ++screen_count, screen.width_pixels,
+				   screen.height_pixels, screen.width_mm, screen.height_mm);
+	}
+	std::print("1xmm = {}px\n1ymm = {}px\n", prop::Pixels{1_xmm}.amount, prop::Pixels{1_ymm}.amount);
 }
 
 #if __GNUG__

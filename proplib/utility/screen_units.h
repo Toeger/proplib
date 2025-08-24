@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <iterator>
 #include <type_traits>
 
@@ -11,13 +12,14 @@
 
 namespace prop {
 #ifndef PROP_SCREEN_UNIT_PRECISION
-#define PROP_SCREEN_UNIT_PRECISION float
+#define PROP_SCREEN_UNIT_PRECISION std::float_t
 #endif
 	using Screen_unit_precision = PROP_SCREEN_UNIT_PRECISION;
 
 	enum class Screen_unit_type {
 		pixels,
-		millimeters,
+		x_millimeters,
+		y_millimeters,
 		points,
 		screen_width_percents,
 		screen_height_percents,
@@ -29,6 +31,7 @@ namespace prop {
 	constexpr inline long double screen_unit_to_pixels_factor<Screen_unit_type::pixels> = 1;
 
 	void reload_screen_dimensions();
+	inline const int _ = (reload_screen_dimensions(), 0);
 
 	template <Screen_unit_type screen_unit_type>
 	struct Screen_unit {
@@ -41,8 +44,13 @@ namespace prop {
 		}
 		template <Screen_unit_type other_screen_unit_type>
 		constexpr Screen_unit &operator=(Screen_unit<other_screen_unit_type> other_unit) noexcept {
-			amount = other_unit.amount * screen_unit_to_pixels_factor<other_screen_unit_type> /
-					 screen_unit_to_pixels_factor<screen_unit_type>;
+			if constexpr (screen_unit_type == other_screen_unit_type) {
+				amount = other_unit.amount;
+			} else {
+				amount = static_cast<Screen_unit_precision>(other_unit.amount *
+															screen_unit_to_pixels_factor<other_screen_unit_type> /
+															screen_unit_to_pixels_factor<screen_unit_type>);
+			}
 			return *this;
 		}
 	};
@@ -142,7 +150,8 @@ namespace prop {
 #undef PROP_OP
 
 	using Pixels = Screen_unit<Screen_unit_type::pixels>;
-	using Millimeters = Screen_unit<Screen_unit_type::millimeters>;
+	using X_millimeters = Screen_unit<Screen_unit_type::x_millimeters>;
+	using Y_millimeters = Screen_unit<Screen_unit_type::y_millimeters>;
 	using Points = Screen_unit<Screen_unit_type::points>;
 	using Screen_width_percents = Screen_unit<Screen_unit_type::screen_width_percents>;
 	using Screen_height_percents = Screen_unit<Screen_unit_type::screen_height_percents>;
@@ -159,7 +168,8 @@ namespace prop {
 	}
 
 			PROP_UDL(Pixels, _px)
-			PROP_UDL(Millimeters, _mm)
+			PROP_UDL(X_millimeters, _xmm)
+			PROP_UDL(Y_millimeters, _ymm)
 			PROP_UDL(Points, _pt)
 			PROP_UDL(Screen_width_percents, _swp)
 			PROP_UDL(Screen_height_percents, _shp)

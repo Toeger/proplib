@@ -131,3 +131,10 @@ prop::Size prop::platform::canvas::text_size(std::string_view text, const Font &
 	const auto &sfrect = sftext.getLocalBounds();
 	return {.width = static_cast<int>(sfrect.width), .height = static_cast<int>(sfrect.height)};
 }
+
+#if __unix__
+#include "platform_xrandr_screen.h"
+std::vector<prop::platform::Screen> prop::platform::get_screens() {
+	return get_xandr_screens();
+}
+#endif
