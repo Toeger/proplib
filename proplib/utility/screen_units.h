@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <format>
 #include <iterator>
 #include <ostream>
 #include <type_traits>
@@ -158,30 +159,44 @@ namespace prop {
 	using Screen_height_percents = Screen_unit<Screen_unit_type::screen_height_percents>;
 	using Screen_size_percents = Screen_unit<Screen_unit_type::screen_size_percents>;
 
-	namespace literals {
-		inline namespace Screen_units_literals {
-#define PROP_UDL(NAME, UDL)                                                                                            \
-	[[nodiscard]] constexpr inline auto operator""##_##UDL(long double value) {                                        \
-		return NAME{static_cast<Screen_unit_precision>(value)};                                                        \
-	}                                                                                                                  \
-	[[nodiscard]] constexpr inline auto operator""##_##UDL(unsigned long long int value) {                             \
-		return NAME{static_cast<Screen_unit_precision>(value)};                                                        \
-	}                                                                                                                  \
-	inline std::ostream &operator<<(std::ostream &os, NAME value) {                                                    \
-		return os << value.amount << #UDL;                                                                             \
-	}
+} // namespace prop
 
-			PROP_UDL(Pixels, px)
-			PROP_UDL(X_millimeters, xmm)
-			PROP_UDL(Y_millimeters, ymm)
-			PROP_UDL(Points, pt)
-			PROP_UDL(Screen_width_percents, swp)
-			PROP_UDL(Screen_height_percents, shp)
-			PROP_UDL(Screen_size_percents, ssp)
+#define PROP_UDL(PROP_TYPE, PROP_UNIT)                                                                                 \
+	namespace prop::literals {                                                                                         \
+		inline namespace Screen_units_literals {                                                                       \
+			[[nodiscard]] constexpr inline auto operator""##_##PROP_UNIT(long double value) {                          \
+				return prop::PROP_TYPE{static_cast<Screen_unit_precision>(value)};                                     \
+			}                                                                                                          \
+			[[nodiscard]] constexpr inline auto operator""##_##PROP_UNIT(unsigned long long int value) {               \
+				return prop::PROP_TYPE{static_cast<Screen_unit_precision>(value)};                                     \
+			}                                                                                                          \
+			inline std::ostream &operator<<(std::ostream &os, prop::PROP_TYPE value) {                                 \
+				return os << value.amount << #PROP_UNIT;                                                               \
+			}                                                                                                          \
+		}                                                                                                              \
+	}                                                                                                                  \
+	template <>                                                                                                        \
+	struct std::formatter<prop::PROP_TYPE> : std::formatter<prop::Screen_unit_precision> {                             \
+		template <class FmtContext>                                                                                    \
+		auto format(prop::PROP_TYPE var, FmtContext &ctx) const {                                                      \
+			auto it = std::formatter<prop::Screen_unit_precision>::format(var.amount, ctx);                            \
+			for (char c : std::string_view{#PROP_UNIT}) {                                                              \
+				*it = c;                                                                                               \
+				++it;                                                                                                  \
+			}                                                                                                          \
+			return it;                                                                                                 \
+		}                                                                                                              \
+	};
+PROP_UDL(Pixels, px)
+PROP_UDL(X_millimeters, xmm)
+PROP_UDL(Y_millimeters, ymm)
+PROP_UDL(Points, pt)
+PROP_UDL(Screen_width_percents, swp)
+PROP_UDL(Screen_height_percents, shp)
+PROP_UDL(Screen_size_percents, ssp)
 #undef PROP_UDL
-		} // namespace Screen_units_literals
-	} // namespace literals
 
+namespace prop {
 	enum class Screen_dimension_type { scalar, xpos, ypos, width, height };
 
 	namespace detail {
@@ -193,6 +208,8 @@ namespace prop {
 		constexpr auto addable = std::to_array<Operator_set>({
 			{Screen_dimension_type::xpos, Screen_dimension_type::width},
 			{Screen_dimension_type::ypos, Screen_dimension_type::height},
+			{Screen_dimension_type::width, Screen_dimension_type::xpos, Screen_dimension_type::xpos},
+			{Screen_dimension_type::height, Screen_dimension_type::ypos, Screen_dimension_type::ypos},
 			{Screen_dimension_type::width, Screen_dimension_type::width},
 			{Screen_dimension_type::height, Screen_dimension_type::height},
 		});

@@ -65,7 +65,8 @@ TEST_CASE("Screen dimensions") {
 	}
 	std::cout << "1xmm = " << prop::Pixels{1_xmm} << "\n1ymm = " << prop::Pixels{1_ymm} << "\n";
 	std::cout << prop::X_millimeters{1_px} << 'x' << prop::Y_millimeters{1_px} << '\n';
-	//std::print("1xmm = {}\n1ymm = {}\n", prop::Pixels{1_xmm}, prop::Pixels{1_ymm});
+	std::println("1xmm = {}\n1ymm = {}", prop::Pixels{1_xmm}, prop::Pixels{1_ymm});
+	std::println("1pt = {}", prop::Pixels{1_pt});
 }
 
 #if __GNUG__
