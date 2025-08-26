@@ -60,6 +60,19 @@ The UDL name (without the underscore) will be printed along the value, so `std::
 If the unit is not desired, you can use `.amount` to get the raw scalar value.
 `std::cout << (42_xmm).amount;` will print `42`.
 
+### Internal Representation
+There seems to be no clear consensus on whether to prefer `float` or `double` when precision does not matter.
+Some people insist `float` is faster because it is smaller
+while others insist `double` is faster because any `float` operation is actually a `double` operation,
+just with additional conversions from and to `float`.
+Proplib defaults to `std::float_t` which should default to the fastest type available that can represent `float` values.
+Depending on platform, that may be `float` or `double` or theoretically `long double`.
+Common platforms and compilers seem to use `float`.
+
+This behavior can be overridden by defining `PROP_SCREEN_UNIT_PRECISION`,
+such as `-DPROP_SCREEN_UNIT_PRECISION=double` in Cmake or compiler flags.
+The type is assumed to be a floating point type,
+`PROP_SCREEN_UNIT_PRECISION=int` is not compatible with Proplib.
 
 # prop::Screen_dimension\<prop::Screen_dimension_type>
 

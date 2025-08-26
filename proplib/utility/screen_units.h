@@ -17,6 +17,8 @@ namespace prop {
 #define PROP_SCREEN_UNIT_PRECISION std::float_t
 #endif
 	using Screen_unit_precision = PROP_SCREEN_UNIT_PRECISION;
+	static_assert(std::is_floating_point_v<Screen_unit_precision>,
+				  "Floating point type required for PROP_SCREEN_UNIT_PRECISION");
 
 	enum class Screen_unit_type {
 		pixels,
