@@ -37,11 +37,11 @@ std::vector<prop::platform::Screen> get_xandr_screens() {
 	for (std::smatch sm; regex_search(output, sm, r); output = sm.suffix()) {
 		prop::platform::Screen screen;
 		screen.width_pixels = std::atoi(sm[1].str().c_str());
-		screen.width_mm = std::atoi(sm[2].str().c_str());
 		screen.height_pixels = std::atoi(sm[3].str().c_str());
-		screen.height_mm = std::atoi(sm[4].str().c_str());
 		screen.x_origin_pixels = std::atoi(sm[5].str().c_str());
 		screen.y_origin_pixels = std::atoi(sm[6].str().c_str());
+		screen.x_dpi = screen.width_pixels / std::atoi(sm[2].str().c_str()) * 25.4l;
+		screen.y_dpi = screen.height_pixels / std::atoi(sm[4].str().c_str()) * 25.4l;
 		screens.push_back(std::move(screen));
 	}
 	return screens;

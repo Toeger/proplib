@@ -53,12 +53,19 @@ namespace prop {
 		struct Screen {
 			long double width_pixels;
 			long double height_pixels;
-			long double width_mm;
-			long double height_mm;
 			long double x_origin_pixels;
 			long double y_origin_pixels;
+			long double x_dpi;
+			long double y_dpi;
+			auto operator<=>(const Screen &) const = default;
 		};
-		std::vector<Screen> get_screens();
+		enum class Get_screens_strategy {
+			compatibility, //mimic whatever the platform does, even if incorrect
+			correctness,   //try to obtain the correct values
+			fixed_96_DPI,  //ignore platform DPI
+		};
+		std::vector<Screen>
+		get_screens(Get_screens_strategy get_screens_strategy = Get_screens_strategy::compatibility);
 
 		//TODO: font dimensions
 	} // namespace platform

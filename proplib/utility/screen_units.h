@@ -1,5 +1,8 @@
 #pragma once
 
+#include "proplib/platform/platform.h"
+#include "proplib/utility/property.h"
+
 #include <cmath>
 #include <format>
 #include <iterator>
@@ -29,13 +32,37 @@ namespace prop {
 		screen_height_percents,
 		screen_size_percents,
 	};
+	inline prop::Property<prop::platform::Get_screens_strategy> get_screens_strategy =
+		prop::platform::Get_screens_strategy::compatibility;
+	const inline prop::Property<std::vector<prop::platform::Screen>> screens = [] {
+		return prop::platform::get_screens(get_screens_strategy);
+	};
+
 	template <Screen_unit_type screen_unit_type>
-	inline long double screen_unit_to_pixels_factor = 0;
+	const inline prop::Property<long double> screen_unit_to_pixels_factor = [] -> long double {
+		if (screens->empty()) {
+			return 0;
+		}
+		//TODO: Do better at picking the correct screen
+		auto &window_screen = screens[0u];
+		if constexpr (screen_unit_type == Screen_unit_type::x_millimeters) {
+			return window_screen.width_pixels / window_screen.x_dpi * 25.4;
+		} else if constexpr (screen_unit_type == Screen_unit_type::y_millimeters) {
+			return window_screen.height_pixels / window_screen.y_dpi * 25.4;
+		} else if constexpr (screen_unit_type == Screen_unit_type::points) {
+			return window_screen.height_pixels / window_screen.y_dpi / 72;
+		} else if constexpr (screen_unit_type == Screen_unit_type::screen_width_percents) {
+			return window_screen.width_pixels / 100;
+		} else if constexpr (screen_unit_type == Screen_unit_type::screen_height_percents) {
+			return window_screen.height_pixels / 100;
+		} else if constexpr (screen_unit_type == Screen_unit_type::screen_size_percents) {
+			return window_screen.width_pixels * window_screen.height_pixels / 100 / 100;
+		} else {
+			static_assert(false, "Add missing screen unit type");
+		}
+	};
 	template <>
 	constexpr inline long double screen_unit_to_pixels_factor<Screen_unit_type::pixels> = 1;
-
-	void reload_screen_dimensions();
-	inline const int _ = (reload_screen_dimensions(), 0);
 
 	template <Screen_unit_type screen_unit_type>
 	struct Screen_unit {
