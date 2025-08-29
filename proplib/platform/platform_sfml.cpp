@@ -132,10 +132,6 @@ prop::Size prop::platform::canvas::text_size(std::string_view text, const Font &
 	return {.width = static_cast<int>(sfrect.width), .height = static_cast<int>(sfrect.height)};
 }
 
-#if __GNUG__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wswitch-default"
-#endif
 #if __unix__
 #include "platform_xrandr_screen.h"
 std::vector<prop::platform::Screen> prop::platform::get_screens(prop::platform::Get_screens_strategy strategy) {
@@ -156,7 +152,4 @@ std::vector<prop::platform::Screen> prop::platform::get_screens(prop::platform::
 }
 #else
 #error
-#endif
-#if __GNUG__
-#pragma GCC diagnostic pop
 #endif

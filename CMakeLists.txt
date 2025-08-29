@@ -8,6 +8,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-c++26-extensions")
 set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -Wno-unused-function -Wno-unused-variable -O0 -ggdb -fno-omit-frame-pointer -fsanitize=undefined,address")
 set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined,address")
+#if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+#	set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_DEBUG} -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-pre-c++14-compat -Wno-c++20-compat -Wno-pre-c++20-compat-pedantic -Wno-padded -Wno-unused-member-function -Wno-exit-time-destructors -Wno-global-constructors -Wno-c++2c-extensions -Wno-weak-vtables -Wno-switch-default -fsafe-buffer-usage-suggestions")
+#endif()
 #add_definitions(-DPROP_EMPTY_CLASS_OPTIMIZATION)
 #add_definitions(-DPROPERTY_DEBUG)
 add_definitions(-DPROPERTY_NAMES)
@@ -78,6 +81,8 @@ list(TRANSFORM PROP_LIBRARY_SOURCES APPEND ".cpp")
 list(TRANSFORM PROP_LIBRARY_SOURCES REPLACE "\.cpp$" ".h" OUTPUT_VARIABLE PROP_LIBRARY_HEADERS)
 
 list(APPEND PROP_LIBRARY_SOURCES ${PROP_PLATFORM_NAMES})
+
+include_directories(SYSTEM "proplib/platform/external")
 
 #demo
 if (PROP_PLATFORM STREQUAL "SFML")

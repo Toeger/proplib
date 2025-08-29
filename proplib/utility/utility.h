@@ -12,7 +12,7 @@ namespace prop {
 	namespace utility {
 		struct {
 			template <class T>
-			static void operator()(T &lhs, T &rhs) {
+			[[maybe_unused]] static void operator()(T &lhs, T &rhs) {
 				using std::swap;
 				swap(lhs, rhs);
 			}
