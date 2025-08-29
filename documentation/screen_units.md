@@ -38,16 +38,20 @@ button.height = 12_pt;
 You can easily add your own literals by specifying how they would convert to one of the above units.
 
 ```cpp
-[[nodiscard]] constexpr inline auto operator""_in(long double factor) {
-	return 25.4_xmm * factor;
-}
 [[nodiscard]] constexpr inline auto operator""_in(unsigned long long int factor) {
 	return 25.4_xmm * factor;
 }
+[[nodiscard]] constexpr inline auto operator""_in(long double factor) {
+	return 1_in * factor;
+}
+
 ```
 Here we add `_in` for inches. An inch is 25.4mm, so we return 25.4 millimeters times the factor.
 From then on you can write `10_in` anywhere a size or position is needed in Proplib.
 Other conversions, such as to pixels, are handled by `prop::X_millimeters`.
+
+Note that you need both the `unsigned long long` and
+the `long double` version so that both `1_in` and `1.0_in` are valid.
 
 ### Printing
 Screen units can be printed using `std::ostream`-based printing such as `std::cout`
