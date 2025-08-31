@@ -610,7 +610,6 @@ namespace prop {
 												 static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(
 													 nullptr)))>...,
 					};
-#if __cpp_static_assert >= 202306L
 					static_assert(not conversion_failures[0] and (... and not conversion_failures[indexes + 1]),
 								  "Updater function cannot be called due to type mismatch:\n" +
 									  type_comparer(conversion_failures, Function_parameter_list{},
@@ -620,19 +619,14 @@ namespace prop {
 						"Updating function must return prop::Updater_result, got " +
 							std::string{prop::type_name<typename prop::Callable_info_for<Function>::Return_type>()} +
 							" instead.");
-#else
-					static_assert(not conversion_failures[0] and (... and not conversion_failures[indexes + 1]),
-								  "Updater function cannot be called due to type mismatch.\n");
-					static_assert(
-						std::is_same_v<typename prop::Callable_info_for<Function>::Return_type, prop::Updater_result>,
-						"Updating function must return prop::Updater_result.");
-#endif
 					return source(convert_to_function_arg<typename Function_parameter_list::template at<0>>(&p),
 								  convert_to_function_arg<typename Function_parameter_list::template at<indexes + 1>>(
 									  static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(
 										  explicit_dependencies[indexes]))...);
 				} else {
-					static_assert(false, "Number of parameters does not match number of given properties");
+					static_assert(false, "Number of parameters (" + std::string(Function_parameter_list::type_names) +
+											 ") does not match number of given properties (" +
+											 std::to_string(prop::Type_list<Properties...>::type_names) + ")");
 				}
 			};
 		}
@@ -649,7 +643,10 @@ namespace prop {
 						static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(
 							explicit_dependencies[indexes]))...);
 				} else {
-					static_assert(false, "Number of parameters does not match number of given properties");
+					using Function_parameter_list = prop::Callable_info_for<Function>::Params;
+					static_assert(false, "Number of parameters (" + std::string(Function_parameter_list::type_names) +
+											 ") does not match number of given properties (" +
+											 std::to_string(prop::Type_list<Properties...>::type_names) + ")");
 				}
 			};
 		}

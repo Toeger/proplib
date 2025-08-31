@@ -1,5 +1,6 @@
 #pragma once
 
+#include "type_name.h"
 #include <type_traits>
 #include <utility>
 
@@ -64,6 +65,12 @@ namespace prop {
 		constexpr static bool contains_v = Contains<T, Ts...>::value;
 		constexpr static std::size_t size = sizeof...(Ts);
 		using index_sequence = std::index_sequence_for<Ts...>;
+		static constexpr std::string_view type_names = [] {
+			std::string_view name = prop::type_name<prop::Type_list<Ts...>>();
+			name.remove_suffix(1);
+			name.remove_prefix(sizeof("prop::type_name"));
+			return name;
+		}();
 
 		//TODO: sort, remove_if
 	};
