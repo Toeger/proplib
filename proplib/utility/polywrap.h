@@ -223,7 +223,7 @@ namespace prop {
 
 	template <class T>
 	T *Polywrap<T>::get() {
-		static_assert(!std::is_reference_v<T>);
+		static_assert(not std::is_reference_v<T>);
 		return value_ptr.get();
 	}
 
