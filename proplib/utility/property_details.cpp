@@ -1,4 +1,5 @@
 #include "property_details.h"
+#include "color.h"
 #include "property.h"
 
 #ifdef PROPERTY_DEBUG
@@ -75,6 +76,10 @@ struct Tracer {
 		os << color;
 		return std::move(*this);
 	}
+	Tracer &&operator<<(prop::Color::Reset reset) && {
+		os << reset;
+		return std::move(*this);
+	}
 	Tracer &&operator<<(const char *s) && {
 		os << prop::Color::static_text << s;
 		return std::move(*this);
@@ -95,6 +100,17 @@ struct Tracer {
 		os << prop::Color::address << p;
 		return std::move(*this);
 	}
+	Tracer &&operator<<(std::span<const prop::detail::Property_link> span) && {
+		os << '[';
+		const char *sep = "";
+		for (auto &l : span) {
+			os << prop::Color::type << l->type() << prop::Color::static_text << '@' << prop::Color::address
+			   << l.get_pointer() << prop::Color::static_text << sep;
+			sep = ",";
+		}
+		os << ']';
+		return std::move(*this);
+	}
 	~Tracer() {
 		os << prop::Color::static_text << " in " << prop::Color::function_name
 		   << function_part(source_location.function_name(), Function_part::name) << prop::Color::reset << '\n';
@@ -104,26 +120,14 @@ struct Tracer {
 };
 
 #define TRACE(...) Tracer{} << __VA_ARGS__
-
-static std::string propnames(const prop::detail::Binding_set &set) {
-	std::stringstream ss;
-	ss << prop::Color::static_text << '[';
-	const char *separator = "";
-	for (const auto &binding : set.set) {
-		ss << prop::Color::static_text << separator;
-		separator = ", ";
-		ss << binding->get_name();
-	}
-	ss << prop::Color::static_text << ']';
-	return ss.str();
-}
 #else
 #define TRACE(...)
 #endif
 
 void prop::detail::Property_base::read_notify() const {
-	if (current_binding and not current_binding->has_dependent(*this)) {
-		TRACE("Added      " << get_name() << " as an implicit dependency of " << current_binding->get_name());
+	if (current_binding and current_binding != this and not current_binding->has_dependency(*this)) {
+		TRACE("Added      " << get_name() << " as an implicit dependency of\n           "
+							<< current_binding->get_name());
 		current_binding->add_implicit_dependency({this, true});
 	}
 }
@@ -132,7 +136,7 @@ void prop::detail::Property_base::write_notify() {
 	if (explicit_dependencies + implicit_dependencies == dependencies.size()) {
 		return;
 	}
-	TRACE("Notifying  " << get_name() << "->" << propnames(dependents));
+	TRACE("Notifying  " << get_name() << "->" << get_dependents());
 	for (auto &dependent : get_stable_dependents()) {
 		dependent->Property_base::update();
 	}
@@ -154,9 +158,18 @@ void prop::detail::Property_base::update_complete(Property_base *&previous_bindi
 	current_binding = previous_binding;
 }
 
+prop::detail::Property_base::Property_base() {
+	TRACE("Created    " << this);
+}
+
+prop::detail::Property_base::Property_base(std::string_view type) {
+	TRACE("Created    " << prop::Color::type << type << prop::Color::static_text << '@' << prop::Color::address << this
+						<< prop::Color::reset);
+}
+
 prop::detail::Property_base::Property_base(std::vector<prop::detail::Property_link> initial_explicit_dependencies)
 	: dependencies{std::move(initial_explicit_dependencies)} {
-	TRACE("Created    " << get_name());
+	TRACE("Created    " << this);
 	for (auto &explicit_dependency : dependencies) {
 		if (auto ptr = explicit_dependency.get_pointer()) {
 			ptr->add_dependent(*this);
@@ -203,10 +216,10 @@ void prop::detail::Property_base::operator=(Property_base &&other) {
 }
 
 prop::detail::Property_base::~Property_base() {
-	TRACE("Destroying " << get_name());
+	TRACE("Destroying " << this);
 	for (std::size_t i = 0; i < explicit_dependencies + implicit_dependencies; ++i) {
 		dependencies[i]->remove_dependent(*this);
-		TRACE("Removed    " << get_name() << " from dependents of " << dependency->get_name());
+		TRACE("Removed    " << get_name() << " from dependents of " << dependencies[i]->get_name());
 	}
 	for (std::size_t dependent_index = explicit_dependencies + implicit_dependencies;
 		 dependent_index < std::size(dependencies); ++dependent_index) {
@@ -218,24 +231,24 @@ prop::detail::Property_base::~Property_base() {
 			if (dependent_dependency == this) {
 				if (dependent_dependency.is_required()) {
 					dependent.unbind();
-					TRACE("Removed    " << get_name() << " from required dependencies of " << dependent->get_name());
+					TRACE("Removed    " << get_name() << " from required dependencies of " << dependent.get_name());
 					break; //all dependents and dependencies are gone
 				}
 				if (dependent_dependency_index < dependent.explicit_dependencies) { //explicit dependency
 					dependent_dependency = nullptr;
 					TRACE("Removed    " << get_name() << " from optional explicit dependencies of "
-										<< dependent->get_name());
+										<< dependent.get_name());
 					//duplicate explicit dependency possible
 				} else { //implicit dependency
 					dependent.dependencies.erase(std::begin(dependent.dependencies) + dependent_dependency_index);
 					TRACE("Removed    " << get_name() << " from optional implicit dependencies of "
-										<< dependent->get_name());
+										<< dependent.get_name());
 					break; //only 1 implicit dependency possible
 				}
 			}
 		}
 	}
-	TRACE("Destroyed  " << get_name());
+	TRACE("Destroyed  " << this);
 #ifdef PROPERTY_DEBUG
 	custom_name = "~" + custom_name;
 #endif
@@ -244,9 +257,11 @@ prop::detail::Property_base::~Property_base() {
 void prop::detail::swap(Property_base &lhs, Property_base &rhs) {
 	TRACE("Swapping   " << lhs.get_name() << " and " << rhs.get_name());
 	using std::swap;
-	struct _ final : Property_base {
+	struct Tmp final : Property_base {
+		Tmp()
+			: Property_base(prop::type_name<Tmp>()) {}
 		std::string_view type() const override {
-			return "";
+			return prop::type_name<Tmp>();
 		}
 	} tmp;
 	auto replace = [](Property_base &pb_old, Property_base &pb_new) {
@@ -264,4 +279,59 @@ void prop::detail::swap(Property_base &lhs, Property_base &rhs) {
 	swap(lhs.explicit_dependencies, rhs.explicit_dependencies);
 	swap(lhs.implicit_dependencies, rhs.implicit_dependencies);
 	swap(lhs.dependencies, rhs.dependencies);
+}
+
+std::string_view prop::detail::Property_base::type() const {
+	return prop::type_name<decltype(*this)>();
+}
+
+void prop::detail::Property_base::set_explicit_dependencies(std::vector<Property_link> deps) {
+	assert(deps.size() < std::numeric_limits<decltype(explicit_dependencies)>::max());
+	if (dependencies.empty()) {
+		TRACE("Setting    " << prop::Color::type << type() << "@" << this << "'s explicit dependencies to\n           "
+							<< deps);
+		if (dependencies.capacity() > deps.capacity()) {
+			std::copy(std::begin(deps), std::end(deps), std::back_inserter(dependencies));
+		} else {
+			dependencies = std::move(deps);
+		}
+		for (const auto &dependency : dependencies) {
+			dependency->add_dependent(*this);
+		}
+		explicit_dependencies = static_cast<decltype(explicit_dependencies)>(dependencies.size());
+		return;
+	}
+	if (deps.empty()) {
+		TRACE("Removing   " << prop::Color::type << type() << "@" << this << "'s explicit dependencies "
+							<< dependencies);
+		for (std::size_t i = 0; i < explicit_dependencies; i++) {
+			dependencies[i]->remove_dependent(*this);
+		}
+		dependencies.erase(std::begin(dependencies), std::begin(dependencies) + explicit_dependencies);
+		explicit_dependencies = 0;
+		return;
+	}
+	TRACE("Replacing  " << prop::Color::type << type() << "@" << this << "'s explicit dependencies:\n           old: "
+						<< dependencies << "\n           new: " << deps);
+	for (std::size_t i = 0, end = std::min<std::size_t>(explicit_dependencies, deps.size()); i < end; i++) {
+		if (dependencies[i].get_pointer() == deps[i].get_pointer()) {
+			dependencies[i] = deps[i];
+			continue;
+		}
+		dependencies[i]->remove_dependent(*this);
+		dependencies[i] = deps[i];
+		dependencies[i]->add_dependent(*this);
+	}
+	while (explicit_dependencies < deps.size()) {
+		dependencies.insert(std::begin(deps) + explicit_dependencies, deps[explicit_dependencies]);
+		dependencies[explicit_dependencies++]->add_dependent(*this);
+	}
+	if (explicit_dependencies > deps.size()) {
+		for (std::size_t i = deps.size(); i < explicit_dependencies; i++) {
+			dependencies[i]->remove_dependent(*this);
+		}
+		dependencies.erase(std::begin(deps) + explicit_dependencies,
+						   std::begin(deps) + static_cast<decltype(explicit_dependencies)>(deps.size()));
+		explicit_dependencies = static_cast<decltype(explicit_dependencies)>(deps.size());
+	}
 }

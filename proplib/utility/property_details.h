@@ -47,10 +47,10 @@ namespace prop {
 			Property_link(const Property_base *property, bool required)
 				: data{reinterpret_cast<std::uintptr_t>(property) + required} {}
 			bool is_required() const {
-				return data & 0b10;
+				return data & 1;
 			}
 			Property_base *get_pointer() const {
-				return reinterpret_cast<Property_base *>(data & ~std::uintptr_t{3});
+				return reinterpret_cast<Property_base *>(data & ~std::uintptr_t{1});
 			}
 			Property_base *operator->() const {
 				return get_pointer();
@@ -100,7 +100,9 @@ namespace prop {
 
 			Property_base(const Property_base &) = delete;
 			Property_base(Property_base &&other);
-			Property_base(std::vector<prop::detail::Property_link> explicit_dependencies = {});
+			Property_base();
+			Property_base(std::string_view type);
+			Property_base(std::vector<prop::detail::Property_link> explicit_dependencies);
 			void operator=(const Property_base &) = delete;
 			void operator=(Property_base &&other);
 
@@ -154,50 +156,7 @@ namespace prop {
 					property->add_dependent(*this);
 				}
 			}
-			void set_explicit_dependencies(std::vector<Property_link> deps) {
-				assert(deps.size() < std::numeric_limits<decltype(explicit_dependencies)>::max());
-				if (dependencies.empty()) {
-					if (dependencies.capacity() > deps.capacity()) {
-						std::copy(std::begin(deps), std::end(deps), std::back_inserter(dependencies));
-					} else {
-						dependencies = std::move(deps);
-					}
-					for (const auto &dependency : dependencies) {
-						dependency->add_dependent(*this);
-					}
-					explicit_dependencies = static_cast<decltype(explicit_dependencies)>(dependencies.size());
-					return;
-				}
-				if (deps.empty()) {
-					for (std::size_t i = 0; i < explicit_dependencies; i++) {
-						dependencies[i]->remove_dependent(*this);
-					}
-					dependencies.erase(std::begin(dependencies), std::begin(dependencies) + explicit_dependencies);
-					explicit_dependencies = 0;
-					return;
-				}
-				for (std::size_t i = 0, end = std::min<std::size_t>(explicit_dependencies, deps.size()); i < end; i++) {
-					if (dependencies[i].get_pointer() == deps[i].get_pointer()) {
-						dependencies[i] = deps[i];
-						continue;
-					}
-					dependencies[i]->remove_dependent(*this);
-					dependencies[i] = deps[i];
-					dependencies[i]->add_dependent(*this);
-				}
-				while (explicit_dependencies < deps.size()) {
-					dependencies.insert(std::begin(deps) + explicit_dependencies, deps[explicit_dependencies]);
-					dependencies[explicit_dependencies++]->add_dependent(*this);
-				}
-				if (explicit_dependencies > deps.size()) {
-					for (std::size_t i = deps.size(); i < explicit_dependencies; i++) {
-						dependencies[i]->remove_dependent(*this);
-					}
-					dependencies.erase(std::begin(deps) + explicit_dependencies,
-									   std::begin(deps) + static_cast<decltype(explicit_dependencies)>(deps.size()));
-					explicit_dependencies = static_cast<decltype(explicit_dependencies)>(deps.size());
-				}
-			}
+			void set_explicit_dependencies(std::vector<Property_link> deps);
 			void replace_dependency(const Property_base &old_value, const Property_base &new_value) {
 				for (auto it = std::begin(dependencies),
 						  end = std::begin(dependencies) + explicit_dependencies + implicit_dependencies;
@@ -231,10 +190,10 @@ namespace prop {
 #ifdef PROPERTY_NAMES
 			std::string custom_name;
 			std::string get_name() const {
-				std::string auto_name = prop::to_string(prop::Color::type) + std::string{type()} +
-										prop::to_string(prop::Color::static_text) + "@" +
-										prop::to_string(prop::Color::address) + prop::to_string(this) +
-										prop::to_string(prop::Color::reset);
+				std::string auto_name =
+					prop::to_string(prop::Color::type) + std::string{type()} +
+					prop::to_string(prop::Color::static_text) + "@" + prop::to_string(prop::Color::address) +
+					prop::to_string(static_cast<const void *>(this)) + prop::to_string(prop::Color::reset);
 				if (custom_name.empty()) {
 					return auto_name;
 				}
