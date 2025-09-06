@@ -64,6 +64,7 @@ namespace prop {
 		requires(requires(std::stringstream &ss) { ss << t; })
 	{
 		std::stringstream ss;
+		ss << t;
 		return std::move(ss).str();
 	}
 
