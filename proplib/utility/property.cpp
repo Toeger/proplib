@@ -1,10 +1,5 @@
 #include "property.h"
 
-void (*prop::on_property_severed)(prop::detail::Property_base *severed, prop::detail::Property_base *reason) =
-	[](prop::detail::Property_base *, prop::detail::Property_base *) {};
-
-void (*prop::on_property_update_exception)(std::exception_ptr exception) = [](std::exception_ptr) {};
-
 prop::Property<void>::Property() {}
 
 prop::Property<void> &prop::Property<void>::operator=(prop::detail::Property_function_binder<void> binder) {

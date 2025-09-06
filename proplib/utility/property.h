@@ -4,9 +4,6 @@
 #include "raii.h"
 
 namespace prop {
-	extern void (*on_property_severed)(prop::detail::Property_base *severed, prop::detail::Property_base *reason);
-	extern void (*on_property_update_exception)(std::exception_ptr exception);
-
 	template <class T>
 	void print_status(const prop::Property<T> &p, std::ostream &os = std::clog);
 
@@ -504,29 +501,53 @@ namespace prop {
 
 	template <class T>
 	Property<T>::Property()
-		: value{} {}
+		:
+#ifdef PROPERTY_NAMES
+		Property_base(prop::type_name<T>())
+		,
+#endif
+		value{} {
+	}
 
 	template <class T>
 	Property<T>::Property(const Property<T> &other)
-		: prop::detail::Property_base{}
-		, value{other.value} {
+		:
+#ifdef PROPERTY_NAMES
+		Property_base(prop::type_name<T>())
+		,
+#endif
+		value{other.value} {
 		other.read_notify();
 	}
 	template <class T>
 	Property<T>::Property(Property<T> &&other)
-		: value{std::move(other.value)}
+		:
+#ifdef PROPERTY_NAMES
+		Property_base(prop::type_name<T>())
+		,
+#endif
+		value{std::move(other.value)}
 		, source{std::move(other.source)} {
 		static_cast<prop::detail::Property_base &>(*this) = static_cast<prop::detail::Property_base &&>(other);
 	}
 
 	template <class T>
-	Property<T>::Property(prop::detail::Property_function_binder<T> binder) {
+	Property<T>::Property(prop::detail::Property_function_binder<T> binder)
+#ifdef PROPERTY_NAMES
+		: Property_base(prop::type_name<T>())
+#endif
+	{
 		*this = std::move(binder);
-	}
+	} // namespace prop
 
 	template <class T>
 	Property<T>::Property(prop::detail::Generator_function<T> auto &&f)
-		: value{[&] {
+		:
+#ifdef PROPERTY_NAMES
+		Property_base(prop::type_name<T>())
+		,
+#endif
+		value{[&] {
 			if constexpr (std::is_default_constructible_v<T>) {
 				return T{};
 			} else {
@@ -538,7 +559,12 @@ namespace prop {
 
 	template <class T>
 	Property<T>::Property(prop::detail::Updater_function<T> auto &&f, T t)
-		: value{std::move(t)} {
+		:
+#ifdef PROPERTY_NAMES
+		Property_base(prop::type_name<T>())
+		,
+#endif
+		value{std::move(t)} {
 		update_source(prop::detail::make_direct_update_function<T>(std::forward<decltype(f)>(f)));
 	}
 
@@ -546,15 +572,32 @@ namespace prop {
 	template <class... Args>
 	Property<T>::Property(Args &&...args)
 		requires std::constructible_from<T, Args &&...>
-		: value{std::forward<Args>(args)...} {}
+		:
+#ifdef PROPERTY_NAMES
+		Property_base(prop::type_name<T>())
+		,
+#endif
+		value{std::forward<Args>(args)...} {
+	}
 
 	template <class T>
 	Property<T>::Property(Value &&v)
-		: value{std::move(v.value)} {}
+		:
+#ifdef PROPERTY_NAMES
+		Property_base(prop::type_name<T>())
+		,
+#endif
+		value{std::move(v.value)} {
+	}
 
 	template <class T>
 	Property<T>::Property(Generator<T, true> &&generator)
-		: value{std::move(generator.generator.value)} {
+		:
+#ifdef PROPERTY_NAMES
+		Property_base(prop::type_name<T>())
+		,
+#endif
+		value{std::move(generator.generator.value)} {
 		update_source(std::move(generator.generator.source));
 	}
 
@@ -709,6 +752,7 @@ namespace prop {
 					break;
 			}
 		} catch (...) {
+			//on_property_update_exception(this, std::current_exception());
 			unbind();
 			throw;
 		}
