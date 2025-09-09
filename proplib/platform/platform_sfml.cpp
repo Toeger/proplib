@@ -86,7 +86,7 @@ void prop::platform::canvas::draw_text(Canvas_context &canvas_context, const Rec
 	sftext.setPosition(static_cast<float>(rect.left), static_cast<float>(rect.top));
 	sftext.setFont(sffont);
 	sftext.setString(std::string{text}); //TODO: Figure out a way to avoid the temporary std::string
-	sftext.setCharacterSize(static_cast<unsigned int>(font.pixel_size));
+	sftext.setCharacterSize(static_cast<unsigned int>(font.size.amount));
 	sftext.setFillColor(sf::Color{font.color.r, font.color.g, font.color.b, font.color.a});
 	unsigned int style = sf::Text::Regular;
 	if (font.italic) {
@@ -113,7 +113,7 @@ prop::Size prop::platform::canvas::text_size(std::string_view text, const Font &
 	sf::Text sftext;
 	sftext.setFont(sffont);
 	sftext.setString(std::string{text}); //TODO: Figure out a way to avoid the temporary std::string
-	sftext.setCharacterSize(static_cast<unsigned int>(font.pixel_size));
+	sftext.setCharacterSize(static_cast<unsigned int>(font.size.amount));
 	unsigned int style = sf::Text::Regular;
 	if (font.italic) {
 		style |= sf::Text::Italic;

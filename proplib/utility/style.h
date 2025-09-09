@@ -6,8 +6,7 @@
 #include <chrono>
 
 namespace prop {
-	class Style {
-		public:
+	struct Style {
 		Property<prop::Font> font;
 		Property<std::chrono::milliseconds> hover_time;
 		static Style default_style;

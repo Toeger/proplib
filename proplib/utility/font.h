@@ -2,6 +2,7 @@
 
 #include "proplib/utility/alignment.h"
 #include "proplib/utility/color.h"
+#include "proplib/utility/screen_units.h"
 
 #include <optional>
 #include <string>
@@ -12,7 +13,7 @@ namespace prop {
 			std::optional<prop::Color> color;
 			std::optional<std::string> name;
 			std::optional<prop::Alignment> alignment;
-			std::optional<float> pixel_size; //point size?
+			std::optional<prop::Pixels> size;
 			//std::optional<> clipping_mode;
 			std::optional<bool> bold;
 			std::optional<bool> italic;
@@ -35,7 +36,7 @@ namespace prop {
 		prop::Color color;
 		std::string name;
 		prop::Alignment alignment;
-		float pixel_size; //point size?
+		prop::Pixels size;
 		//clipping_mode;
 		bool bold = false;
 		bool italic = false;

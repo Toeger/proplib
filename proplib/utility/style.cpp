@@ -1,4 +1,5 @@
 #include "style.h"
+#include "screen_units.h"
 
 //TODO: Load system standard style and monitor changes to it
 prop::Style prop::Style::default_style = {
@@ -6,7 +7,7 @@ prop::Style prop::Style::default_style = {
 		.color = prop::Color::black,
 		.name = "/usr/share/fonts/truetype/ubuntu/Ubuntu-M.ttf",
 		.alignment = top_left,
-		.pixel_size = 12,
+		.size = 12_prop_pt,
 		.bold = 1.f,
 		.italic = false,
 		.strikeout = false,

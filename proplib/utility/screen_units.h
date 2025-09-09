@@ -28,6 +28,7 @@ namespace prop {
 		x_millimeters,
 		y_millimeters,
 		points,
+		text_sizes,
 		screen_width_percents,
 		screen_height_percents,
 		screen_size_percents,
@@ -37,6 +38,10 @@ namespace prop {
 	const inline prop::Property<std::vector<prop::platform::Screen>> screens = [] {
 		return prop::platform::get_screens(get_screens_strategy);
 	};
+
+	namespace detail {
+		long double get_default_font_size();
+	}
 
 	template <Screen_unit_type screen_unit_type>
 	const inline prop::Property<long double> screen_unit_to_pixels_factor = [] -> long double {
@@ -51,6 +56,8 @@ namespace prop {
 			return window_screen.height_pixels / window_screen.y_dpi * 25.4;
 		} else if constexpr (screen_unit_type == Screen_unit_type::points) {
 			return window_screen.height_pixels / window_screen.y_dpi / 72;
+		} else if constexpr (screen_unit_type == Screen_unit_type::text_sizes) {
+			return prop::detail::get_default_font_size();
 		} else if constexpr (screen_unit_type == Screen_unit_type::screen_width_percents) {
 			return window_screen.width_pixels / 100;
 		} else if constexpr (screen_unit_type == Screen_unit_type::screen_height_percents) {
@@ -61,6 +68,7 @@ namespace prop {
 			static_assert(false, "Add missing screen unit type");
 		}
 	};
+
 	template <>
 	constexpr inline long double screen_unit_to_pixels_factor<Screen_unit_type::pixels> = 1;
 
@@ -78,9 +86,10 @@ namespace prop {
 			if constexpr (screen_unit_type == other_screen_unit_type) {
 				amount = other_unit.amount;
 			} else {
-				amount = static_cast<Screen_unit_precision>(other_unit.amount *
-															screen_unit_to_pixels_factor<other_screen_unit_type> /
-															screen_unit_to_pixels_factor<screen_unit_type>);
+				amount = static_cast<Screen_unit_precision>(
+					static_cast<decltype(screen_unit_to_pixels_factor<screen_unit_type>)>(other_unit.amount) *
+					screen_unit_to_pixels_factor<other_screen_unit_type> /
+					screen_unit_to_pixels_factor<screen_unit_type>);
 			}
 			return *this;
 		}
@@ -184,6 +193,7 @@ namespace prop {
 	using X_millimeters = Screen_unit<Screen_unit_type::x_millimeters>;
 	using Y_millimeters = Screen_unit<Screen_unit_type::y_millimeters>;
 	using Points = Screen_unit<Screen_unit_type::points>;
+	using Text_sizes = Screen_unit<Screen_unit_type::text_sizes>;
 	using Screen_width_percents = Screen_unit<Screen_unit_type::screen_width_percents>;
 	using Screen_height_percents = Screen_unit<Screen_unit_type::screen_height_percents>;
 	using Screen_size_percents = Screen_unit<Screen_unit_type::screen_size_percents>;
@@ -199,10 +209,16 @@ namespace prop {
 			[[nodiscard]] constexpr inline auto operator""##_##PROP_UNIT(unsigned long long int value) {               \
 				return prop::PROP_TYPE{static_cast<Screen_unit_precision>(value)};                                     \
 			}                                                                                                          \
-			inline std::ostream &operator<<(std::ostream &os, prop::PROP_TYPE value) {                                 \
-				return os << value.amount << #PROP_UNIT;                                                               \
-			}                                                                                                          \
 		}                                                                                                              \
+	}                                                                                                                  \
+	[[nodiscard]] constexpr inline auto operator""##_prop_##PROP_UNIT(long double value) {                             \
+		return prop::PROP_TYPE{static_cast<prop::Screen_unit_precision>(value)};                                       \
+	}                                                                                                                  \
+	[[nodiscard]] constexpr inline auto operator""##_prop_##PROP_UNIT(unsigned long long int value) {                  \
+		return prop::PROP_TYPE{static_cast<prop::Screen_unit_precision>(value)};                                       \
+	}                                                                                                                  \
+	inline std::ostream &operator<<(std::ostream &os, prop::PROP_TYPE value) {                                         \
+		return os << value.amount << #PROP_UNIT;                                                                       \
 	}                                                                                                                  \
 	template <>                                                                                                        \
 	struct std::formatter<prop::PROP_TYPE> : std::formatter<prop::Screen_unit_precision> {                             \
@@ -220,6 +236,7 @@ PROP_UDL(Pixels, px)
 PROP_UDL(X_millimeters, xmm)
 PROP_UDL(Y_millimeters, ymm)
 PROP_UDL(Points, pt)
+PROP_UDL(Text_sizes, ts)
 PROP_UDL(Screen_width_percents, swp)
 PROP_UDL(Screen_height_percents, shp)
 PROP_UDL(Screen_size_percents, ssp)
