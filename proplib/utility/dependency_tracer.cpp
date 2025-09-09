@@ -207,9 +207,13 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 			{
 				HTML_tag _{"tr"};
 				HTML_tag _{"td", "", ""};
-				HTML_tag _{"td", "", bold(html_encode(common_data.name))};
+				{
+					HTML_tag _{"td", ""};
+					HTML_tag{"font", "color='darkgreen'", bold(html_encode(common_data.name))};
+				}
 				HTML_tag _{"td", "", ""};
-				HTML_tag _{"td", "", prop::to_string(address)};
+				HTML_tag _{"td", ""};
+				HTML_tag{"font", "color='blue'", prop::to_string(address)};
 			}
 			{
 				HTML_tag _{"tr"};
@@ -222,7 +226,10 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 			for (auto &base : std::views::reverse(common_data.bases)) {
 				{
 					HTML_tag _{"tr"};
-					HTML_tag _{"td", "align='right'", bold(html_encode(base.type))};
+					{
+						HTML_tag _{"td", "align='right'"};
+						HTML_tag{"font", "color='darkred'", html_encode(base.type)};
+					}
 					HTML_tag _{"td", "", ""};
 					HTML_tag _{"td", "", ""};
 					HTML_tag _{"td", "", ""};
@@ -232,11 +239,17 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 					auto name = property_data.name == "" ? "<unnamed>" : property_data.name;
 					{
 						HTML_tag _{"tr"};
-						HTML_tag _{"td", "align='right'", html_encode(property_data.type)};
-						HTML_tag _{"td", "align='center'", html_encode(name)};
+						{
+							HTML_tag _{"td", "align='right'"};
+							HTML_tag{"font", "color='darkred'", html_encode(property_data.type)};
+						}
+						{
+							HTML_tag _{"td", "align='center'"};
+							HTML_tag{"font", "color='darkgreen'", html_encode(name)};
+						}
 						HTML_tag _{"td", "align='left'", html_encode(property_data.value)};
-						HTML_tag _{"td", "align='left' port='property_" + prop::to_string(property) + "'",
-								   prop::to_string(property)};
+						HTML_tag _{"td", "align='left' port='property_" + prop::to_string(property) + "'"};
+						HTML_tag{"font", "color='blue'", prop::to_string(property)};
 					}
 				}
 			}
@@ -249,9 +262,11 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 			}
 			Block _{dot_property_name(address), "[", "];"};
 			Command _{"shape=rect"};
-			Command _{std::format("label=\"{} {} {} {}\"", std::string{data.type},
-								  data.name.empty() ? "<unnamed>" : std::string{data.name}, data.value,
-								  prop::to_string(address))};
+			Command _{
+				std::format("label=<<font color='darkred'>{}</font> <font color='darkgreen'>{}</font> {} <font "
+							"color='blue'>{}</font>>",
+							std::string{data.type}, data.name.empty() ? "<unnamed>" : std::string{data.name},
+							data.value, prop::to_string(address))};
 			Command _{"style=\"filled\""};
 			Command _{"fillcolor=\"#" + color_code(address) + "\""};
 		}
