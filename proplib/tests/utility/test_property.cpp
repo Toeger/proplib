@@ -73,8 +73,8 @@ TEST_CASE("Basic Property tests") {
 	p1 = 1;
 	REQUIRE(p2 == 4);
 
-	print_status(p1);
-	print_status(p2);
+	p1.print_status();
+	p2.print_status();
 
 	int call_counter = 0;
 	prop::Property<int> p3;
@@ -86,9 +86,9 @@ TEST_CASE("Basic Property tests") {
 		return p2;
 	};
 
-	print_status(p1);
-	print_status(p2);
-	print_status(p3);
+	p1.print_status();
+	p2.print_status();
+	p3.print_status();
 
 	REQUIRE(p3 == 1);
 	REQUIRE(call_counter == 1);
@@ -97,9 +97,9 @@ TEST_CASE("Basic Property tests") {
 	REQUIRE(p3 == 3);
 	REQUIRE(call_counter == 2);
 
-	print_status(p1);
-	print_status(p2);
-	print_status(p3);
+	p1.print_status();
+	p2.print_status();
+	p3.print_status();
 }
 
 TEST_CASE("Property<Move_only>") {
@@ -173,20 +173,20 @@ TEST_CASE("Moving properties while maintaining binding") {
 	p1 = 2;
 	REQUIRE(p2 == 3);
 
-	print_status(p1);
-	print_status(p2);
+	p1.print_status();
+	p2.print_status();
 
 	prop::Property p3 = std::move(p1);
 
-	print_status(p1);
-	print_status(p2);
-	print_status(p3);
+	p1.print_status();
+	p2.print_status();
+	p3.print_status();
 
 	p3 = 3;
 
-	print_status(p1);
-	print_status(p2);
-	print_status(p3);
+	p1.print_status();
+	p2.print_status();
+	p3.print_status();
 
 	REQUIRE(p2 == 4);
 }
@@ -274,15 +274,15 @@ TEST_CASE("Inner property") {
 	prop::Property<S> p1;
 	prop::Property<void> p3;
 	p3 = {[](S &s) { s.inner = 42; }, p1};
-	print_status(p1);
-	print_status(p3);
+	p1.print_status();
+	p3.print_status();
 	p1 = S{};
-	print_status(p1);
-	print_status(p3);
+	p1.print_status();
+	p3.print_status();
 	REQUIRE(p1.get().inner == 42);
 	p1 = S{};
-	print_status(p1);
-	print_status(p3);
+	p1.print_status();
+	p3.print_status();
 	REQUIRE(p1.get().inner == 42);
 }
 
@@ -304,15 +304,15 @@ TEST_CASE("Inner inner property") {
 			  };
 		  },
 		  p1};
-	print_status(p1);
-	print_status(p4);
+	p1.print_status();
+	p4.print_status();
 	p1 = SS{};
-	print_status(p1);
-	print_status(p4);
+	p1.print_status();
+	p4.print_status();
 	REQUIRE(p1.get().s.get().inner == 42);
 	p1 = SS{};
-	print_status(p1);
-	print_status(p4);
+	p1.print_status();
+	p4.print_status();
 	REQUIRE(p1.get().s.get().inner == 42);
 }
 
@@ -332,8 +332,8 @@ TEST_CASE("Apply member function calls") {
 TEST_CASE("Dependency checks") {
 	prop::Property p1 = 42;
 	prop::Property p2 = [&] { return p1; };
-	print_status(p1);
-	print_status(p2);
+	p1.print_status();
+	p2.print_status();
 	REQUIRE(p1.is_implicit_dependency_of(p2));
 	REQUIRE(p2.is_implicit_dependent_of(p1));
 	REQUIRE_FALSE(p1.is_explicit_dependency_of(p2));
@@ -341,8 +341,8 @@ TEST_CASE("Dependency checks") {
 	REQUIRE(p1.is_dependency_of(p2));
 	REQUIRE(p2.is_dependent_on(p1));
 	p2 = {[](int i) { return i; }, p1};
-	print_status(p1);
-	print_status(p2);
+	p1.print_status();
+	p2.print_status();
 	REQUIRE(p1.is_explicit_dependency_of(p2));
 	REQUIRE(p2.is_explicit_dependent_of(p1));
 	REQUIRE_FALSE(p1.is_implicit_dependency_of(p2));
@@ -497,7 +497,7 @@ TEST_CASE("Value-captured property") {
 	prop::Property ptest{Track_function{}};
 	prop::Property p{42};
 	prop::Property p2{[p] mutable -> int { return p; }};
-	prop::print_status(p2);
+	p2.print_status();
 	REQUIRE(p2 == 42);
 	p++; //no effect since we're not actually bound to p
 	REQUIRE(p2 == 42);
@@ -520,7 +520,7 @@ TEST_CASE("Sever via update function") {
 
 TEST_CASE("All types of supported explicit parameters") {
 	prop::Property<int> pi;
-	pi = prop::detail::Property_function_binder<int>{
+	pi = {
 		[](int &, int &, int, int *, const int &, const int, const int *, prop::Property<int>, prop::Property<int> &,
 		   prop::Property<int> *, const prop::Property<int>, const prop::Property<int> &,
 		   const prop::Property<int> *) { return prop::Updater_result::unchanged; },
@@ -536,5 +536,18 @@ TEST_CASE("All types of supported explicit parameters") {
 		pi,
 		pi,
 		pi,
+	};
+}
+
+TEST_CASE("Property addresses") {
+	prop::Property<int> p1_, p2_, p3_, p4_, p5_;
+	prop::Property<int> p = prop::detail::Property_function_binder<int>{
+		[&](prop::Property<int> &p1, prop::Property<int> *p2) {
+			REQUIRE(&p1 == &p1_);
+			REQUIRE(p2 == &p2_);
+			return 42;
+		},
+		p1_,
+		p2_,
 	};
 }

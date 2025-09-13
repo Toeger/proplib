@@ -4,9 +4,6 @@
 #include "raii.h"
 
 namespace prop {
-	template <class T>
-	void print_status(const prop::Property<T> &p, std::ostream &os = std::clog);
-
 	using detail::converts_to;
 
 	template <class T, bool with_initial_value>
@@ -72,12 +69,47 @@ namespace prop {
 		Updater_data<T> data;
 	};
 
+	namespace detail {
+		template <class T>
+		concept Streamable = requires(std::ostream &os, const T &t) { os << t; };
+		template <class T>
+		struct Printer {
+			Printer(const T &t)
+				: value{t} {}
+			const T &value;
+			std::ostream &print(std::ostream &os) {
+				if constexpr (Streamable<T>) {
+					return os << value;
+				} else {
+					return os << prop::type_name<T>() << '@' << &value;
+				}
+			}
+		};
+		template <class T>
+		Printer(const T &) -> Printer<T>;
+
+		template <class T>
+		std::ostream &operator<<(std::ostream &os, prop::detail::Printer<T> &&printer) {
+			return printer.print(os);
+		}
+	} // namespace detail
+
 	template <class T>
 	class Property : private prop::detail::Property_base {
 		using prop::detail::Property_base::read_notify;
 		using prop::detail::Property_base::update_complete;
 		using prop::detail::Property_base::update_start;
 		using prop::detail::Property_base::write_notify;
+
+		public:
+		using prop::detail::Property_base::get_dependencies;
+		using prop::detail::Property_base::get_dependents;
+		using prop::detail::Property_base::get_explicit_dependencies;
+		using prop::detail::Property_base::get_implicit_dependencies;
+		using prop::detail::Property_base::print_extended_status;
+		using prop::detail::Property_base::print_status;
+
+		private:
 		//using prop::detail::Property_base::need_update;
 
 		mutable T value{};
@@ -93,6 +125,15 @@ namespace prop {
 
 		std::string_view type() const override {
 			return prop::type_name<T>();
+		}
+
+		std::string value_string() const override {
+			std::stringstream ss;
+			ss << prop::detail::Printer(value);
+			return std::move(ss).str();
+		}
+		bool has_source() const override {
+			return false;
 		}
 
 		public:
@@ -171,9 +212,6 @@ namespace prop {
 		bool is_explicit_dependent_of(const Property<U> &other) const;
 		template <class U>
 		bool is_dependent_on(const Property<U> &other) const;
-		void print_status(std::ostream &os = std::clog) const {
-			prop::print_status(*this, os);
-		}
 		template <class U>
 		operator U &()
 			requires(prop::detail::Conversion_type<T, U>::pass_by_ref)
@@ -373,17 +411,14 @@ namespace prop {
 		friend std::move_only_function<void(std::span<prop::detail::Property_link>)>
 		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
 		template <class U>
-		friend void prop::print_status(const prop::Property<U> &p, std::ostream &os);
-		template <class U>
 		friend class Property;
 		friend struct prop::detail::Property_link;
 	};
 
-	void print_status(const prop::Property<void> &p, std::ostream &os = std::clog);
-
 	template <>
 	class Property<void> : prop::detail::Property_base {
 		public:
+		using prop::detail::Property_base::print_status;
 		using Value_type = void;
 		Property();
 		Property(Property &&other);
@@ -399,6 +434,12 @@ namespace prop {
 		}
 		std::string_view type() const override {
 			return "void";
+		}
+		std::string value_string() const override {
+			return "void";
+		}
+		bool has_source() const override {
+			return !!source;
 		}
 
 		template <class U>
@@ -434,7 +475,6 @@ namespace prop {
 			requires(std::is_same_v<T, void>)
 		friend std::move_only_function<void(std::span<const prop::detail::Property_link>)>
 		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
-		friend void prop::print_status(const prop::Property<void> &p, std::ostream &os);
 		template <class U>
 		friend class Property;
 	};
@@ -787,42 +827,6 @@ namespace prop {
 			}
 		}
 #endif
-	}
-
-	namespace detail {
-		struct P {
-			P(std::span<const prop::detail::Property_link> s)
-				: l{s} {}
-			std::span<const prop::detail::Property_link> l;
-		};
-		inline std::ostream &operator<<(std::ostream &os, const P &p) {
-			const char *sep = "";
-			for (auto &link : p.l) {
-				os << sep << link;
-				sep = ", ";
-			}
-			return os;
-		}
-	} // namespace detail
-
-	template <class T>
-	void print_status(const prop::Property<T> &p, std::ostream &os) {
-		using prop::detail::P;
-		os << prop::Color::static_text;
-#ifdef PROPERTY_NAMES
-		os << "Property   " << p.get_name() << '\n';
-#else
-		os << "Property   " << prop::Color::address << &p << '\n';
-#endif
-		os << prop::Color::static_text << "\tvalue: " << prop::Color::reset << prop::detail::Printer{p.value} << "\n";
-		os << prop::Color::static_text << "\tsource: " << prop::Color::reset << (p.source ? "Yes" : "No") << "\n";
-		os << prop::Color::static_text << "\tExplicit dependencies: [" << prop::Color::reset
-		   << P(p.get_explicit_dependencies()) << prop::Color::static_text << "]\n";
-		os << prop::Color::static_text << "\tImplicit dependencies: [" << prop::Color::reset
-		   << P(p.get_implicit_dependencies()) << prop::Color::static_text << "]\n";
-		os << prop::Color::static_text << "\tDependents: [" << prop::Color::reset << P(p.get_dependents())
-		   << prop::Color::static_text << "]\n"
-		   << prop::Color::reset;
 	}
 
 	Property<void> &Property<void>::operator=(std::convertible_to<std::move_only_function<void()>> auto &&f) {

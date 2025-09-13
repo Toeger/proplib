@@ -1,6 +1,5 @@
 #include "property_details.h"
 #include "color.h"
-#include "property.h"
 
 #ifdef PROPERTY_DEBUG
 #include <algorithm>
@@ -256,29 +255,38 @@ prop::detail::Property_base::~Property_base() {
 
 void prop::detail::swap(Property_base &lhs, Property_base &rhs) {
 	TRACE("Swapping   " << lhs.get_name() << " and " << rhs.get_name());
-	using std::swap;
 	struct Tmp final : Property_base {
 		Tmp()
 			: Property_base(prop::type_name<Tmp>()) {}
 		std::string_view type() const override {
 			return prop::type_name<Tmp>();
 		}
-	} tmp;
+		std::string value_string() const override {
+			return "Tmp";
+		}
+		bool has_source() const override {
+			return false;
+		}
+	} static sentinel;
+
 	auto replace = [](Property_base &pb_old, Property_base &pb_new) {
 		for (std::size_t i = 0; i < pb_old.explicit_dependencies + pb_old.implicit_dependencies; i++) {
-			pb_old.dependencies[i]->replace_dependent(pb_old, pb_new);
+			auto &dependency = pb_old.dependencies[i];
+			dependency->replace_dependent(pb_old, pb_new);
+			dependency = &pb_new;
 		}
 		for (std::size_t i = pb_old.explicit_dependencies + pb_old.implicit_dependencies;
 			 i < std::size(pb_old.dependencies); i++) {
-			pb_old.dependencies[i]->replace_dependency(pb_old, pb_new);
+			auto &dependent = pb_old.dependencies[i];
+			dependent->replace_dependency(pb_old, pb_new);
 		}
 	};
-	replace(lhs, tmp);
+	replace(lhs, sentinel);
 	replace(rhs, lhs);
-	replace(tmp, rhs);
-	swap(lhs.explicit_dependencies, rhs.explicit_dependencies);
-	swap(lhs.implicit_dependencies, rhs.implicit_dependencies);
-	swap(lhs.dependencies, rhs.dependencies);
+	replace(sentinel, rhs);
+	prop::utility::swap(lhs.explicit_dependencies, rhs.explicit_dependencies);
+	prop::utility::swap(lhs.implicit_dependencies, rhs.implicit_dependencies);
+	//prop::utility::swap(lhs.dependencies, rhs.dependencies);
 }
 
 std::string_view prop::detail::Property_base::type() const {
@@ -334,4 +342,61 @@ void prop::detail::Property_base::set_explicit_dependencies(std::vector<Property
 						   std::begin(deps) + static_cast<decltype(explicit_dependencies)>(deps.size()));
 		explicit_dependencies = static_cast<decltype(explicit_dependencies)>(deps.size());
 	}
+}
+
+void prop::detail::Property_base::print_extended_status(Extended_status_data esd, int current_depth) const {
+	std::string indent;
+	for (int i = 0; i < current_depth; i++) {
+		indent += esd.indent_with;
+	}
+	auto print_dep = [&esd, &indent, current_depth](std::span<const prop::detail::Property_link> deps) {
+		if (deps.empty()) {
+			esd.output << "[]\n";
+		} else {
+			esd.output << prop::Color::reset << "[";
+			const char *sep = "";
+			if (esd.depth == current_depth) {
+				for (auto &dep : deps) {
+					if (dep) {
+						esd.output << prop::Color::static_text << sep << prop::Color::type << dep->type()
+								   << prop::Color::static_text << '(' << prop::Color::reset << dep->value_string()
+								   << prop::Color::reset << ")@" << prop::Color::address << dep;
+						sep = ", ";
+					} else {
+						esd.output << prop::Color::reset << "null";
+					}
+				}
+				esd.output << prop::Color::reset << "]\n";
+			} else {
+				esd.output << '\n';
+				for (auto &ed : deps) {
+					esd.output << prop::Color::reset << sep;
+					sep = ",\n";
+					ed->print_extended_status(esd, current_depth + 1);
+				}
+				esd.output << indent << "           " << prop::Color::reset << "]\n";
+			}
+		}
+	};
+	esd.output << indent << prop::Color::static_text;
+	if (current_depth) {
+		esd.output << "           Property: ";
+	} else {
+		esd.output << "Property   ";
+	}
+#ifdef PROPERTY_NAMES
+	esd.output << get_name() << '\n';
+#else
+	esd.output << prop::Color::address << this << '\n';
+#endif
+	esd.output << indent << prop::Color::static_text << "           value: " << prop::Color::reset << value_string()
+			   << "\n";
+	esd.output << indent << prop::Color::static_text << "           source: " << prop::Color::reset
+			   << (has_source() ? "Yes" : "No") << "\n";
+	esd.output << indent << prop::Color::static_text << "           Explicit dependencies: " << prop::Color::reset;
+	print_dep(get_explicit_dependencies());
+	esd.output << indent << prop::Color::static_text << "           Implicit dependencies: " << prop::Color::reset;
+	print_dep(get_implicit_dependencies());
+	esd.output << indent << prop::Color::static_text << "           Dependents: " << prop::Color::reset;
+	print_dep(get_dependents());
 }

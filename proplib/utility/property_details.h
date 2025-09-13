@@ -76,6 +76,12 @@ namespace prop {
 
 		void swap(Property_base &lhs, Property_base &rhs);
 
+		struct Extended_status_data {
+			std::ostream &output = std::clog;
+			std::string indent_with = "\t";
+			int depth = 1;
+		};
+
 		struct Property_base {
 			virtual void update() {
 				if (this != current_binding) {
@@ -187,6 +193,12 @@ namespace prop {
 			Stable_list get_stable_dependents() const;
 
 			virtual std::string_view type() const = 0;
+			virtual std::string value_string() const = 0;
+			virtual bool has_source() const = 0;
+			void print_status(std::ostream &os = std::clog) const {
+				print_extended_status({.output = os, .depth = 0});
+			}
+			void print_extended_status(Extended_status_data esd = {}, int current_depth = 0) const;
 #ifdef PROPERTY_NAMES
 			std::string custom_name;
 			std::string get_name() const {
@@ -288,6 +300,12 @@ namespace prop {
 			}
 			std::string_view type() const override {
 				return "Stable_list";
+			}
+			std::string value_string() const override {
+				return "Stable_list";
+			}
+			bool has_source() const override {
+				return false;
 			}
 		};
 
@@ -715,23 +733,6 @@ namespace prop {
 		}
 
 		template <class T>
-		concept Streamable = requires(std::ostream &os, const T &t) { os << t; };
-
-		template <class T>
-		struct Printer {
-			Printer(const T &t)
-				: value{t} {}
-			const T &value;
-			std::ostream &print(std::ostream &os) {
-				if constexpr (Streamable<T>) {
-					return os << value;
-				} else {
-					return os << prop::type_name<T>() << '@' << &value;
-				}
-			}
-		};
-
-		template <class T>
 		concept has_operator_arrow_v = requires(T &&t) { t.operator->(); } || std::is_pointer_v<T>;
 
 		template <class... Args>
@@ -755,11 +756,6 @@ namespace prop {
 				return static_cast<To>(static_cast<const prop::Property<From> &>(*this).get());
 			}
 		};
-
-		template <class T>
-		std::ostream &operator<<(std::ostream &os, prop::detail::Printer<T> &&printer) {
-			return printer.print(os);
-		}
 
 		template <class From, class To>
 			requires(not std::is_same_v<std::remove_cvref_t<From>, std::remove_cvref_t<To>>)

@@ -33,41 +33,6 @@ bool prop::Property<void>::is_bound() const {
 	return !!source;
 }
 
-namespace prop {
-	static std::ostream &operator<<(std::ostream &os, const std::span<const prop::detail::Property_link> list) {
-		const auto &static_text_color = prop::Color::static_text;
-		const char *separator = "";
-		for (const auto &element : list) {
-			os << static_text_color << separator << prop::Color::reset;
-#ifdef PROPERTY_NAMES
-			os << element->get_name();
-#else
-			os << &element;
-#endif
-			separator = ", ";
-		}
-		return os;
-	}
-} // namespace prop
-
-void prop::print_status(const prop::Property<void> &p, std::ostream &os) {
-	const auto &static_text_color = prop::Color::static_text;
-	os << static_text_color << "Property   " << prop::Color::reset;
-#ifdef PROPERTY_NAMES
-	os << p.get_name();
-#else
-	os << &p;
-#endif
-	os << '\n';
-	os << static_text_color << "\tsource: " << prop::Color::reset << (p.source ? "Yes" : "No") << "\n";
-	os << static_text_color << "\tExplicit dependencies: [" << prop::Color::reset << p.get_explicit_dependencies()
-	   << static_text_color << "]\n";
-	os << static_text_color << "\tImplicit dependencies: [" << prop::Color::reset << p.get_implicit_dependencies()
-	   << static_text_color << "]\n";
-	os << static_text_color << "\tDependents: [" << prop::Color::reset << p.get_dependents() << static_text_color
-	   << "]\n";
-}
-
 prop::Property<void>::Property(prop::Property<void> &&other) {
 	std::swap(source, other.source);
 }
