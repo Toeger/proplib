@@ -64,7 +64,7 @@ namespace prop {
 			template <class T>
 			operator prop::Property<T> *() const;
 			Property_link &operator=(const Property_base *property) {
-				data = reinterpret_cast<std::uintptr_t>(property) & is_required();
+				data = reinterpret_cast<std::uintptr_t>(property) | is_required();
 				return *this;
 			}
 
@@ -79,7 +79,7 @@ namespace prop {
 		struct Extended_status_data {
 			std::ostream &output = std::clog;
 			std::string indent_with = "\t";
-			int depth = 1;
+			int depth = 0;
 		};
 
 		struct Property_base {
@@ -195,10 +195,7 @@ namespace prop {
 			virtual std::string_view type() const = 0;
 			virtual std::string value_string() const = 0;
 			virtual bool has_source() const = 0;
-			void print_status(std::ostream &os = std::clog) const {
-				print_extended_status({.output = os, .depth = 0});
-			}
-			void print_extended_status(Extended_status_data esd = {}, int current_depth = 0) const;
+			void print_status(const Extended_status_data &esd = {}) const;
 #ifdef PROPERTY_NAMES
 			std::string custom_name;
 			std::string get_name() const {
@@ -216,6 +213,7 @@ namespace prop {
 			~Property_base();
 
 			private:
+			void print_extended_status(const Extended_status_data &esd, int current_depth) const;
 			void add_dependent(const Property_base &other) const {
 				if (not has_dependent(other)) {
 					dependencies.push_back({&other, false});

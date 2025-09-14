@@ -3,6 +3,7 @@
 
 #ifdef PROPERTY_DEBUG
 #include <algorithm>
+#include <cassert>
 #include <concepts>
 #include <iostream>
 #include <source_location>
@@ -254,7 +255,11 @@ prop::detail::Property_base::~Property_base() {
 }
 
 void prop::detail::swap(Property_base &lhs, Property_base &rhs) {
+	//TODO: Surely there is a simpler way to do this
 	TRACE("Swapping   " << lhs.get_name() << " and " << rhs.get_name());
+	if (lhs.dependencies.empty() and rhs.dependencies.empty()) {
+		return;
+	}
 	struct Tmp final : Property_base {
 		Tmp()
 			: Property_base(prop::type_name<Tmp>()) {}
@@ -270,23 +275,42 @@ void prop::detail::swap(Property_base &lhs, Property_base &rhs) {
 	} static sentinel;
 
 	auto replace = [](Property_base &pb_old, Property_base &pb_new) {
-		for (std::size_t i = 0; i < pb_old.explicit_dependencies + pb_old.implicit_dependencies; i++) {
-			auto &dependency = pb_old.dependencies[i];
+		assert(pb_new.dependencies.empty());
+		assert(pb_new.explicit_dependencies == 0);
+		assert(pb_new.implicit_dependencies == 0);
+		assert(pb_old.explicit_dependencies + pb_old.implicit_dependencies <= pb_old.dependencies.size());
+		if (pb_old.dependencies.empty()) {
+			return;
+		}
+		while (pb_old.explicit_dependencies) {
+			auto &dependency = pb_old.dependencies[pb_new.dependencies.size()];
 			dependency->replace_dependent(pb_old, pb_new);
-			dependency = &pb_new;
+			pb_new.dependencies.push_back(dependency);
+			pb_new.explicit_dependencies++;
+			pb_old.explicit_dependencies--;
 		}
-		for (std::size_t i = pb_old.explicit_dependencies + pb_old.implicit_dependencies;
-			 i < std::size(pb_old.dependencies); i++) {
-			auto &dependent = pb_old.dependencies[i];
-			dependent->replace_dependency(pb_old, pb_new);
+		while (pb_old.implicit_dependencies) {
+			auto &dependency = pb_old.dependencies[pb_new.dependencies.size()];
+			dependency->replace_dependent(pb_old, pb_new);
+			pb_new.dependencies.push_back(dependency);
+			pb_new.implicit_dependencies++;
+			pb_old.implicit_dependencies--;
 		}
+		while (pb_old.dependencies.size() > pb_new.dependencies.size()) {
+			auto &dependent_link = pb_old.dependencies[pb_new.dependencies.size()];
+			auto &dependent = *dependent_link;
+			for (std::size_t i = 0; i < dependent.explicit_dependencies + dependent.implicit_dependencies; i++) {
+				if (dependent.dependencies[i] == &pb_old) {
+					dependent.dependencies[i] = &pb_new;
+				}
+			}
+			pb_new.dependencies.push_back(dependent_link);
+		}
+		pb_old.dependencies.clear();
 	};
 	replace(lhs, sentinel);
 	replace(rhs, lhs);
 	replace(sentinel, rhs);
-	prop::utility::swap(lhs.explicit_dependencies, rhs.explicit_dependencies);
-	prop::utility::swap(lhs.implicit_dependencies, rhs.implicit_dependencies);
-	//prop::utility::swap(lhs.dependencies, rhs.dependencies);
 }
 
 std::string_view prop::detail::Property_base::type() const {
@@ -344,7 +368,8 @@ void prop::detail::Property_base::set_explicit_dependencies(std::vector<Property
 	}
 }
 
-void prop::detail::Property_base::print_extended_status(Extended_status_data esd, int current_depth) const {
+void prop::detail::Property_base::print_extended_status(const prop::detail::Extended_status_data &esd,
+														int current_depth) const {
 	std::string indent;
 	for (int i = 0; i < current_depth; i++) {
 		indent += esd.indent_with;
@@ -399,4 +424,8 @@ void prop::detail::Property_base::print_extended_status(Extended_status_data esd
 	print_dep(get_implicit_dependencies());
 	esd.output << indent << prop::Color::static_text << "           Dependents: " << prop::Color::reset;
 	print_dep(get_dependents());
+}
+
+void prop::detail::Property_base::print_status(const Extended_status_data &esd) const {
+	print_extended_status(esd, 0);
 }
