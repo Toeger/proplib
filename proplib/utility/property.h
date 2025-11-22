@@ -2,6 +2,8 @@
 
 #include "property_details.h"
 #include "raii.h"
+#include <string>
+#include <string_view>
 
 namespace prop {
 	using detail::converts_to;
@@ -81,7 +83,7 @@ namespace prop {
 				if constexpr (Streamable<T>) {
 					return os << value;
 				} else {
-					return os << prop::type_name<T>() << '@' << &value;
+					return os << prop::type_name<prop::Property<T>>() << '@' << &value;
 				}
 			}
 		};
@@ -106,7 +108,6 @@ namespace prop {
 		using prop::detail::Property_base::get_dependents;
 		using prop::detail::Property_base::get_explicit_dependencies;
 		using prop::detail::Property_base::get_implicit_dependencies;
-		using prop::detail::Property_base::print_extended_status;
 		using prop::detail::Property_base::print_status;
 
 		private:
@@ -124,7 +125,7 @@ namespace prop {
 		};
 
 		std::string_view type() const override {
-			return prop::type_name<T>();
+			return prop::type_name<prop::Property<T>>();
 		}
 
 		std::string value_string() const override {
@@ -536,14 +537,13 @@ namespace prop {
 
 		template <class T>
 		using inner_type_t = decltype(inner_type<T>(is_function_type(std::declval<T>())));
-
 	} // namespace detail
 
 	template <class T>
 	Property<T>::Property()
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<T>())
+		Property_base(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{} {
@@ -553,7 +553,7 @@ namespace prop {
 	Property<T>::Property(const Property<T> &other)
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<T>())
+		Property_base(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{other.value} {
@@ -563,7 +563,7 @@ namespace prop {
 	Property<T>::Property(Property<T> &&other)
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<T>())
+		Property_base(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{std::move(other.value)}
@@ -574,7 +574,7 @@ namespace prop {
 	template <class T>
 	Property<T>::Property(prop::detail::Property_function_binder<T> binder)
 #ifdef PROPERTY_NAMES
-		: Property_base(prop::type_name<T>())
+		: Property_base(prop::type_name<prop::Property<T>>())
 #endif
 	{
 		*this = std::move(binder);
@@ -584,7 +584,7 @@ namespace prop {
 	Property<T>::Property(prop::detail::Generator_function<T> auto &&f)
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<T>())
+		Property_base(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{[&] {
@@ -601,7 +601,7 @@ namespace prop {
 	Property<T>::Property(prop::detail::Updater_function<T> auto &&f, T t)
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<T>())
+		Property_base(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{std::move(t)} {
@@ -614,7 +614,7 @@ namespace prop {
 		requires std::constructible_from<T, Args &&...>
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<T>())
+		Property_base(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{std::forward<Args>(args)...} {
@@ -624,7 +624,7 @@ namespace prop {
 	Property<T>::Property(Value &&v)
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<T>())
+		Property_base(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{std::move(v.value)} {
@@ -634,7 +634,7 @@ namespace prop {
 	Property<T>::Property(Generator<T, true> &&generator)
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<T>())
+		Property_base(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{std::move(generator.generator.value)} {
@@ -822,7 +822,7 @@ namespace prop {
 					unbind();
 				}
 			} else {
-				throw prop::Logic_error{"Trying to update a " + std::string{prop::type_name<T>()} +
+				throw prop::Logic_error{"Trying to update a " + std::string{prop::type_name<prop::Property<T>>()} +
 										" which is not move-assignable"};
 			}
 		}

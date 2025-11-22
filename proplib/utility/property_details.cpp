@@ -168,7 +168,8 @@ prop::detail::Property_base::Property_base(std::string_view type) {
 }
 
 prop::detail::Property_base::Property_base(std::vector<prop::detail::Property_link> initial_explicit_dependencies)
-	: dependencies{std::move(initial_explicit_dependencies)} {
+	: dependencies{std::move(initial_explicit_dependencies)}
+	, explicit_dependencies{static_cast<decltype(explicit_dependencies)>(dependencies.size())} {
 	TRACE("Created    " << this);
 	for (auto &explicit_dependency : dependencies) {
 		if (auto ptr = explicit_dependency.get_pointer()) {
@@ -219,7 +220,7 @@ prop::detail::Property_base::~Property_base() {
 	TRACE("Destroying " << this);
 	for (std::size_t i = 0; i < explicit_dependencies + implicit_dependencies; ++i) {
 		dependencies[i]->remove_dependent(*this);
-		TRACE("Removed    " << get_name() << " from dependents of " << dependencies[i]->get_name());
+		TRACE("Removed    " << this << " from dependents of " << dependencies[i]->get_name());
 	}
 	for (std::size_t dependent_index = explicit_dependencies + implicit_dependencies;
 		 dependent_index < std::size(dependencies); ++dependent_index) {
@@ -272,6 +273,7 @@ void prop::detail::swap(Property_base &lhs, Property_base &rhs) {
 		bool has_source() const override {
 			return false;
 		}
+		void update() override {}
 	} static sentinel;
 
 	auto replace = [](Property_base &pb_old, Property_base &pb_new) {
@@ -282,20 +284,13 @@ void prop::detail::swap(Property_base &lhs, Property_base &rhs) {
 		if (pb_old.dependencies.empty()) {
 			return;
 		}
-		while (pb_old.explicit_dependencies) {
+		while (pb_new.dependencies.size() < pb_old.explicit_dependencies + pb_old.implicit_dependencies) {
 			auto &dependency = pb_old.dependencies[pb_new.dependencies.size()];
 			dependency->replace_dependent(pb_old, pb_new);
 			pb_new.dependencies.push_back(dependency);
-			pb_new.explicit_dependencies++;
-			pb_old.explicit_dependencies--;
 		}
-		while (pb_old.implicit_dependencies) {
-			auto &dependency = pb_old.dependencies[pb_new.dependencies.size()];
-			dependency->replace_dependent(pb_old, pb_new);
-			pb_new.dependencies.push_back(dependency);
-			pb_new.implicit_dependencies++;
-			pb_old.implicit_dependencies--;
-		}
+		pb_new.explicit_dependencies = pb_old.explicit_dependencies;
+		pb_new.implicit_dependencies = pb_old.implicit_dependencies;
 		while (pb_old.dependencies.size() > pb_new.dependencies.size()) {
 			auto &dependent_link = pb_old.dependencies[pb_new.dependencies.size()];
 			auto &dependent = *dependent_link;
@@ -306,6 +301,7 @@ void prop::detail::swap(Property_base &lhs, Property_base &rhs) {
 			}
 			pb_new.dependencies.push_back(dependent_link);
 		}
+		pb_old.explicit_dependencies = pb_old.implicit_dependencies = 0;
 		pb_old.dependencies.clear();
 	};
 	replace(lhs, sentinel);
@@ -383,9 +379,21 @@ void prop::detail::Property_base::print_extended_status(const prop::detail::Exte
 			if (esd.depth == current_depth) {
 				for (auto &dep : deps) {
 					if (dep) {
-						esd.output << prop::Color::static_text << sep << prop::Color::type << dep->type()
-								   << prop::Color::static_text << '(' << prop::Color::reset << dep->value_string()
-								   << prop::Color::reset << ")@" << prop::Color::address << dep;
+						//esd.output << prop::Color::static_text << sep << prop::Color::type << dep->type()
+						//		   << prop::Color::static_text << '(' << prop::Color::reset << dep->value_string()
+						//		   << prop::Color::static_text << ")@" << prop::Color::address << dep;
+						esd.output << prop::Color::static_text;
+						esd.output << sep;
+						esd.output << prop::Color::type;
+						esd.output << dep->type();
+						esd.output << prop::Color::static_text;
+						esd.output << '(';
+						esd.output << prop::Color::reset;
+						esd.output << dep->value_string();
+						esd.output << prop::Color::static_text;
+						esd.output << ")@";
+						esd.output << prop::Color::address;
+						esd.output << dep;
 						sep = ", ";
 					} else {
 						esd.output << prop::Color::reset << "null";
@@ -404,11 +412,6 @@ void prop::detail::Property_base::print_extended_status(const prop::detail::Exte
 		}
 	};
 	esd.output << indent << prop::Color::static_text;
-	if (current_depth) {
-		esd.output << "           Property: ";
-	} else {
-		esd.output << "Property   ";
-	}
 #ifdef PROPERTY_NAMES
 	esd.output << get_name() << '\n';
 #else

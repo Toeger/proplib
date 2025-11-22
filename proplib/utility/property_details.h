@@ -83,11 +83,7 @@ namespace prop {
 		};
 
 		struct Property_base {
-			virtual void update() {
-				if (this != current_binding) {
-					update();
-				}
-			}
+			virtual void update() = 0;
 			virtual void unbind() {
 				for (std::size_t i = 0; i < explicit_dependencies + implicit_dependencies; i++) {
 					dependencies[i]->remove_dependent(*this);
@@ -246,6 +242,11 @@ namespace prop {
 			friend Dependency_tracer;
 			friend Stable_list;
 		};
+		inline void Property_base::update() {
+			if (this != current_binding) {
+				update();
+			}
+		}
 		static_assert(alignof(Property_base) >= 2, "The last bit of any Property_base * is assumed to always be 0");
 
 		struct Stable_list final : private Property_base {
@@ -259,7 +260,7 @@ namespace prop {
 					return index < list->explicit_dependencies + list->implicit_dependencies;
 				}
 				Stable_list_iterator &operator++() {
-					while (*this and not list->dependencies[++index]) {
+					while (not list->dependencies[++index]) {
 					}
 					return *this;
 				}
@@ -275,7 +276,7 @@ namespace prop {
 					return &list->dependencies[index];
 				}
 				bool operator==(std::nullptr_t) const {
-					return *this;
+					return not *this;
 				}
 
 				private:
@@ -305,6 +306,7 @@ namespace prop {
 			bool has_source() const override {
 				return false;
 			}
+			void update() override {}
 		};
 
 		inline Stable_list Property_base::get_stable_dependents() const {
