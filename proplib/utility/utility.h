@@ -63,6 +63,11 @@ namespace prop {
 	std::string to_string(const T &t)
 		requires(requires(std::stringstream &ss) { ss << t; })
 	{
+		if constexpr (requires { t == nullptr; }) {
+			if (t == nullptr) {
+				return "nullptr";
+			}
+		}
 		std::stringstream ss;
 		ss << t;
 		return std::move(ss).str();
