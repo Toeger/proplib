@@ -154,7 +154,7 @@ void prop::detail::Property_base::update_start(Property_base *&previous_binding)
 }
 
 void prop::detail::Property_base::update_complete(Property_base *&previous_binding) {
-	TRACE("Completed  " << get_name());
+	TRACE("Updated    " << get_name());
 	current_binding = previous_binding;
 }
 
@@ -237,13 +237,11 @@ prop::detail::Property_base::~Property_base() {
 				}
 				if (dependent_dependency_index < dependent.explicit_dependencies) { //explicit dependency
 					dependent_dependency = nullptr;
-					TRACE("Removed    " << get_name() << " from optional explicit dependencies of "
-										<< dependent.get_name());
+					TRACE("Removed    " << this << " from optional explicit dependencies of " << dependent.get_name());
 					//duplicate explicit dependency possible
 				} else { //implicit dependency
 					dependent.dependencies.erase(std::begin(dependent.dependencies) + dependent_dependency_index);
-					TRACE("Removed    " << get_name() << " from optional implicit dependencies of "
-										<< dependent.get_name());
+					TRACE("Removed    " << this << " from optional implicit dependencies of " << dependent.get_name());
 					break; //only 1 implicit dependency possible
 				}
 			}
@@ -392,12 +390,10 @@ void prop::detail::Property_base::print_extended_status(const prop::detail::Exte
 						esd.output << dep->value_string();
 						esd.output << prop::Color::static_text;
 						esd.output << ")@";
-						esd.output << prop::Color::address;
-						esd.output << dep;
 						sep = ", ";
-					} else {
-						esd.output << prop::Color::reset << "null";
 					}
+					esd.output << prop::Color::address;
+					esd.output << prop::to_string(dep);
 				}
 				esd.output << prop::Color::reset << "]\n";
 			} else {
