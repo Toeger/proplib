@@ -305,6 +305,7 @@ namespace prop {
 			return value--;
 		}
 
+#if 0 //This ICEs gcc 15, try again with gcc 16
 		template <class U>
 		decltype(auto) operator,(U &&u) const
 			requires(requires { value, std::forward<U>(u); })
@@ -320,6 +321,7 @@ namespace prop {
 			Write_notifier wn{this};
 			return value, std::forward<U>(u);
 		}
+#endif
 
 		template <class... Args>
 		decltype(auto) operator()(Args &&...args) const
