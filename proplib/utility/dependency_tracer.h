@@ -3,6 +3,7 @@
 #include "alignment.h"
 #include "property.h"
 #include "proplib/ui/widget.h"
+#include "proplib/utility/tracking_pointer.h"
 #include "type_name.h"
 #include "type_traits.h"
 #include "utility.h"
@@ -142,6 +143,17 @@ namespace prop {
 		static std::intptr_t global_base_address;
 
 		private:
+		template <class T>
+		void add(std::string_view name, const prop::Tracking_pointer<T> &tp) {
+			auto p = (const prop::detail::Property_base *)&tp;
+			add(p);
+			Property_data &prop = properties[p];
+#ifndef PROPERTY_NAMES
+			prop.type = prop::type_name<T>();
+#endif
+			prop.name = name;
+			prop.value = p->displayed_value();
+		}
 		template <class T>
 		void add(std::string_view name, const prop::Property<T> &property) {
 			add(prop::detail::get_property_base_pointer(property));
