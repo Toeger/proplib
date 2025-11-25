@@ -6,6 +6,7 @@
 namespace prop {
 	template <class T>
 	struct Tracking_pointer : private prop::detail::Property_base {
+		using prop::detail::Property_base::get_status;
 		using prop::detail::Property_base::print_status;
 		Tracking_pointer(T *p)
 			requires(std::is_base_of_v<prop::detail::Property_base, T>)

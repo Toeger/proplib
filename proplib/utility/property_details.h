@@ -251,6 +251,7 @@ namespace prop {
 			virtual std::string value_string() const = 0;
 			virtual bool has_source() const = 0;
 			void print_status(const Extended_status_data &esd = {}) const;
+			std::string get_status() const;
 #ifdef PROPERTY_NAMES
 			std::string custom_name;
 			std::string get_name() const {

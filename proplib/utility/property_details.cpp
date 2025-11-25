@@ -1,13 +1,6 @@
 #include "property_details.h"
 #include "color.h"
 
-#ifdef PROPERTY_DEBUG
-#include <algorithm>
-#include <cassert>
-#include <concepts>
-#include <iostream>
-#include <source_location>
-
 #ifdef PROP_LIFETIMES
 std::map<const prop::detail::Property_base *, prop::detail::Property_base::Property_state> &
 prop::detail::Property_base::lifetimes() {
@@ -16,6 +9,13 @@ prop::detail::Property_base::lifetimes() {
 	return property_base_lifetimes;
 }
 #endif
+
+#ifdef PROPERTY_DEBUG
+#include <algorithm>
+#include <cassert>
+#include <concepts>
+#include <iostream>
+#include <source_location>
 
 constexpr std::string_view path(std::string_view filepath) {
 #ifdef WIN32
@@ -190,7 +190,7 @@ prop::detail::Property_base::Property_base() {
 	TRACE("Created    " << this);
 }
 
-prop::detail::Property_base::Property_base(std::string_view type) {
+prop::detail::Property_base::Property_base([[maybe_unused]] std::string_view type) {
 #ifdef PROP_LIFETIMES
 	lifetimes()[this] = Property_state::alive;
 #endif
@@ -491,4 +491,10 @@ void prop::detail::Property_base::print_status(const Extended_status_data &esd) 
 	assert(lifetimes()[this] == Property_state::alive);
 #endif
 	print_extended_status(esd, 0);
+}
+
+std::string prop::detail::Property_base::get_status() const {
+	std::stringstream ss;
+	print_status({.output = ss});
+	return std::move(ss).str();
 }

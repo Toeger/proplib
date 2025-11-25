@@ -108,6 +108,7 @@ namespace prop {
 		using prop::detail::Property_base::get_dependents;
 		using prop::detail::Property_base::get_explicit_dependencies;
 		using prop::detail::Property_base::get_implicit_dependencies;
+		using prop::detail::Property_base::get_status;
 		using prop::detail::Property_base::print_status;
 
 		private:
