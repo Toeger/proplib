@@ -8,6 +8,15 @@
 #include <iostream>
 #include <source_location>
 
+#ifdef PROP_LIFETIMES
+std::map<const prop::detail::Property_base *, prop::detail::Property_base::Property_state> &
+prop::detail::Property_base::lifetimes() {
+	static std::map<const prop::detail::Property_base *, prop::detail::Property_base::Property_state>
+		property_base_lifetimes;
+	return property_base_lifetimes;
+}
+#endif
+
 constexpr std::string_view path(std::string_view filepath) {
 #ifdef WIN32
 	const auto separator = '\\';
@@ -125,6 +134,10 @@ struct Tracer {
 #endif
 
 void prop::detail::Property_base::read_notify() const {
+#ifdef PROP_LIFETIMES
+	assert(lifetimes()[this] == Property_state::alive);
+#endif
+
 	if (current_binding and current_binding != this and not current_binding->has_dependency(*this)) {
 		TRACE("Added      " << get_name() << " as an implicit dependency of\n           "
 							<< current_binding->get_name());
@@ -133,6 +146,10 @@ void prop::detail::Property_base::read_notify() const {
 }
 
 void prop::detail::Property_base::write_notify() {
+#ifdef PROP_LIFETIMES
+	assert(lifetimes()[this] == Property_state::alive);
+#endif
+
 	if (explicit_dependencies + implicit_dependencies == dependencies.size()) {
 		return;
 	}
@@ -143,6 +160,10 @@ void prop::detail::Property_base::write_notify() {
 }
 
 void prop::detail::Property_base::update_start(Property_base *&previous_binding) {
+#ifdef PROP_LIFETIMES
+	assert(lifetimes()[this] == Property_state::alive);
+#endif
+
 	TRACE("Updating   " << get_name());
 	previous_binding = current_binding;
 	for (std::size_t i = explicit_dependencies; i < explicit_dependencies + implicit_dependencies; i++) {
@@ -154,15 +175,25 @@ void prop::detail::Property_base::update_start(Property_base *&previous_binding)
 }
 
 void prop::detail::Property_base::update_complete(Property_base *&previous_binding) {
+#ifdef PROP_LIFETIMES
+	assert(lifetimes()[this] == Property_state::alive);
+#endif
+
 	TRACE("Updated    " << get_name());
 	current_binding = previous_binding;
 }
 
 prop::detail::Property_base::Property_base() {
+#ifdef PROP_LIFETIMES
+	lifetimes()[this] = Property_state::alive;
+#endif
 	TRACE("Created    " << this);
 }
 
 prop::detail::Property_base::Property_base(std::string_view type) {
+#ifdef PROP_LIFETIMES
+	lifetimes()[this] = Property_state::alive;
+#endif
 	TRACE("Created    " << prop::Color::type << type << prop::Color::static_text << '@' << prop::Color::address << this
 						<< prop::Color::reset);
 }
@@ -170,6 +201,9 @@ prop::detail::Property_base::Property_base(std::string_view type) {
 prop::detail::Property_base::Property_base(std::vector<prop::detail::Property_link> initial_explicit_dependencies)
 	: dependencies{std::move(initial_explicit_dependencies)}
 	, explicit_dependencies{static_cast<decltype(explicit_dependencies)>(dependencies.size())} {
+#ifdef PROP_LIFETIMES
+	lifetimes()[this] = Property_state::alive;
+#endif
 	TRACE("Created    " << this);
 	for (auto &explicit_dependency : dependencies) {
 		if (auto ptr = explicit_dependency.get_pointer()) {
@@ -179,6 +213,9 @@ prop::detail::Property_base::Property_base(std::vector<prop::detail::Property_li
 }
 
 prop::detail::Property_base::Property_base(Property_base &&other) {
+#ifdef PROP_LIFETIMES
+	lifetimes()[this] = Property_state::alive;
+#endif
 	TRACE("Moved " << other.get_name() << " from  " << &other << " to " << this);
 #ifdef PROPERTY_DEBUG
 	custom_name = std::move(other.custom_name);
@@ -212,15 +249,25 @@ prop::detail::Property_base::Property_base(Property_base &&other) {
 }
 
 void prop::detail::Property_base::operator=(Property_base &&other) {
+#ifdef PROP_LIFETIMES
+	assert(lifetimes()[this] == Property_state::alive);
+	assert(lifetimes()[&other] == Property_state::alive);
+#endif
+
 	TRACE("Moving     " << other.get_name() << " to " << get_name());
 	swap(*this, other);
 }
 
 prop::detail::Property_base::~Property_base() {
+#ifdef PROP_LIFETIMES
+	assert(lifetimes()[this] == Property_state::alive);
+#endif
 	TRACE("Destroying " << this);
 	for (std::size_t i = 0; i < explicit_dependencies + implicit_dependencies; ++i) {
-		dependencies[i]->remove_dependent(*this);
-		TRACE("Removed    " << this << " from dependents of " << dependencies[i]->get_name());
+		if (auto dependency = dependencies[i]) {
+			dependency->remove_dependent(*this);
+			TRACE("Removed    " << this << " from dependents of " << dependency->get_name());
+		}
 	}
 	for (std::size_t dependent_index = explicit_dependencies + implicit_dependencies;
 		 dependent_index < std::size(dependencies); ++dependent_index) {
@@ -251,9 +298,17 @@ prop::detail::Property_base::~Property_base() {
 #ifdef PROPERTY_DEBUG
 	custom_name = "~" + custom_name;
 #endif
+#ifdef PROP_LIFETIMES
+	lifetimes()[this] = Property_state::post;
+#endif
 }
 
 void prop::detail::swap(Property_base &lhs, Property_base &rhs) {
+#ifdef PROP_LIFETIMES
+	assert(prop::detail::Property_base::lifetimes()[&lhs] == prop::detail::Property_base::Property_state::alive);
+	assert(prop::detail::Property_base::lifetimes()[&rhs] == prop::detail::Property_base::Property_state::alive);
+#endif
+
 	//TODO: Surely there is a simpler way to do this
 	TRACE("Swapping   " << lhs.get_name() << " and " << rhs.get_name());
 	if (lhs.dependencies.empty() and rhs.dependencies.empty()) {
@@ -312,6 +367,9 @@ std::string_view prop::detail::Property_base::type() const {
 }
 
 void prop::detail::Property_base::set_explicit_dependencies(std::vector<Property_link> deps) {
+#ifdef PROP_LIFETIMES
+	assert(lifetimes()[this] == Property_state::alive);
+#endif
 	assert(deps.size() < std::numeric_limits<decltype(explicit_dependencies)>::max());
 	if (dependencies.empty()) {
 		TRACE("Setting    " << prop::Color::type << type() << "@" << this << "'s explicit dependencies to\n           "
@@ -364,6 +422,9 @@ void prop::detail::Property_base::set_explicit_dependencies(std::vector<Property
 
 void prop::detail::Property_base::print_extended_status(const prop::detail::Extended_status_data &esd,
 														int current_depth) const {
+#ifdef PROP_LIFETIMES
+	assert(lifetimes()[this] == Property_state::alive);
+#endif
 	std::string indent;
 	for (int i = 0; i < current_depth; i++) {
 		indent += esd.indent_with;
@@ -426,5 +487,8 @@ void prop::detail::Property_base::print_extended_status(const prop::detail::Exte
 }
 
 void prop::detail::Property_base::print_status(const Extended_status_data &esd) const {
+#ifdef PROP_LIFETIMES
+	assert(lifetimes()[this] == Property_state::alive);
+#endif
 	print_extended_status(esd, 0);
 }

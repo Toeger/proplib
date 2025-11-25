@@ -12,8 +12,11 @@ set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined,addr
 #	set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_DEBUG} -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-pre-c++14-compat -Wno-c++20-compat -Wno-pre-c++20-compat-pedantic -Wno-padded -Wno-unused-member-function -Wno-exit-time-destructors -Wno-global-constructors -Wno-c++2c-extensions -Wno-weak-vtables -Wno-switch-default -fsafe-buffer-usage-suggestions")
 #endif()
 #add_definitions(-DPROP_EMPTY_CLASS_OPTIMIZATION)
-#add_definitions(-DPROPERTY_DEBUG)
+add_definitions(-DPROPERTY_DEBUG)
 add_definitions(-DPROPERTY_NAMES)
+if(${PROP_LIFETIMES})
+	add_definitions(-DPROP_LIFETIMES)
+endif()
 
 set(PROP_PLATFORM_DYNAMIC OFF)
 set(PROP_PLATFORM "<unset>" CACHE STRING "Platform selection")
@@ -46,6 +49,7 @@ set(PROP_LIBRARY_UTILITY_NAMES
 	screen_units
 	signal
 	style
+	tracking_pointer
 	type_list
 	type_name
 	type_traits
@@ -108,7 +112,7 @@ if (PROP_PLATFORM STREQUAL "SFML")
 endif()
 add_executable(PropExperiments
 	experiments/main.cpp
-	${PROP_LIBRARY_SOURCES}
+	#${PROP_LIBRARY_SOURCES}
 	${PROP_LIBRARY_HEADERS}
 )
 target_include_directories(PropExperiments PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
