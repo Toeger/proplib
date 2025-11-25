@@ -265,8 +265,8 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 			Command _{
 				std::format("label=<<font color='darkred'>{}</font> <font color='darkgreen'>{}</font> {} <font "
 							"color='blue'>{}</font>>",
-							std::string{data.type}, data.name.empty() ? "<unnamed>" : std::string{data.name},
-							data.value, prop::to_string(address))};
+							html_encode(data.type), data.name.empty() ? "<unnamed>" : html_encode(data.name),
+							html_encode(data.value), prop::to_string(address))};
 			Command _{"style=\"filled\""};
 			Command _{"fillcolor=\"#" + color_code(address) + "\""};
 		}
