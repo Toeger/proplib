@@ -15,7 +15,6 @@ TEST_CASE("Move test") {
 	REQUIRE(label.position->left == 4);
 	REQUIRE(label.position->bottom == 7);
 	REQUIRE(label.position->right == 8);
-	REQUIRE(label.self == label);
 
 	auto l2 = std::move(label);
 	REQUIRE(l2.text == "2");
@@ -23,7 +22,6 @@ TEST_CASE("Move test") {
 	REQUIRE(l2.position->left == 4);
 	REQUIRE(l2.position->bottom == 7);
 	REQUIRE(l2.position->right == 8);
-	REQUIRE(l2.self == l2);
 
 	std::swap(label, l2);
 	REQUIRE(label.text == "2");
@@ -31,5 +29,4 @@ TEST_CASE("Move test") {
 	REQUIRE(label.position->left == 4);
 	REQUIRE(label.position->bottom == 7);
 	REQUIRE(label.position->right == 8);
-	REQUIRE(label.self == label);
 }

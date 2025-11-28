@@ -24,6 +24,9 @@ namespace prop {
 				return (T *)b;
 			}
 		}
+		constexpr auto operator->() const {
+			return static_cast<T *>(*this);
+		}
 
 		private:
 		void update() override final {}
@@ -70,8 +73,13 @@ namespace prop {
 #undef PROP_COMP
 
 	template <class T>
-		requires(::std::is_base_of_v<prop::detail::Property_base, T>)
+		requires(std::is_base_of_v<prop::detail::Property_base, T>)
 	auto track(T *t) {
 		return Tracking_pointer{t};
+	}
+	template <class T>
+		requires(std::is_base_of_v<prop::detail::Property_base, T>)
+	auto track(T &t) {
+		return Tracking_pointer{&t};
 	}
 } // namespace prop

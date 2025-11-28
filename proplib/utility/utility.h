@@ -2,7 +2,6 @@
 
 #include "proplib/platform/external/magic_enum.hpp"
 #include <algorithm>
-#include <concepts>
 #include <ranges>
 #include <sstream>
 #include <type_traits>
@@ -18,32 +17,6 @@ namespace prop {
 			}
 		} static swap;
 	} // namespace utility
-
-	class Widget;
-
-	struct Self {
-		template <class T>
-			requires(std::derived_from<T, prop::Widget>)
-		operator T &() {
-			return dynamic_cast<T &>(*self);
-		}
-		template <class T>
-			requires(std::derived_from<T, prop::Widget>)
-		operator const T &() const {
-			return dynamic_cast<T &>(*self);
-		}
-		Self(Widget *w)
-			: self{w} {}
-		void operator=(Widget *w) {
-			self = w;
-		}
-		bool operator==(const prop::Widget &w) const {
-			return self == &w;
-		}
-
-		prop::Widget *self;
-	};
-	std::ostream &operator<<(std::ostream &os, const Self &self);
 
 	template <class T>
 	std::make_signed_t<T> signed_cast(T t) {

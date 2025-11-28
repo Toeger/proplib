@@ -3,15 +3,17 @@
 
 #include <catch2/catch_all.hpp>
 
-TEST_CASE("Selfie test") {
+TEST_CASE("Tracking test") {
 	prop::Widget w;
-	auto selfie = w.selfie();
-	REQUIRE(selfie == &w);
+	auto ptr = prop::track(w);
+	REQUIRE(ptr == &w);
 	{
-		PROP_TRACER(selfie, w).to_image("/home/toeger/Projects/Prop/dot test/vl.png");
+		PROP_TRACER(ptr, w).to_image("/home/toeger/Projects/Prop/dot test/vl.png");
+		ptr.print_status();
 		prop::Widget w2 = std::move(w);
-		PROP_TRACER(selfie, w, w2).to_image("/home/toeger/Projects/Prop/dot test/vl.png");
-		REQUIRE(selfie == &w2);
+		ptr.print_status();
+		PROP_TRACER(ptr, w, w2).to_image("/home/toeger/Projects/Prop/dot test/vl.png");
+		REQUIRE(ptr == &w2);
 	}
-	REQUIRE(selfie == nullptr);
+	REQUIRE(ptr == nullptr);
 }

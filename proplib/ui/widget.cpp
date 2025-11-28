@@ -23,15 +23,13 @@ prop::Widget::Widget(Parameters &&parameter)
 	X {                                                                                                                \
 		std::move(parameter.X)                                                                                         \
 	}
-	: self{this}
-	, PROP_WIDGET_PROPERTY_MEMBERS
+	: PROP_WIDGET_PROPERTY_MEMBERS
 #undef PROP_X
 {
 	static_assert(boost::pfr::tuple_size_v<prop::Widget::Parameters> == 5, "Add missing parameters");
 }
 
-prop::Widget::Widget(Widget &&other) noexcept
-	: self{this} {
+prop::Widget::Widget(Widget &&other) noexcept {
 	swap(*this, other);
 }
 
@@ -56,11 +54,9 @@ void prop::Widget::trace(Dependency_tracer &dependency_tracer) const {
 #define PROP_X(X) PROP_TRACE(dependency_tracer, X)
 	(PROP_WIDGET_PROPERTY_MEMBERS);
 #undef PROP_X
-	PROP_TRACE(dependency_tracer, self);
 }
 
-prop::Widget::Widget(std::string_view name)
-	: self{this} {
+prop::Widget::Widget(std::string_view name) {
 	set_name(name);
 }
 #endif
@@ -68,8 +64,5 @@ prop::Widget::Widget(std::string_view name)
 void prop::swap(Widget &lhs, Widget &rhs) {
 #define PROP_X(MEMBER) prop::utility::swap(lhs.MEMBER, rhs.MEMBER)
 	(PROP_WIDGET_PROPERTY_MEMBERS);
-	prop::utility::swap(lhs.self, rhs.self);
-	lhs.self = &lhs;
-	rhs.self = &rhs;
 #undef PROP_X
 }

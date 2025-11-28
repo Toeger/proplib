@@ -340,8 +340,7 @@ namespace prop {
 					return index < list->explicit_dependencies + list->implicit_dependencies;
 				}
 				Stable_list_iterator &operator++() {
-					while (not list->dependencies[++index]) {
-					}
+					index++;
 					return *this;
 				}
 				Stable_list_iterator operator++(int) {
@@ -781,7 +780,7 @@ namespace prop {
 					if (is_equal(value, t)) {
 						return prop::Updater_result::unchanged;
 					}
-					t = std::move(value);
+					t.value = std::move(value);
 					return prop::Updater_result::changed;
 				};
 		}
@@ -796,10 +795,10 @@ namespace prop {
 						if (is_equal(value, t)) {
 							return prop::Updater_result::unchanged;
 						}
-						t = std::move(value);
+						t.value = std::move(value);
 						return prop::Updater_result::changed;
 					} else {
-						t = source();
+						t.value = source();
 						return prop::Updater_result::changed;
 					}
 				};

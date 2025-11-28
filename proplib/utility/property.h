@@ -160,6 +160,7 @@ namespace prop {
 		{
 			unbind();
 			value = t;
+			write_notify();
 			return *this;
 		}
 		Property<T> &operator=(T &&t)
@@ -167,6 +168,7 @@ namespace prop {
 		{
 			unbind();
 			value = std::move(t);
+			write_notify();
 			return *this;
 		}
 		Property<T> &operator=(Property<T> &&other) {
@@ -178,6 +180,7 @@ namespace prop {
 		Property<T> &operator=(const Property<T> &other) {
 			unbind();
 			value = other.value;
+			write_notify();
 			return *this;
 		}
 		template <class U>
@@ -218,24 +221,28 @@ namespace prop {
 		operator U &()
 			requires(prop::detail::Conversion_type<T, U>::pass_by_ref)
 		{
+			read_notify();
 			return value;
 		}
 		template <class U>
 		operator U &&()
 			requires(prop::detail::Conversion_type<T, U>::pass_by_temp_ref)
 		{
+			read_notify();
 			return value;
 		}
 		template <class U>
 		operator U()
 			requires(prop::detail::Conversion_type<T, U>::pass_by_value)
 		{
+			read_notify();
 			return value;
 		}
 		template <class U>
 		operator const U()
 			requires(prop::detail::Conversion_type<T, U>::pass_by_const_value)
 		{
+			read_notify();
 			return value;
 		}
 		operator const T &() const;
@@ -417,6 +424,13 @@ namespace prop {
 		template <class U>
 		friend class Property;
 		friend struct prop::detail::Property_link;
+		template <class U>
+		friend std::move_only_function<prop::Updater_result(prop::Property<U> &,
+															std::span<const prop::detail::Property_link>)>
+		prop::detail::make_direct_update_function(prop::detail::Generator_function<U> auto &&f);
+		template <class U>
+		std::move_only_function<prop::Updater_result(prop::Property<U> &, std::span<const prop::detail::Property_link>)>
+		make_direct_update_function(prop::detail::Property_update_function<U> auto &&f);
 	};
 
 	template <>
@@ -596,8 +610,11 @@ namespace prop {
 			} else {
 				return f();
 			}
-		}()} {
-		update_source(prop::detail::make_direct_update_function<T>(std::forward<decltype(f)>(f)));
+		}()}
+		, source{prop::detail::make_direct_update_function<T>(std::forward<decltype(f)>(f))} {
+		if constexpr (std::is_default_constructible_v<T>) {
+			update();
+		}
 	}
 
 	template <class T>

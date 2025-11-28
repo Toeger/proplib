@@ -3,7 +3,6 @@
 #include "proplib/utility/property.h"
 #include "proplib/utility/rect.h"
 #include "proplib/utility/signal.h"
-#include "proplib/utility/utility.h"
 
 #ifdef PROPERTY_NAMES
 #include <string_view>
@@ -15,7 +14,7 @@ namespace prop {
 
 	void swap(class Widget &lhs, class Widget &rhs);
 
-	class Widget {
+	class Widget : prop::detail::Property_base {
 		public:
 		struct Parameters {
 			Property<prop::Rect> position;
@@ -38,22 +37,6 @@ namespace prop {
 #endif
 		friend void swap(Widget &lhs, Widget &rhs);
 
-		prop::Property<prop::Self> self;
-		template <class Widget>
-		prop::Property<Widget *> selfie(this Widget &widget) {
-			return {{[](Widget *&w, prop::Self *self_) {
-						 if (self_) {
-							 if (w == static_cast<Widget *>(self_->self)) {
-								 return prop::Updater_result::unchanged;
-							 }
-							 w = static_cast<Widget *>(self_->self);
-							 return prop::Updater_result::changed;
-						 }
-						 w = nullptr;
-						 return prop::Updater_result::sever;
-					 },
-					 widget.self}};
-		}
 		Property<prop::Rect> position;
 		Property<bool> visible = true;
 		const Property<prop::Size> &get_min_size() const {
@@ -74,5 +57,17 @@ namespace prop {
 		prop::Signal<int, int> left_clicked;
 		prop::Signal<int, int> right_clicked;
 		prop::Signal<int, int> middle_clicked;
+
+		private:
+		void update() override {}
+		std::string_view type() const override {
+			return prop::type_name<Widget>();
+		}
+		std::string value_string() const override {
+			return "";
+		}
+		bool has_source() const override {
+			return false;
+		}
 	};
 } // namespace prop

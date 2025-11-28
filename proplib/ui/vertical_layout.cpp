@@ -11,7 +11,7 @@
 	PROP_X(name_updater), PROP_X(children), PROP_X(alignment), PROP_X(child_positioners)
 
 prop::Vertical_layout::Vertical_layout()
-	: child_positioners{[self_ = selfie()] mutable {
+	: child_positioners{[self_ = prop::track(this)] mutable {
 		//return;
 		self_->children.apply([self = std::move(self_)](std::vector<prop::Polywrap<prop::Widget>> &children_) {
 			if (children_.empty()) {

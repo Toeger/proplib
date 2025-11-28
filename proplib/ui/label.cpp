@@ -1,6 +1,7 @@
 #include "label.h"
 #include "proplib/platform/platform.h"
 #include "proplib/utility/canvas.h"
+#include "proplib/utility/tracking_pointer.h"
 #include "proplib/utility/utility.h"
 
 #include <boost/pfr/tuple_size.hpp>
@@ -23,12 +24,9 @@ prop::Label::Label(Parameters parameters)
 	static_assert(boost::pfr::tuple_size_v<prop::Label::Parameters> == 3, "Add missing parameters");
 	assert(not prop::Style::default_style.font->name.empty());
 	assert(not font->name.empty());
-	preferred_size = {
-		[](const Label &label) {
-			assert(not label.font->name.empty());
-			return prop::platform::canvas::text_size(*label.text, label.font);
-		},
-		self,
+	preferred_size = [self = prop::track(this)] {
+		assert(not self->font->name.empty());
+		return prop::platform::canvas::text_size(self->text, self->font);
 	};
 }
 
