@@ -24,9 +24,10 @@ namespace prop {
 			dependencies = std::move(binder.dependencies);
 		}
 		T value;
-		std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const prop::detail::Property_link>)>
+		std::move_only_function<prop::Updater_result(prop::Property<T> &,
+													 std::span<const prop::Property_link::Property_pointer>)>
 			source;
-		std::vector<prop::detail::Property_link> dependencies;
+		std::vector<prop::Property_link> dependencies;
 	};
 
 	template <class T>
@@ -40,9 +41,10 @@ namespace prop {
 			source = std::move(binder.function);
 			dependencies = std::move(binder.dependencies);
 		}
-		std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const prop::detail::Property_link>)>
+		std::move_only_function<prop::Updater_result(prop::Property<T> &,
+													 std::span<const prop::Property_link::Property_pointer>)>
 			source;
-		std::vector<prop::detail::Property_link> dependencies;
+		std::vector<prop::Property_link> dependencies;
 	};
 
 	template <class T, bool with_initial_value>
@@ -61,9 +63,10 @@ namespace prop {
 			source = std::move(binder.function);
 			dependencies = std::move(binder.dependencies);
 		}
-		std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const prop::detail::Property_link>)>
+		std::move_only_function<prop::Updater_result(prop::Property<T> &,
+													 std::span<const prop::Property_link::Property_pointer>)>
 			source;
-		std::vector<prop::detail::Property_link> dependencies;
+		std::vector<prop::Property_link> dependencies;
 	};
 
 	template <class T>
@@ -97,25 +100,10 @@ namespace prop {
 	} // namespace detail
 
 	template <class T>
-	class Property : private prop::detail::Property_base {
-		using prop::detail::Property_base::read_notify;
-		using prop::detail::Property_base::update_complete;
-		using prop::detail::Property_base::update_start;
-		using prop::detail::Property_base::write_notify;
-
-		public:
-		using prop::detail::Property_base::get_dependencies;
-		using prop::detail::Property_base::get_dependents;
-		using prop::detail::Property_base::get_explicit_dependencies;
-		using prop::detail::Property_base::get_implicit_dependencies;
-		using prop::detail::Property_base::get_status;
-		using prop::detail::Property_base::print_status;
-
-		private:
-		//using prop::detail::Property_base::need_update;
-
+	class Property : public prop::Property_link {
 		mutable T value{};
-		std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const prop::detail::Property_link>)>
+		std::move_only_function<prop::Updater_result(prop::Property<T> &,
+													 std::span<const prop::Property_link::Property_pointer>)>
 			source;
 		struct Write_notifier;
 
@@ -174,7 +162,7 @@ namespace prop {
 		Property<T> &operator=(Property<T> &&other) {
 			value = std::move(other.value);
 			source = std::move(other.source);
-			static_cast<prop::detail::Property_base &>(*this) = static_cast<prop::detail::Property_base &&>(other);
+			static_cast<prop::Property_link &>(*this) = static_cast<prop::Property_link &&>(other);
 			return *this;
 		}
 		Property<T> &operator=(const Property<T> &other) {
@@ -381,7 +369,7 @@ namespace prop {
 		}
 
 #ifdef PROPERTY_NAMES
-		using prop::detail::Property_base::custom_name;
+		using prop::Property_link::custom_name;
 #endif
 
 		private:
@@ -405,38 +393,29 @@ namespace prop {
 			friend class prop::Property<T>;
 			prop::Property<T> *p;
 		};
-		void update_source(std::move_only_function<prop::Updater_result(prop::Property<T> &,
-																		std::span<const prop::detail::Property_link>)>
+		void update_source(std::move_only_function<prop::Updater_result(
+							   prop::Property<T> &, std::span<const prop::Property_link::Property_pointer>)>
 							   f);
 		void update() override final;
 		friend class Binding;
-		friend prop::detail::Property_base *detail::get_property_base_pointer<T>(const Property &p);
-		friend prop::detail::Property_base *detail::get_property_base_pointer<T>(const Property *p);
-		template <class T_, class Function, class... Properties, std::size_t... indexes>
-			requires(not std::is_same_v<T_, void>)
-		friend std::move_only_function<prop::Updater_result(prop::Property<T_> &,
-															std::span<prop::detail::Property_link>)>
-		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
-		template <class T_, class Function, class... Properties, std::size_t... indexes>
-			requires(std::is_same_v<T_, void>)
-		friend std::move_only_function<void(std::span<prop::detail::Property_link>)>
-		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
+
 		template <class U>
 		friend class Property;
-		friend struct prop::detail::Property_link;
+		friend class prop::Property_link;
 		template <class U>
-		friend std::move_only_function<prop::Updater_result(prop::Property<U> &,
-															std::span<const prop::detail::Property_link>)>
+		friend std::move_only_function<
+			prop::Updater_result(prop::Property<U> &, std::span<const prop::Property_link::Property_pointer>)>
 		prop::detail::make_direct_update_function(prop::detail::Generator_function<U> auto &&f);
 		template <class U>
-		std::move_only_function<prop::Updater_result(prop::Property<U> &, std::span<const prop::detail::Property_link>)>
+		std::move_only_function<prop::Updater_result(prop::Property<U> &,
+													 std::span<const prop::Property_link::Property_pointer>)>
 		make_direct_update_function(prop::detail::Property_update_function<U> auto &&f);
 	};
 
 	template <>
-	class Property<void> : prop::detail::Property_base {
+	class Property<void> : public prop::Property_link {
 		public:
-		using prop::detail::Property_base::print_status;
+		using prop::Property_link::print_status;
 		using Value_type = void;
 		Property();
 		Property(Property &&other);
@@ -473,58 +452,48 @@ namespace prop {
 		template <class U>
 		bool is_dependent_on(const Property<U> &other) const;
 #ifdef PROPERTY_NAMES
-		using prop::detail::Property_base::custom_name;
+		using prop::Property_link::custom_name;
 #endif
 		virtual ~Property() = default;
 
 		private:
-		void update_source(std::move_only_function<void(std::span<const prop::detail::Property_link>)> f);
+		void
+		update_source(std::move_only_function<void(std::span<const prop::Property_link::Property_pointer>)> f);
 		void update() override final;
-		std::move_only_function<void(std::span<const prop::detail::Property_link>)> source;
+		std::move_only_function<void(std::span<const prop::Property_link::Property_pointer>)> source;
 		friend class Binding;
-		friend Property_base *detail::get_property_base_pointer<void>(const Property &p);
-		friend Property_base *detail::get_property_base_pointer<void>(const Property *p);
-		template <class T, class Function, class... Properties, std::size_t... indexes>
-			requires(not std::is_same_v<T, void>)
-		friend std::move_only_function<prop::Updater_result(prop::Property<T> &,
-															std::span<const prop::detail::Property_link>)>
-		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
-		template <class T, class Function, class... Properties, std::size_t... indexes>
-			requires(std::is_same_v<T, void>)
-		friend std::move_only_function<void(std::span<const prop::detail::Property_link>)>
-		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
 		template <class U>
 		friend class Property;
 	};
 
 	template <class U>
 	bool Property<void>::is_implicit_dependency_of(const Property<U> &other) const {
-		return prop::detail::Property_base::is_implicit_dependency_of(other);
+		return prop::Property_link::is_implicit_dependency_of(other);
 	}
 
 	template <class U>
 	bool Property<void>::is_explicit_dependency_of(const Property<U> &other) const {
-		return prop::detail::Property_base::is_explicit_dependency_of(other);
+		return prop::Property_link::is_explicit_dependency_of(other);
 	}
 
 	template <class U>
 	bool Property<void>::is_dependency_of(const Property<U> &other) const {
-		return prop::detail::Property_base::is_dependency_of(other);
+		return prop::Property_link::is_dependency_of(other);
 	}
 
 	template <class U>
 	bool Property<void>::is_implicit_dependent_of(const Property<U> &other) const {
-		return prop::detail::Property_base::is_implicit_dependent_of(other);
+		return prop::Property_link::is_implicit_dependent_of(other);
 	}
 
 	template <class U>
 	bool Property<void>::is_explicit_dependent_of(const Property<U> &other) const {
-		return prop::detail::Property_base::is_explicit_dependent_of(other);
+		return prop::Property_link::is_explicit_dependent_of(other);
 	}
 
 	template <class U>
 	bool Property<void>::is_dependent_on(const Property<U> &other) const {
-		return prop::detail::Property_base::is_dependent_on(other);
+		return prop::Property_link::is_dependent_on(other);
 	}
 
 	namespace detail {
@@ -560,7 +529,7 @@ namespace prop {
 	Property<T>::Property()
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<prop::Property<T>>())
+		Property_link(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{} {
@@ -570,7 +539,7 @@ namespace prop {
 	Property<T>::Property(const Property<T> &other)
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<prop::Property<T>>())
+		Property_link(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{other.value} {
@@ -580,18 +549,18 @@ namespace prop {
 	Property<T>::Property(Property<T> &&other)
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<prop::Property<T>>())
+		Property_link(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{std::move(other.value)}
 		, source{std::move(other.source)} {
-		static_cast<prop::detail::Property_base &>(*this) = static_cast<prop::detail::Property_base &&>(other);
+		static_cast<prop::Property_link &>(*this) = static_cast<prop::Property_link &&>(other);
 	}
 
 	template <class T>
 	Property<T>::Property(prop::detail::Property_function_binder<T> binder)
 #ifdef PROPERTY_NAMES
-		: Property_base(prop::type_name<prop::Property<T>>())
+		: Property_link(prop::type_name<prop::Property<T>>())
 #endif
 	{
 		*this = std::move(binder);
@@ -601,7 +570,7 @@ namespace prop {
 	Property<T>::Property(prop::detail::Generator_function<T> auto &&f)
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<prop::Property<T>>())
+		Property_link(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{[&] {
@@ -621,7 +590,7 @@ namespace prop {
 	Property<T>::Property(prop::detail::Updater_function<T> auto &&f, T t)
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<prop::Property<T>>())
+		Property_link(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{std::move(t)} {
@@ -634,7 +603,7 @@ namespace prop {
 		requires std::constructible_from<T, Args &&...>
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<prop::Property<T>>())
+		Property_link(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{std::forward<Args>(args)...} {
@@ -644,7 +613,7 @@ namespace prop {
 	Property<T>::Property(Value &&v)
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<prop::Property<T>>())
+		Property_link(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{std::move(v.value)} {
@@ -654,7 +623,7 @@ namespace prop {
 	Property<T>::Property(Generator<T, true> &&generator)
 		:
 #ifdef PROPERTY_NAMES
-		Property_base(prop::type_name<prop::Property<T>>())
+		Property_link(prop::type_name<prop::Property<T>>())
 		,
 #endif
 		value{std::move(generator.generator.value)} {
@@ -689,7 +658,7 @@ namespace prop {
 	}
 	template <class T>
 	Property<T> &Property<T>::operator=(prop::detail::Property_function_binder<T> binder) {
-		prop::detail::Property_base::set_explicit_dependencies(std::move(binder.dependencies));
+		prop::Property_link::set_explicit_dependencies(std::move(binder.dependencies));
 		update_source(std::move(binder.function));
 		return *this;
 	}
@@ -722,7 +691,7 @@ namespace prop {
 	template <class T>
 	void Property<T>::unbind() {
 		source = nullptr;
-		prop::detail::Property_base::unbind();
+		prop::Property_link::unbind();
 	}
 
 	template <class T>
@@ -757,37 +726,38 @@ namespace prop {
 	template <class T>
 	template <class U>
 	bool Property<T>::is_implicit_dependency_of(const Property<U> &other) const {
-		return prop::detail::Property_base::is_implicit_dependency_of(other);
+		return prop::Property_link::is_implicit_dependency_of(other);
 	}
 	template <class T>
 	template <class U>
 	bool Property<T>::is_explicit_dependency_of(const Property<U> &other) const {
-		return prop::detail::Property_base::is_explicit_dependency_of(other);
+		return prop::Property_link::is_explicit_dependency_of(other);
 	}
 	template <class T>
 	template <class U>
 	bool Property<T>::is_dependency_of(const Property<U> &other) const {
-		return prop::detail::Property_base::is_dependency_of(other);
+		return prop::Property_link::is_dependency_of(other);
 	}
 	template <class T>
 	template <class U>
 	bool Property<T>::is_implicit_dependent_of(const Property<U> &other) const {
-		return prop::detail::Property_base::is_implicit_dependent_of(other);
+		return prop::Property_link::is_implicit_dependent_of(other);
 	}
 	template <class T>
 	template <class U>
 	bool Property<T>::is_explicit_dependent_of(const Property<U> &other) const {
-		return prop::detail::Property_base::is_explicit_dependent_of(other);
+		return prop::Property_link::is_explicit_dependent_of(other);
 	}
 	template <class T>
 	template <class U>
 	bool Property<T>::is_dependent_on(const Property<U> &other) const {
-		return prop::detail::Property_base::is_dependent_on(other);
+		return prop::Property_link::is_dependent_on(other);
 	}
 
 	template <class T>
 	void Property<T>::update_source(
-		std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const prop::detail::Property_link>)>
+		std::move_only_function<prop::Updater_result(prop::Property<T> &,
+													 std::span<const prop::Property_link::Property_pointer>)>
 			f) {
 		std::swap(f, source);
 		update();
@@ -795,7 +765,7 @@ namespace prop {
 
 	template <class T>
 	void Property<T>::update() {
-		prop::detail::Property_base *previous_binding;
+		prop::Property_link *previous_binding;
 		prop::detail::RAII updater{[this, &previous_binding] { update_start(previous_binding); },
 								   [this, &previous_binding] { update_complete(previous_binding); }};
 		try {
@@ -850,7 +820,8 @@ namespace prop {
 	}
 
 	Property<void> &Property<void>::operator=(std::convertible_to<std::move_only_function<void()>> auto &&f) {
-		update_source([source_ = std::forward<decltype(f)>(f)](std::span<prop::detail::Property_link>) { source_(); });
+		update_source([source_ = std::forward<decltype(f)>(f)](
+						  std::span<prop::Property_link::Property_pointer>) { source_(); });
 		return *this;
 	}
 
@@ -987,11 +958,6 @@ namespace prop {
 #undef PROP_BINOPS
 
 } // namespace prop
-
-template <class T>
-prop::detail::Property_link::operator prop::Property<T> *() const {
-	return static_cast<prop::Property<T> *>(get_pointer());
-}
 
 template <class U, class V>
 decltype(auto) operator+(U &&u, V &&v)

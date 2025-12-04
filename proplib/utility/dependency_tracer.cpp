@@ -318,7 +318,7 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 	std::system(command.c_str());
 }
 
-void prop::Dependency_tracer::add(const prop::detail::Property_base *pb) {
+void prop::Dependency_tracer::add(const prop::Property_link *pb) {
 	if (pb == nullptr) {
 		return;
 	}

@@ -12,7 +12,9 @@ set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined,addr
 #	set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_DEBUG} -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-pre-c++14-compat -Wno-c++20-compat -Wno-pre-c++20-compat-pedantic -Wno-padded -Wno-unused-member-function -Wno-exit-time-destructors -Wno-global-constructors -Wno-c++2c-extensions -Wno-weak-vtables -Wno-switch-default -fsafe-buffer-usage-suggestions")
 #endif()
 #add_definitions(-DPROP_EMPTY_CLASS_OPTIMIZATION)
-#add_definitions(-DPROPERTY_DEBUG)
+if(${PROP_DEBUG})
+	add_definitions(-DPROPERTY_DEBUG)
+endif()
 add_definitions(-DPROPERTY_NAMES)
 if(${PROP_LIFETIMES})
 	add_definitions(-DPROP_LIFETIMES)
@@ -44,11 +46,14 @@ set(PROP_LIBRARY_UTILITY_NAMES
 	polywrap
 	property
 	property_details
+	property_link
 	raii
 	rect
+	required_pointer
 	screen_units
 	signal
 	style
+	tracking_list
 	tracking_pointer
 	type_list
 	type_name

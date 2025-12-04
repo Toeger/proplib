@@ -1,8 +1,7 @@
 #pragma once
 
 #include "callable.h"
-#include "color.h"
-#include "proplib/utility/utility.h"
+#include "property_link.h"
 #include "type_list.h"
 #include "type_name.h"
 #include "type_traits.h"
@@ -10,8 +9,6 @@
 #include <cassert>
 #include <concepts>
 #include <functional>
-#include <iostream>
-#include <map>
 #include <vector>
 
 #ifdef PROPERTY_NAMES
@@ -23,8 +20,6 @@ namespace prop {
 	class Property;
 
 	enum struct Updater_result : char { unchanged, changed, sever };
-
-	class Dependency_tracer;
 
 	namespace detail {
 		template <class T, class U = T>
@@ -40,356 +35,6 @@ namespace prop {
 				return lhs == rhs;
 			}
 			return false;
-		}
-
-		struct Property_base;
-
-		struct Property_link {
-			Property_link(const Property_base *property, bool required)
-				: data{reinterpret_cast<std::uintptr_t>(property) + required} {}
-			bool is_required() const {
-				return data & 1;
-			}
-			Property_base *get_pointer() const {
-				return reinterpret_cast<Property_base *>(data & ~std::uintptr_t{1});
-			}
-			Property_base *operator->() const {
-				return get_pointer();
-			}
-			Property_base &operator*() const {
-				return *get_pointer();
-			}
-			operator Property_base *() const {
-				return get_pointer();
-			}
-			template <class T>
-			operator prop::Property<T> *() const;
-			Property_link &operator=(const Property_base *property) {
-				data = reinterpret_cast<std::uintptr_t>(property) | is_required();
-				return *this;
-			}
-
-			private:
-			std::uintptr_t data;
-		};
-
-		struct Stable_list;
-
-		void swap(Property_base &lhs, Property_base &rhs);
-
-		struct Extended_status_data {
-			std::ostream &output = std::clog;
-			std::string indent_with = "\t";
-			int depth = 0;
-		};
-
-		struct Property_base {
-			virtual void update() = 0;
-			virtual void unbind() {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				for (std::size_t i = 0; i < explicit_dependencies + implicit_dependencies; i++) {
-					dependencies[i]->remove_dependent(*this);
-				}
-				dependencies.erase(std::begin(dependencies),
-								   std::begin(dependencies) + explicit_dependencies + implicit_dependencies);
-				explicit_dependencies = implicit_dependencies = 0;
-			}
-			virtual std::string displayed_value() const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				return "<base>";
-			}
-			void read_notify() const;
-			void write_notify();
-			void update_start(Property_base *&previous_binding);
-			void update_complete(Property_base *&previous_binding);
-
-			Property_base(const Property_base &) = delete;
-			Property_base(Property_base &&other);
-			Property_base();
-			Property_base(std::string_view type);
-			Property_base(std::vector<prop::detail::Property_link> explicit_dependencies);
-			void operator=(const Property_base &) = delete;
-			void operator=(Property_base &&other);
-
-			friend void swap(Property_base &lhs, Property_base &rhs);
-
-			bool is_dependency_of(const Property_base &other) const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-
-				return other.has_dependency(*this);
-			}
-			bool is_implicit_dependency_of(const Property_base &other) const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				return other.has_implicit_dependency(*this);
-			}
-			bool is_explicit_dependency_of(const Property_base &other) const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				return other.has_explicit_dependency(*this);
-			}
-			bool is_implicit_dependent_of(const Property_base &other) const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				return has_implicit_dependency(other);
-			}
-			bool is_explicit_dependent_of(const Property_base &other) const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				return has_explicit_dependency(other);
-			}
-			bool is_dependent_on(const Property_base &other) const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				return has_dependency(other);
-			}
-			//Dependency_list(std::vector<Property_link> explicit_dependencies_list = {})
-			//	: dependencies{std::move(explicit_dependencies_list)}
-			//	, explicit_dependencies{static_cast<long>(dependencies.size())} {}
-			bool has_dependency(const Property_base &other) const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				const auto end = std::begin(dependencies) + explicit_dependencies + implicit_dependencies;
-				return std::find(std::begin(dependencies), end, &other) != end;
-			}
-			bool has_implicit_dependency(const Property_base &other) const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				const auto end = std::begin(dependencies) + explicit_dependencies + implicit_dependencies;
-				return std::find(std::begin(dependencies) + explicit_dependencies, end, &other) != end;
-			}
-			bool has_explicit_dependency(const Property_base &other) const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				const auto end = std::begin(dependencies) + explicit_dependencies;
-				return std::find(std::begin(dependencies), end, &other) != end;
-			}
-			bool has_dependent(const Property_base &other) const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				return std::find(std::begin(dependencies) + explicit_dependencies + implicit_dependencies,
-								 std::end(dependencies), &other) != std::end(dependencies);
-			}
-			void add_explicit_dependency(Property_link property) {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				dependencies.insert(std::begin(dependencies) + explicit_dependencies++, property);
-				property->add_dependent(*this);
-			}
-			void add_implicit_dependency(Property_link property) {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				if (not has_dependency(*property)) {
-					dependencies.insert(std::begin(dependencies) + explicit_dependencies + implicit_dependencies++,
-										property);
-					property->add_dependent(*this);
-				}
-			}
-			void set_explicit_dependencies(std::vector<Property_link> deps);
-			void replace_dependency(const Property_base &old_value, const Property_base &new_value) {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				for (auto it = std::begin(dependencies),
-						  end = std::begin(dependencies) + explicit_dependencies + implicit_dependencies;
-					 it != end; ++it) {
-					if (*it == &old_value) {
-						old_value.remove_dependent(*this);
-						*it = &new_value;
-						new_value.add_dependent(*this);
-					}
-				}
-			}
-			std::span<const Property_link> get_explicit_dependencies() const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				return std::span{dependencies}.subspan(0, static_cast<std::size_t>(explicit_dependencies));
-			}
-			std::span<const Property_link> get_implicit_dependencies() const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				return std::span{dependencies}.subspan(static_cast<std::size_t>(explicit_dependencies),
-													   static_cast<std::size_t>(implicit_dependencies));
-			}
-			std::span<const Property_link> get_dependencies() const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				return std::span{dependencies}.subspan(
-					0, static_cast<std::size_t>(explicit_dependencies + implicit_dependencies));
-			}
-			std::span<const Property_link> get_dependents() const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				return std::span{dependencies}.subspan(
-					static_cast<std::size_t>(explicit_dependencies + implicit_dependencies));
-			}
-
-			Stable_list get_stable_dependents() const;
-
-			virtual std::string_view type() const = 0;
-			virtual std::string value_string() const = 0;
-			virtual bool has_source() const = 0;
-			void print_status(const Extended_status_data &esd = {}) const;
-			std::string get_status() const;
-#ifdef PROPERTY_NAMES
-			std::string custom_name;
-			std::string get_name() const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				std::string auto_name =
-					prop::to_string(prop::Color::type) + std::string{type()} +
-					prop::to_string(prop::Color::static_text) + "@" + prop::to_string(prop::Color::address) +
-					prop::to_string(static_cast<const void *>(this)) + prop::to_string(prop::Color::reset);
-				if (custom_name.empty()) {
-					return auto_name;
-				}
-				return auto_name + ' ' + custom_name;
-			}
-#endif
-			protected:
-			~Property_base();
-
-			private:
-			void print_extended_status(const Extended_status_data &esd, int current_depth) const;
-			void add_dependent(const Property_base &other) const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				if (not has_dependent(other)) {
-					dependencies.push_back({&other, false});
-				}
-			}
-			void remove_dependent(const Property_base &other) const {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				for (auto it = std::begin(dependencies) + explicit_dependencies + implicit_dependencies;
-					 it != std::end(dependencies); ++it) {
-					if (*it == &other) {
-						dependencies.erase(it);
-						return;
-					}
-				}
-			}
-			void replace_dependent(const Property_base &old_value, const Property_base &new_value) {
-#ifdef PROP_LIFETIMES
-				assert(lifetimes()[this] == Property_state::alive);
-#endif
-				for (std::size_t dependent_index = explicit_dependencies + implicit_dependencies;
-					 dependent_index < std::size(dependencies); ++dependent_index) {
-					if (dependencies[dependent_index] == &old_value) {
-						dependencies[dependent_index] = &new_value;
-						break;
-					}
-				}
-			}
-
-			mutable std::vector<Property_link> dependencies;
-			mutable std::uint16_t explicit_dependencies = 0;
-			mutable std::uint16_t implicit_dependencies = 0;
-			static inline Property_base *current_binding;
-
-			friend Dependency_tracer;
-			friend Stable_list;
-
-#ifdef PROP_LIFETIMES
-			enum class Property_state { pre, alive, post };
-			static std::map<const Property_base *, Property_state> &lifetimes();
-#endif
-		};
-		inline void Property_base::update() {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
-			if (this != current_binding) {
-				update();
-			}
-		}
-		static_assert(alignof(Property_base) >= 2, "The last bit of any Property_base * is assumed to always be 0");
-
-		struct Stable_list final : private Property_base {
-			private:
-			struct Stable_list_iterator {
-				Stable_list_iterator(const Stable_list *stable_list, std::size_t pos = 0)
-					: list{stable_list}
-					, index{pos} {}
-				Stable_list_iterator(const Stable_list_iterator &) = delete;
-				operator bool() const {
-					return index < list->explicit_dependencies + list->implicit_dependencies;
-				}
-				Stable_list_iterator &operator++() {
-					index++;
-					return *this;
-				}
-				Stable_list_iterator operator++(int) {
-					auto pos = index;
-					++*this;
-					return Stable_list_iterator{list, pos};
-				}
-				Property_link &operator*() const {
-					return list->dependencies[index];
-				}
-				Property_link *operator->() const {
-					return &list->dependencies[index];
-				}
-				bool operator==(std::nullptr_t) const {
-					return not *this;
-				}
-
-				private:
-				const Stable_list *list;
-				std::size_t index = 0;
-			};
-
-			using Property_base::dependencies;
-			using Property_base::explicit_dependencies;
-			using Property_base::implicit_dependencies;
-
-			public:
-			Stable_list(std::span<const Property_link> list)
-				: Property_base{{std::begin(list), std::end(list)}} {}
-			auto begin() const {
-				return Stable_list_iterator{this};
-			}
-			auto end() const {
-				return nullptr;
-			}
-			std::string_view type() const override {
-				return "Stable_list";
-			}
-			std::string value_string() const override {
-				return "Stable_list";
-			}
-			bool has_source() const override {
-				return false;
-			}
-			void update() override {}
-		};
-
-		inline Stable_list Property_base::get_stable_dependents() const {
-			return {get_dependents()};
 		}
 
 		template <class Property>
@@ -426,12 +71,12 @@ namespace prop {
 			Generator_function<Function, T, Properties...> || Updater_function<Function, T, Properties...>;
 
 		template <class T>
-		Property_base *get_property_base_pointer(const prop::Property<T> *p) {
-			return static_cast<Property_base *>(const_cast<prop::Property<T> *>(p));
+		const prop::Property<T> *get_property_pointer(const prop::Property<T> *p) {
+			return p;
 		}
 		template <class T>
-		Property_base *get_property_base_pointer(const prop::Property<T> &p) {
-			return get_property_base_pointer(&p);
+		const prop::Property<T> *get_property_pointer(const prop::Property<T> &p) {
+			return get_property_pointer(&p);
 		}
 
 		template <class Function_arg, class Property>
@@ -632,17 +277,19 @@ namespace prop {
 
 		template <class T, class Function, class... Properties, std::size_t... indexes>
 			requires(not std::is_same_v<T, void>)
-		std::move_only_function<prop::Updater_result(prop::Property<T> &,
-													 std::span<const Property_link> explicit_dependencies)>
+		std::move_only_function<prop::Updater_result(
+			prop::Property<T> &, std::span<const Property_link::Property_pointer> explicit_dependencies)>
 		create_explicit_caller(Function &&function, std::index_sequence<indexes...>) {
 			return [source = std::forward<Function>(function)](
 					   prop::Property<T> &p,
-					   std::span<const Property_link> explicit_dependencies) mutable -> prop::Updater_result {
+					   std::span<const Property_link::Property_pointer> explicit_dependencies) mutable
+				   -> prop::Updater_result {
 				using Function_parameter_list = prop::Callable_info_for<Function>::Params;
 				if constexpr (Function_parameter_list::size == sizeof...(indexes)) {
 #define PROP_ARGS                                                                                                      \
 	convert_to_function_arg<typename Function_parameter_list::template at<indexes>>(                                   \
-		static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(explicit_dependencies[indexes]))
+		static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(                                         \
+			explicit_dependencies[indexes].get_pointer()))
 					if constexpr (prop::detail::is_equal_comparable_v<T, decltype(source(PROP_ARGS...))>) {
 						auto value = source(PROP_ARGS...);
 						if (prop::detail::is_equal(p, value)) {
@@ -678,7 +325,7 @@ namespace prop {
 					return source(convert_to_function_arg<typename Function_parameter_list::template at<0>>(&p),
 								  convert_to_function_arg<typename Function_parameter_list::template at<indexes + 1>>(
 									  static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(
-										  explicit_dependencies[indexes]))...);
+										  explicit_dependencies[indexes].get_pointer()))...);
 				} else {
 					static_assert(false, "Number of parameters (" + std::string(Function_parameter_list::type_names) +
 											 ") does not match number of given properties (" +
@@ -689,15 +336,15 @@ namespace prop {
 
 		template <class T, class Function, class... Properties, std::size_t... indexes>
 			requires(std::is_same_v<T, void>)
-		std::move_only_function<void(std::span<const Property_link>)>
+		std::move_only_function<void(std::span<const Property_link::Property_pointer>)>
 		create_explicit_caller(Function &&function, std::index_sequence<indexes...>) {
 			return [source = std::forward<Function>(function)](
-					   std::span<const Property_link> explicit_dependencies) mutable {
+					   std::span<const Property_link::Property_pointer> explicit_dependencies) mutable {
 				using Args_list = prop::Callable_info_for<Function>::Params;
 				if constexpr (Args_list::size == sizeof...(indexes)) {
 					source(convert_to_function_arg<typename Args_list::template at<indexes>>(
 						static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(
-							explicit_dependencies[indexes]))...);
+							explicit_dependencies[indexes].get_pointer()))...);
 				} else {
 					using Function_parameter_list = prop::Callable_info_for<Function>::Params;
 					static_assert(false, "Number of parameters (" + std::string(Function_parameter_list::type_names) +
@@ -720,8 +367,10 @@ namespace prop {
 				: Property_function_binder(std::forward<Function>(function_),
 										   typename prop::Callable_info_for<Function>::Params{}, properties...) {}
 
-			std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const Property_link>)> function;
-			std::vector<prop::detail::Property_link> dependencies;
+			std::move_only_function<prop::Updater_result(prop::Property<T> &,
+														 std::span<const Property_link::Property_pointer>)>
+				function;
+			std::vector<prop::Property_link::Property_pointer> dependencies;
 
 			private:
 			template <class... Properties, class Function, class... Parameters>
@@ -729,7 +378,7 @@ namespace prop {
 			Property_function_binder(Function &&function_, prop::Type_list<Parameters...>, Properties &&...properties)
 				: function{create_explicit_caller<T, decltype(function_), Properties...>(
 					  std::forward<decltype(function_)>(function_), std::index_sequence_for<Properties...>{})}
-				, dependencies{{prop::detail::get_property_base_pointer(properties),
+				, dependencies{{prop::detail::get_property_pointer(properties),
 								Property_pass_traits<Parameters, Properties>::argument_is_required}...} {
 				static_assert(PROP_ACTUALLY_PROPERTIES, "Must pass properties");
 			}
@@ -739,7 +388,7 @@ namespace prop {
 									 Properties &&...properties)
 				: function{create_explicit_caller<T, decltype(function_), Properties...>(
 					  std::forward<decltype(function_)>(function_), std::index_sequence_for<Properties...>{})}
-				, dependencies{{prop::detail::get_property_base_pointer(properties),
+				, dependencies{{prop::detail::get_property_pointer(properties),
 								Property_pass_traits<Parameters, Properties>::argument_is_required}...} {
 				static_assert(PROP_ACTUALLY_PROPERTIES, "Must pass properties");
 			}
@@ -754,8 +403,8 @@ namespace prop {
 				: Property_function_binder(std::forward<Function>(function_),
 										   typename prop::Callable_info_for<Function>::Params{}, properties...) {}
 
-			std::move_only_function<void(std::span<const Property_link>)> function;
-			std::vector<prop::detail::Property_link> dependencies;
+			std::move_only_function<void(std::span<const Property_link::Property_pointer>)> function;
+			std::vector<prop::Property_link::Property_pointer> dependencies;
 
 			private:
 			template <class... Properties, class Function, class... Parameters>
@@ -764,7 +413,7 @@ namespace prop {
 				//requires prop::detail::is_viable_source<T, Function, Properties...>
 				: function{create_explicit_caller<void, decltype(function_), Properties...>(
 					  std::forward<decltype(function_)>(function_), std::index_sequence_for<Properties...>{})}
-				, dependencies{{prop::detail::get_property_base_pointer(properties),
+				, dependencies{{prop::detail::get_property_pointer(properties),
 								Property_pass_traits<Parameters, Properties>::argument_is_required}...} {
 				static_assert(PROP_ACTUALLY_PROPERTIES, "Must pass properties");
 			}
@@ -772,43 +421,47 @@ namespace prop {
 #undef PROP_ACTUALLY_PROPERTIES
 
 		template <class T>
-		std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const Property_link>)>
+		std::move_only_function<prop::Updater_result(prop::Property<T> &,
+													 std::span<const Property_link::Property_pointer>)>
 		make_direct_update_function(Generator_function<T> auto &&f) {
-			return
-				[source = std::forward<decltype(f)>(f)](prop::Property<T> &t, std::span<const Property_link>) mutable {
+			return [source = std::forward<decltype(f)>(f)](prop::Property<T> &t,
+														   std::span<const Property_link::Property_pointer>) mutable {
+				auto value = source();
+				if (is_equal(value, t)) {
+					return prop::Updater_result::unchanged;
+				}
+				t.value = std::move(value);
+				return prop::Updater_result::changed;
+			};
+		}
+
+		template <class T>
+		std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const Property_link>)>
+		make_direct_update_function(Property_update_function<T> auto &&f) {
+			return [source = std::forward<decltype(f)>(f)](prop::Property<T> &t,
+														   std::span<const Property_link::Property_pointer>) mutable {
+				if constexpr (prop::detail::is_equal_comparable_v<std::decay_t<decltype(source())>, T>) {
 					auto value = source();
 					if (is_equal(value, t)) {
 						return prop::Updater_result::unchanged;
 					}
 					t.value = std::move(value);
 					return prop::Updater_result::changed;
-				};
+				} else {
+					t.value = source();
+					return prop::Updater_result::changed;
+				}
+			};
 		}
 
 		template <class T>
-		std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const Property_link>)>
-		make_direct_update_function(Property_update_function<T> auto &&f) {
-			return
-				[source = std::forward<decltype(f)>(f)](prop::Property<T> &t, std::span<const Property_link>) mutable {
-					if constexpr (prop::detail::is_equal_comparable_v<std::decay_t<decltype(source())>, T>) {
-						auto value = source();
-						if (is_equal(value, t)) {
-							return prop::Updater_result::unchanged;
-						}
-						t.value = std::move(value);
-						return prop::Updater_result::changed;
-					} else {
-						t.value = source();
-						return prop::Updater_result::changed;
-					}
-				};
-		}
-
-		template <class T>
-		std::move_only_function<prop::Updater_result(prop::Property<T> &, std::span<const Property_link>)>
+		std::move_only_function<prop::Updater_result(prop::Property<T> &,
+													 std::span<const Property_link::Property_pointer>)>
 		make_direct_update_function(Updater_function<T> auto &&f) {
-			return [source = std::forward<decltype(f)>(f)](
-					   prop::Property<T> &t, std::span<const Property_link>) mutable { return source(t); };
+			return [source = std::forward<decltype(f)>(f)](prop::Property<T> &t,
+														   std::span<const Property_link::Property_pointer>) mutable {
+				return source(t);
+			};
 		}
 
 		template <class T>

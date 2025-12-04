@@ -7,29 +7,29 @@
 
 #include <catch2/catch_all.hpp>
 
-TEST_CASE("Single property") {
+TEST_CASE("Single property", "[Dependency_tracer]") {
 	prop::Property p = 42;
 	prop::Dependency_tracer tracer;
 	PROP_TRACE(tracer, p);
 	REQUIRE(tracer.properties.contains(&p));
 	REQUIRE(tracer.properties[&p].name == "p");
-	REQUIRE(tracer.properties[&p].type == "int");
+	REQUIRE(tracer.properties[&p].type == prop::type_name<decltype(p)>());
 }
 
-TEST_CASE("Multiple properties") {
+TEST_CASE("Multiple properties", "[Dependency_tracer]") {
 	prop::Property p = 42;
 	prop::Property pd = 3.14;
 	prop::Dependency_tracer tracer;
 	PROP_TRACE(tracer, p, pd);
 	REQUIRE(tracer.properties.contains(&p));
 	REQUIRE(tracer.properties[&p].name == "p");
-	REQUIRE(tracer.properties[&p].type == "int");
+	REQUIRE(tracer.properties[&p].type == prop::type_name<decltype(p)>());
 	REQUIRE(tracer.properties.contains(&pd));
 	REQUIRE(tracer.properties[&pd].name == "pd");
-	REQUIRE(tracer.properties[&pd].type == "double");
+	REQUIRE(tracer.properties[&pd].type == prop::type_name<decltype(pd)>());
 }
 
-TEST_CASE("Property with dependents") {
+TEST_CASE("Property with dependents", "[Dependency_tracer]") {
 	prop::Property p = 42;
 	prop::Property pd = [&p] { return static_cast<double>(p); };
 	REQUIRE(p.is_dependency_of(pd));
@@ -40,11 +40,11 @@ TEST_CASE("Property with dependents") {
 		PROP_TRACE(tracer, p);
 		REQUIRE(tracer.properties.contains(&p));
 		REQUIRE(tracer.properties[&p].name == "p");
-		REQUIRE(tracer.properties[&p].type == "int");
+		REQUIRE(tracer.properties[&p].type == prop::type_name<decltype(p)>());
 		REQUIRE(tracer.properties.contains(&pd));
 		REQUIRE(tracer.properties[&pd].name == "");
 #ifdef PROPERTY_NAMES
-		REQUIRE(tracer.properties[&pd].type == "double");
+		REQUIRE(tracer.properties[&pd].type == prop::type_name<decltype(pd)>());
 #else
 		REQUIRE(tracer.properties[&pd].type == "");
 #endif
@@ -55,31 +55,31 @@ TEST_CASE("Property with dependents") {
 		REQUIRE(tracer.properties.contains(&p));
 		REQUIRE(tracer.properties[&p].name == "");
 #ifdef PROPERTY_NAMES
-		REQUIRE(tracer.properties[&p].type == "int");
+		REQUIRE(tracer.properties[&p].type == prop::type_name<decltype(p)>());
 #else
 		REQUIRE(tracer.properties[&p].type == "");
 #endif
 		REQUIRE(tracer.properties.contains(&pd));
 		REQUIRE(tracer.properties[&pd].name == "pd");
-		REQUIRE(tracer.properties[&pd].type == "double");
+		REQUIRE(tracer.properties[&pd].type == prop::type_name<decltype(pd)>());
 	}
 }
 
-TEST_CASE("Basic widget") {
+TEST_CASE("Basic widget", "[Dependency_tracer]") {
 	prop::Widget w;
 	prop::Dependency_tracer tracer;
 	PROP_TRACE(tracer, w);
 	REQUIRE(tracer.widgets.contains(&w));
 	REQUIRE(tracer.widgets[&w].name == "w");
 	REQUIRE(tracer.widgets[&w].bases.size() == 1);
-	REQUIRE(tracer.widgets[&w].bases.front().type == "prop::Widget");
+	REQUIRE(tracer.widgets[&w].bases.front().type == prop::type_name<decltype(w)>());
 	REQUIRE(tracer.properties.contains(&w.position));
-	REQUIRE(tracer.properties[&w.position].type == "prop::Rect");
+	REQUIRE(tracer.properties[&w.position].type == prop::type_name<decltype(w.position)>());
 	REQUIRE(tracer.properties[&w.position].name == "position");
 	REQUIRE(tracer.properties[&w.position].widget == &w);
 }
 
-TEST_CASE("Derived widget") {
+TEST_CASE("Derived widget", "[Dependency_tracer]") {
 	prop::Button b;
 	prop::Dependency_tracer tracer;
 	PROP_TRACE(tracer, b);
@@ -87,11 +87,11 @@ TEST_CASE("Derived widget") {
 	auto &data = tracer.widgets[&b];
 	REQUIRE(data.name == "b");
 	REQUIRE(data.bases.size() == 2);
-	REQUIRE(data.bases.front().type == "prop::Button");
+	REQUIRE(data.bases.front().type == prop::type_name<decltype(b)>());
 	REQUIRE(data.bases.back().type == "prop::Widget");
 }
 
-TEST_CASE("Derived widget via base") {
+TEST_CASE("Derived widget via base", "[Dependency_tracer]") {
 	prop::Button b;
 	prop::Widget &w = b;
 	prop::Dependency_tracer tracer;
@@ -102,16 +102,16 @@ TEST_CASE("Derived widget via base") {
 	REQUIRE(data.name == "w");
 	REQUIRE(data.bases.size() == 2);
 	const auto &button_data = data.bases.front();
-	REQUIRE(button_data.type == "prop::Button");
+	REQUIRE(button_data.type == prop::type_name<decltype(button_data)>());
 	REQUIRE(contains(button_data.properties, &b.font));
 	REQUIRE(not contains(button_data.properties, &w.position));
 	const auto &widget_data = data.bases.back();
-	REQUIRE(widget_data.type == "prop::Widget");
+	REQUIRE(widget_data.type == prop::type_name<decltype(w)>());
 	REQUIRE(contains(widget_data.properties, &w.position));
 	REQUIRE(not contains(widget_data.properties, &b.font));
 }
 
-TEST_CASE("Child widget") {
+TEST_CASE("Child widget", "[Dependency_tracer]") {
 	prop::Widget w1, w2;
 	prop::Vertical_layout vl{&w1, &w2};
 	prop::Dependency_tracer tracer;
@@ -124,7 +124,7 @@ TEST_CASE("Child widget") {
 	REQUIRE(data.name == "vl");
 	REQUIRE(data.bases.size() == 2);
 	const auto &widget_data = data.bases.back();
-	REQUIRE(widget_data.type == "prop::Widget");
+	REQUIRE(widget_data.type == prop::type_name<decltype(w1)>());
 	const auto &vl_data = data.bases.front();
 	const auto &vl_children = vl_data.children;
 	REQUIRE(vl_children.size() == 2);

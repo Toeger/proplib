@@ -145,7 +145,7 @@ namespace prop {
 		private:
 		template <class T>
 		void add(std::string_view name, const prop::Tracking_pointer<T> &tp) {
-			auto p = (const prop::detail::Property_base *)&tp;
+			auto p = (const prop::Property_link *)&tp;
 			add(p);
 			Property_data &prop = properties[p];
 #ifndef PROPERTY_NAMES
@@ -156,7 +156,7 @@ namespace prop {
 		}
 		template <class T>
 		void add(std::string_view name, const prop::Property<T> &property) {
-			add(prop::detail::get_property_base_pointer(property));
+			add(&property);
 			Property_data &prop = properties[&property];
 #ifndef PROPERTY_NAMES
 			prop.type = prop::type_name<T>();
@@ -175,7 +175,7 @@ namespace prop {
 			widgets[&widget].name = name;
 		}
 
-		void add(const prop::detail::Property_base *pb);
+		void add(const prop::Property_link *pb);
 		std::string dot_name(Widget_id wid) const {
 			return "widget_" + prop::to_string(wid.widget_id);
 		}

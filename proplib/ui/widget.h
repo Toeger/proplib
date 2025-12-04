@@ -14,7 +14,7 @@ namespace prop {
 
 	void swap(class Widget &lhs, class Widget &rhs);
 
-	class Widget : prop::detail::Property_base {
+	class Widget : prop::Property_link {
 		public:
 		struct Parameters {
 			Property<prop::Rect> position;

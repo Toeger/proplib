@@ -1,24 +1,25 @@
 #pragma once
 
-#include "proplib/utility/property_details.h"
+#include "proplib/utility/property_link.h"
+#include "proplib/utility/type_name.h"
 #include "proplib/utility/utility.h"
 
 namespace prop {
 	template <class T>
-	struct Tracking_pointer : private prop::detail::Property_base {
-		using prop::detail::Property_base::get_status;
-		using prop::detail::Property_base::print_status;
+	struct Tracking_pointer : private prop::Property_link {
+		using prop::Property_link::get_status;
+		using prop::Property_link::print_status;
 		Tracking_pointer(T *p)
-			requires(std::is_base_of_v<prop::detail::Property_base, T>)
-			: prop::detail::Property_base{
-				  std::vector<prop::detail::Property_link>{{(prop::detail::Property_base *)p, false}}} {}
+			requires(std::is_base_of_v<prop::Property_link, T>)
+			: prop::Property_link{std::vector<prop::Property_link::Property_pointer>{
+				  {(prop::Property_link *)p, false}}} {}
 		constexpr operator T *() const {
 			const auto &deps = get_explicit_dependencies();
 			if (deps.empty()) {
 				return nullptr;
 			}
-			prop::detail::Property_base *b = deps.front();
-			if constexpr (std::is_convertible_v<T *, prop::detail::Property_base *>) {
+			prop::Property_link *b = deps.front();
+			if constexpr (std::is_convertible_v<T *, prop::Property_link *>) {
 				return dynamic_cast<T *>(b);
 			} else {
 				return (T *)b;
@@ -32,7 +33,7 @@ namespace prop {
 		void update() override final {}
 		std::string displayed_value() const override {
 			const auto &deps = get_explicit_dependencies();
-			prop::detail::Property_base *base = deps.empty() ? nullptr : deps.front();
+			prop::Property_link *base = deps.empty() ? nullptr : deps.front();
 			auto dynamic = static_cast<T *>(*this);
 			if (reinterpret_cast<std::uintptr_t>(base) != reinterpret_cast<std::uintptr_t>(dynamic)) {
 				return prop::to_string(base) + "(" + prop::to_string(dynamic) + ")";
@@ -73,12 +74,12 @@ namespace prop {
 #undef PROP_COMP
 
 	template <class T>
-		requires(std::is_base_of_v<prop::detail::Property_base, T>)
+		requires(std::is_base_of_v<prop::Property_link, T>)
 	auto track(T *t) {
 		return Tracking_pointer{t};
 	}
 	template <class T>
-		requires(std::is_base_of_v<prop::detail::Property_base, T>)
+		requires(std::is_base_of_v<prop::Property_link, T>)
 	auto track(T &t) {
 		return Tracking_pointer{&t};
 	}
