@@ -134,10 +134,7 @@ struct Tracer {
 #endif
 
 void prop::Property_link::read_notify() const {
-#ifdef PROP_LIFETIMES
-	assert(lifetimes()[this] == Property_state::alive);
-#endif
-
+	assert_status();
 	if (current_binding and current_binding != this and not current_binding->has_dependency(*this)) {
 		TRACE("Added      " << get_name() << " as an implicit dependency of\n           "
 							<< current_binding->get_name());
@@ -146,10 +143,7 @@ void prop::Property_link::read_notify() const {
 }
 
 void prop::Property_link::write_notify() {
-#ifdef PROP_LIFETIMES
-	assert(lifetimes()[this] == Property_state::alive);
-#endif
-
+	assert_status();
 	if (explicit_dependencies + implicit_dependencies == dependencies.size()) {
 		return;
 	}
@@ -160,10 +154,7 @@ void prop::Property_link::write_notify() {
 }
 
 void prop::Property_link::update_start(Property_link *&previous_binding) {
-#ifdef PROP_LIFETIMES
-	assert(lifetimes()[this] == Property_state::alive);
-#endif
-
+	assert_status();
 	TRACE("Updating   " << get_name());
 	previous_binding = current_binding;
 	for (std::size_t i = explicit_dependencies; i < explicit_dependencies + implicit_dependencies; i++) {
@@ -175,10 +166,6 @@ void prop::Property_link::update_start(Property_link *&previous_binding) {
 }
 
 void prop::Property_link::update_complete(Property_link *&previous_binding) {
-#ifdef PROP_LIFETIMES
-	assert(lifetimes()[this] == Property_state::alive);
-#endif
-
 	TRACE("Updated    " << get_name());
 	current_binding = previous_binding;
 }
@@ -249,19 +236,14 @@ prop::Property_link::Property_link(Property_link &&other) {
 }
 
 void prop::Property_link::operator=(Property_link &&other) {
-#ifdef PROP_LIFETIMES
-	assert(lifetimes()[this] == Property_state::alive);
-	assert(lifetimes()[&other] == Property_state::alive);
-#endif
-
+	assert_status();
+	other.assert_status();
 	TRACE("Moving     " << other.get_name() << " to " << get_name());
 	swap(*this, other);
 }
 
 prop::Property_link::~Property_link() {
-#ifdef PROP_LIFETIMES
-	assert(lifetimes()[this] == Property_state::alive);
-#endif
+	assert_status();
 	TRACE("Destroying " << this);
 	for (std::size_t i = 0; i < explicit_dependencies + implicit_dependencies; ++i) {
 		if (auto dependency = dependencies[i]) {
@@ -304,12 +286,9 @@ prop::Property_link::~Property_link() {
 }
 
 void prop::swap(Property_link &lhs, Property_link &rhs) {
-#ifdef PROP_LIFETIMES
-	assert(prop::Property_link::lifetimes()[&lhs] == prop::Property_link::Property_state::alive);
-	assert(prop::Property_link::lifetimes()[&rhs] == prop::Property_link::Property_state::alive);
-#endif
-
 	//TODO: Surely there is a simpler way to do this
+	lhs.assert_status();
+	rhs.assert_status();
 	TRACE("Swapping   " << lhs.get_name() << " and " << rhs.get_name());
 	if (lhs.dependencies.empty() and rhs.dependencies.empty()) {
 		return;
@@ -367,9 +346,7 @@ std::string_view prop::Property_link::type() const {
 }
 
 void prop::Property_link::set_explicit_dependencies(std::vector<Property_link::Property_pointer> deps) {
-#ifdef PROP_LIFETIMES
-	assert(lifetimes()[this] == Property_state::alive);
-#endif
+	assert_status();
 	assert(deps.size() < std::numeric_limits<decltype(explicit_dependencies)>::max());
 	if (dependencies.empty()) {
 		TRACE("Setting    " << prop::Color::type << type() << "@" << this << "'s explicit dependencies to\n           "
@@ -421,9 +398,7 @@ void prop::Property_link::set_explicit_dependencies(std::vector<Property_link::P
 }
 
 void prop::Property_link::print_extended_status(const prop::Extended_status_data &esd, int current_depth) const {
-#ifdef PROP_LIFETIMES
-	assert(lifetimes()[this] == Property_state::alive);
-#endif
+	assert_status();
 	std::string indent;
 	for (int i = 0; i < current_depth; i++) {
 		indent += esd.indent_with;
@@ -486,9 +461,7 @@ void prop::Property_link::print_extended_status(const prop::Extended_status_data
 }
 
 void prop::Property_link::print_status(const Extended_status_data &esd) const {
-#ifdef PROP_LIFETIMES
-	assert(lifetimes()[this] == Property_state::alive);
-#endif
+	assert_status();
 	print_extended_status(esd, 0);
 }
 

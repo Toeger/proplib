@@ -41,9 +41,7 @@ namespace prop {
 		protected:
 		virtual void update() = 0;
 		virtual void unbind() {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			for (std::size_t i = 0; i < explicit_dependencies + implicit_dependencies; i++) {
 				dependencies[i]->remove_dependent(*this);
 			}
@@ -52,9 +50,7 @@ namespace prop {
 			explicit_dependencies = implicit_dependencies = 0;
 		}
 		virtual std::string displayed_value() const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			return "<base>";
 		}
 		void read_notify() const;
@@ -70,84 +66,60 @@ namespace prop {
 		friend void swap(Property_link &lhs, Property_link &rhs);
 
 		bool is_dependency_of(const Property_link &other) const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 
 			return other.has_dependency(*this);
 		}
 		bool is_implicit_dependency_of(const Property_link &other) const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			return other.has_implicit_dependency(*this);
 		}
 		bool is_explicit_dependency_of(const Property_link &other) const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			return other.has_explicit_dependency(*this);
 		}
 		bool is_implicit_dependent_of(const Property_link &other) const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			return has_implicit_dependency(other);
 		}
 		bool is_explicit_dependent_of(const Property_link &other) const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			return has_explicit_dependency(other);
 		}
 		bool is_dependent_on(const Property_link &other) const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			return has_dependency(other);
 		}
 		//Dependency_list(std::vector<Property_pointer> explicit_dependencies_list = {})
 		//	: dependencies{std::move(explicit_dependencies_list)}
 		//	, explicit_dependencies{static_cast<long>(dependencies.size())} {}
 		bool has_dependency(const Property_link &other) const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			const auto end = std::begin(dependencies) + explicit_dependencies + implicit_dependencies;
 			return std::find(std::begin(dependencies), end, &other) != end;
 		}
 		bool has_implicit_dependency(const Property_link &other) const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			const auto end = std::begin(dependencies) + explicit_dependencies + implicit_dependencies;
 			return std::find(std::begin(dependencies) + explicit_dependencies, end, &other) != end;
 		}
 		bool has_explicit_dependency(const Property_link &other) const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			const auto end = std::begin(dependencies) + explicit_dependencies;
 			return std::find(std::begin(dependencies), end, &other) != end;
 		}
 		bool has_dependent(const Property_link &other) const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			return std::find(std::begin(dependencies) + explicit_dependencies + implicit_dependencies,
 							 std::end(dependencies), &other) != std::end(dependencies);
 		}
 		void add_explicit_dependency(Property_pointer property) {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			dependencies.insert(std::begin(dependencies) + explicit_dependencies++, property);
 			property->add_dependent(*this);
 		}
 		void add_implicit_dependency(Property_pointer property) {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			if (not has_dependency(*property)) {
 				dependencies.insert(std::begin(dependencies) + explicit_dependencies + implicit_dependencies++,
 									property);
@@ -156,9 +128,7 @@ namespace prop {
 		}
 		void set_explicit_dependencies(std::vector<Property_pointer> deps);
 		void replace_dependency(const Property_link &old_value, const Property_link &new_value) {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			for (auto it = std::begin(dependencies),
 					  end = std::begin(dependencies) + explicit_dependencies + implicit_dependencies;
 				 it != end; ++it) {
@@ -170,29 +140,21 @@ namespace prop {
 			}
 		}
 		std::span<const Property_pointer> get_explicit_dependencies() const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			return std::span{dependencies}.subspan(0, static_cast<std::size_t>(explicit_dependencies));
 		}
 		std::span<const Property_pointer> get_implicit_dependencies() const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			return std::span{dependencies}.subspan(static_cast<std::size_t>(explicit_dependencies),
 												   static_cast<std::size_t>(implicit_dependencies));
 		}
 		std::span<const Property_pointer> get_dependencies() const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			return std::span{dependencies}.subspan(
 				0, static_cast<std::size_t>(explicit_dependencies + implicit_dependencies));
 		}
 		std::span<const Property_pointer> get_dependents() const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			return std::span{dependencies}.subspan(
 				static_cast<std::size_t>(explicit_dependencies + implicit_dependencies));
 		}
@@ -202,9 +164,7 @@ namespace prop {
 #ifdef PROPERTY_NAMES
 		std::string custom_name;
 		std::string get_name() const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			std::string auto_name =
 				prop::to_string(prop::Color::type) + std::string{type()} + prop::to_string(prop::Color::static_text) +
 				"@" + prop::to_string(prop::Color::address) + prop::to_string(static_cast<const void *>(this)) +
@@ -218,19 +178,24 @@ namespace prop {
 		~Property_link();
 
 		private:
+#ifdef PROP_LIFETIMES
+		enum class Property_state { pre, alive, post };
+		static std::map<const Property_link *, Property_state> &lifetimes();
+#endif
+		void assert_status(Property_state state = Property_state::alive) const {
+#ifdef PROP_LIFETIMES
+			assert(lifetimes()[this] == state);
+#endif
+		}
 		void print_extended_status(const Extended_status_data &esd, int current_depth) const;
 		void add_dependent(const Property_link &other) const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			if (not has_dependent(other)) {
 				dependencies.push_back({&other, false});
 			}
 		}
 		void remove_dependent(const Property_link &other) const {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			for (auto it = std::begin(dependencies) + explicit_dependencies + implicit_dependencies;
 				 it != std::end(dependencies); ++it) {
 				if (*it == &other) {
@@ -240,9 +205,7 @@ namespace prop {
 			}
 		}
 		void replace_dependent(const Property_link &old_value, const Property_link &new_value) {
-#ifdef PROP_LIFETIMES
-			assert(lifetimes()[this] == Property_state::alive);
-#endif
+			assert_status();
 			for (std::size_t dependent_index = explicit_dependencies + implicit_dependencies;
 				 dependent_index < std::size(dependencies); ++dependent_index) {
 				if (dependencies[dependent_index] == &old_value) {
@@ -256,17 +219,11 @@ namespace prop {
 		mutable std::uint16_t explicit_dependencies = 0;
 		mutable std::uint16_t implicit_dependencies = 0;
 		static inline Property_link *current_binding;
-#ifdef PROP_LIFETIMES
-		enum class Property_state { pre, alive, post };
-		static std::map<const Property_link *, Property_state> &lifetimes();
-#endif
 		friend prop::Tracking_list;
 		friend prop::Dependency_tracer;
 	};
 	inline void Property_link::update() {
-#ifdef PROP_LIFETIMES
-		assert(lifetimes()[this] == Property_state::alive);
-#endif
+		assert_status();
 		if (this != current_binding) {
 			update();
 		}
