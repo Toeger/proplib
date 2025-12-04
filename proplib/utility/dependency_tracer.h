@@ -145,14 +145,13 @@ namespace prop {
 		private:
 		template <class T>
 		void add(std::string_view name, const prop::Tracking_pointer<T> &tp) {
-			auto p = (const prop::Property_link *)&tp;
-			add(p);
-			Property_data &prop = properties[p];
+			add(tp);
+			Property_data &prop = properties[tp];
 #ifndef PROPERTY_NAMES
 			prop.type = prop::type_name<T>();
 #endif
 			prop.name = name;
-			prop.value = p->displayed_value();
+			prop.value = tp->displayed_value();
 		}
 		template <class T>
 		void add(std::string_view name, const prop::Property<T> &property) {

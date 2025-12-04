@@ -253,7 +253,7 @@ prop::Property_link::~Property_link() {
 			if (dependent_dependency == this) {
 				if (dependent_dependency.is_required()) {
 					dependent.unbind();
-					TRACE("Removed    " << get_name() << " from required dependencies of " << dependent.get_name());
+					TRACE("Removed    " << this << " from required dependencies of " << dependent.get_name());
 					break; //all dependents and dependencies are gone
 				}
 				if (dependent_dependency_index < dependent.explicit_dependencies) { //explicit dependency
