@@ -171,16 +171,12 @@ void prop::Property_link::update_complete(Property_link *&previous_binding) {
 }
 
 prop::Property_link::Property_link() {
-#ifdef PROP_LIFETIMES
-	lifetimes()[this] = Property_state::alive;
-#endif
+	set_status();
 	TRACE("Created    " << this);
 }
 
 prop::Property_link::Property_link([[maybe_unused]] std::string_view type) {
-#ifdef PROP_LIFETIMES
-	lifetimes()[this] = Property_state::alive;
-#endif
+	set_status();
 	TRACE("Created    " << prop::Color::type << type << prop::Color::static_text << '@' << prop::Color::address << this
 						<< prop::Color::reset);
 }
@@ -188,9 +184,7 @@ prop::Property_link::Property_link([[maybe_unused]] std::string_view type) {
 prop::Property_link::Property_link(std::vector<prop::Property_link::Property_pointer> initial_explicit_dependencies)
 	: dependencies{std::move(initial_explicit_dependencies)}
 	, explicit_dependencies{static_cast<decltype(explicit_dependencies)>(dependencies.size())} {
-#ifdef PROP_LIFETIMES
-	lifetimes()[this] = Property_state::alive;
-#endif
+	set_status();
 	TRACE("Created    " << this);
 	for (auto &explicit_dependency : dependencies) {
 		if (auto ptr = explicit_dependency.get_pointer()) {
@@ -200,9 +194,7 @@ prop::Property_link::Property_link(std::vector<prop::Property_link::Property_poi
 }
 
 prop::Property_link::Property_link(Property_link &&other) {
-#ifdef PROP_LIFETIMES
-	lifetimes()[this] = Property_state::alive;
-#endif
+	set_status();
 	TRACE("Moved " << other.get_name() << " from  " << &other << " to " << this);
 #ifdef PROPERTY_DEBUG
 	custom_name = std::move(other.custom_name);
@@ -280,9 +272,7 @@ prop::Property_link::~Property_link() {
 #ifdef PROPERTY_DEBUG
 	custom_name = "~" + custom_name;
 #endif
-#ifdef PROP_LIFETIMES
-	lifetimes()[this] = Property_state::post;
-#endif
+	set_status(Property_state::post);
 }
 
 void prop::swap(Property_link &lhs, Property_link &rhs) {

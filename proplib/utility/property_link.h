@@ -182,9 +182,14 @@ namespace prop {
 		enum class Property_state { pre, alive, post };
 		static std::map<const Property_link *, Property_state> &lifetimes();
 #endif
-		void assert_status(Property_state state = Property_state::alive) const {
+		void assert_status([[maybe_unused]] Property_state state = Property_state::alive) const {
 #ifdef PROP_LIFETIMES
 			assert(lifetimes()[this] == state);
+#endif
+		}
+		void set_status([[maybe_unused]] Property_state state = Property_state::alive) const {
+#ifdef PROP_LIFETIMES
+			lifetimes()[this] = state;
 #endif
 		}
 		void print_extended_status(const Extended_status_data &esd, int current_depth) const;
