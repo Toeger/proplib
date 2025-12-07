@@ -1,8 +1,16 @@
 Files in this project are licensed under various licenses.
+
+Index of licenses:
+external/cppdecl/LICENSE.md
+
+Index of files with licenses:
+proplib/platform/external/ansi_color.hpp
+proplib/platform/external/magic_enum.hpp
+
 If a file includes a license, it has that license.
-If a file does not include a license, the license in its directory applies, if there is such a license.
-If there is not, the license in its parent directory applies, if there is one. This rule applies until the root directory is reached.
-If none of the directories have a license, the file is licensed under the unlicense:
+Otherwise, the license in its directory applies, if there is such a license.
+Otherwise, the license in its parent directory applies, if there is one. This rule applies repeatedly until the root directory of the project is reached.
+If none of the parent directories have a license, the file is licensed under the unlicense as specified below:
 
 This is free and unencumbered software released into the public domain.
 
