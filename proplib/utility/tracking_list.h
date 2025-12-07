@@ -3,6 +3,8 @@
 #include "property_link.h"
 
 namespace prop {
+	template <class T = prop::Property_link>
+		requires(std::is_convertible_v<T *, prop::Property_link *>)
 	class Tracking_list final : private prop::Property_link {
 		private:
 		struct Tracking_list_iterator {
@@ -22,11 +24,25 @@ namespace prop {
 				++*this;
 				return Tracking_list_iterator{list, pos};
 			}
-			Property_link::Property_pointer &operator*() const {
+			Property_link::Property_pointer &operator*() const
+				requires(std::is_same_v<T, prop::Property_link>)
+			{
 				return list->dependencies[index];
 			}
-			Property_link::Property_pointer *operator->() const {
+			Property_link::Property_pointer *operator->() const
+				requires(std::is_same_v<T, prop::Property_link>)
+			{
 				return &list->dependencies[index];
+			}
+			T &operator*() const
+				requires(not std::is_same_v<T, prop::Property_link>)
+			{
+				return dynamic_cast<T &>(list->dependencies[index]);
+			}
+			Property_link::Property_pointer *operator->() const
+				requires(not std::is_same_v<T, prop::Property_link>)
+			{
+				return dynamic_cast<T *>(&list->dependencies[index]);
 			}
 			bool operator==(std::nullptr_t) const {
 				return not *this;
@@ -44,40 +60,36 @@ namespace prop {
 		public:
 		Tracking_list(std::span<const Property_link::Property_pointer> list)
 			: prop::Property_link{{std::begin(list), std::end(list)}} {}
-		template <class T>
-			requires(std::is_base_of_v<T, prop::Property_link>)
-		static Tracking_list for_explicit_dependencies(const T &linked) {
+		static Tracking_list for_explicit_dependencies(const prop::Property_link &linked) {
 			return {std::begin(linked.dependencies) + linked.explicit_dependencies,
 					std::begin(linked.dependencies) + linked.explicit_dependencies};
 		}
 
-		template <class T>
-			requires(std::is_base_of_v<T, prop::Property_link>)
-		static Tracking_list for_implicit_dependencies(const T &linked) {
+		static Tracking_list for_implicit_dependencies(const prop::Property_link &linked) {
 			return {std::begin(linked.dependencies) + linked.explicit_dependencies,
 					std::begin(linked.dependencies) + linked.explicit_dependencies};
 		}
 
-		template <class T>
-			requires(std::is_base_of_v<T, prop::Property_link>)
-		static Tracking_list for_all_dependencies(const T &linked) {
+		static Tracking_list for_all_dependencies(const prop::Property_link &linked) {
 			return {std::begin(linked.dependencies) + linked.explicit_dependencies,
 					std::begin(linked.dependencies) + linked.explicit_dependencies};
 		}
 
-		template <class T>
-			requires(std::is_base_of_v<T, prop::Property_link>)
-		static Tracking_list for_dependents(const T &linked) {
+		static Tracking_list for_dependents(const prop::Property_link &linked) {
 			return std::span<const prop::Property_link::Property_pointer>{
 				std::begin(linked.dependencies) + linked.explicit_dependencies,
 				std::begin(linked.dependencies) + linked.explicit_dependencies};
 		}
 
-		template <class T>
-			requires(std::is_base_of_v<T, prop::Property_link>)
-		static Tracking_list for_all_links(const T &linked) {
+		static Tracking_list for_all_links(const prop::Property_link &linked) {
 			return {std::begin(linked.dependencies) + linked.explicit_dependencies,
 					std::begin(linked.dependencies) + linked.explicit_dependencies};
+		}
+
+		template <class Container>
+			requires(std::is_convertible_v<typename Container::value_type *, prop::Property_link *>)
+		static Tracking_list<typename Container::value_type> from_container(Container &c) {
+			return {std::begin(c), std::end(c)};
 		}
 
 		auto begin() const {

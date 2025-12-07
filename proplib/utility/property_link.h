@@ -14,6 +14,9 @@
 #endif
 
 namespace prop {
+	class Property_link;
+	template <class T>
+		requires(std::is_convertible_v<T *, prop::Property_link *>)
 	class Tracking_list;
 	class Dependency_tracer;
 
@@ -224,7 +227,9 @@ namespace prop {
 		mutable std::uint16_t explicit_dependencies = 0;
 		mutable std::uint16_t implicit_dependencies = 0;
 		static inline Property_link *current_binding;
-		friend prop::Tracking_list;
+		template <class T>
+			requires(std::is_convertible_v<T *, prop::Property_link *>)
+		friend class Tracking_list;
 		friend prop::Dependency_tracer;
 	};
 	inline void Property_link::update() {
