@@ -49,6 +49,10 @@ namespace prop {
 			return preferred_size;
 		}
 
+		std::string_view type() const override {
+			return prop::type_name<Widget>();
+		}
+
 		protected:
 		prop::Property<prop::Size> min_size;
 		prop::Property<prop::Size> max_size;
@@ -60,9 +64,6 @@ namespace prop {
 
 		private:
 		void update() override {}
-		std::string_view type() const override {
-			return prop::type_name<Widget>();
-		}
 		std::string value_string() const override {
 			return "";
 		}

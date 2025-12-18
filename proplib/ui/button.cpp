@@ -58,7 +58,8 @@ void prop::Button::draw(Canvas canvas) const {
 }
 
 void prop::Button::trace(Dependency_tracer &dependency_tracer) const {
-	PROP_TRACE(dependency_tracer, *this, text, font);
+	prop::Dependency_tracer::Make_current _{*this, dependency_tracer};
+	PROP_TRACE(dependency_tracer, text, font);
 	prop::Widget::trace(dependency_tracer);
 }
 

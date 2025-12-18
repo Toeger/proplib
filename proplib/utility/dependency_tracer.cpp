@@ -5,21 +5,41 @@
 #include <format>
 #include <fstream>
 
-void prop::Dependency_tracer::print_widget_trace(std::ostream &os) const {
-	for (auto &[address, common_data] : widgets) {
-		os << prop::Color::variable_name << common_data.name << prop::Color::static_text << '@' << prop::Color::address
-		   << address << '\n';
-		for (auto &base : common_data.bases) {
-			os << prop::Color::static_text << "as " << prop::Color::type << base.type << prop::Color::static_text
+std::string prop::Dependency_tracer::to_string() const {
+	std::stringstream ss;
+	for (auto &[prop_link, object] : object_data) {
+		if (object.parent) {
+			continue;
+		}
+		ss << prop::Color::variable_name << object.name << prop::Color::static_text << '@' << prop::Color::address
+		   << prop_link << ' ' << prop::Color::variable_value << prop_link->value_string() << '\n';
+		for (auto &data : object.widget_data) {
+			ss << prop::Color::static_text << "as " << prop::Color::type << data->type << prop::Color::static_text
 			   << ":\n";
-			for (auto &property : base.properties) {
-				auto &property_data = properties.find(property)->second;
-				os << '\t' << prop::Color::type << property_data.type << ' ' << prop::Color::variable_name
-				   << property_data.name << prop::Color::static_text << '@' << prop::Color::address << property << "\n";
+			for (auto &member : data->members) {
+				struct Name_type_address {
+					std::string_view type;
+					std::string value;
+					const void *address;
+				};
+				auto [type, value, address] = std::visit(
+					[](auto &&m) -> Name_type_address {
+						if constexpr (std::is_same_v<std::remove_cvref_t<decltype(m)>,
+													 prop::Dependency_tracer::Non_link_member>) {
+							return {.type = m.type, .value = m.value, .address = m.address};
+						} else {
+							return {.type = m->type(), .value = m->value_string(), .address = m};
+						}
+					},
+					member.data);
+				ss << '\t' << prop::Color::type << type << ' ' << prop::Color::variable_name << member.name
+				   << prop::Color::static_text << '@' << prop::Color::address << address << ' '
+				   << prop::Color::variable_value << value << "\n";
 			}
 		}
 	}
-	os << prop::Color::reset;
+	ss << prop::Color::reset;
+	return std::move(ss).str();
 }
 
 std::intptr_t prop::Dependency_tracer::global_base_address = reinterpret_cast<std::intptr_t>(&global_base_address);
@@ -188,7 +208,8 @@ namespace Dot {
 	}
 } // namespace Dot
 
-void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const {
+void prop::Dependency_tracer::to_image([[maybe_unused]] std::filesystem::path output_path) const {
+#if TODO
 	using namespace Dot;
 	const auto extension = output_path.extension().string().erase(0, 1);
 	output_path.replace_extension(".dot");
@@ -316,8 +337,33 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 	output_path.replace_extension("." + extension);
 	command += " -o \"" + output_path.string() + "\"";
 	std::system(command.c_str());
+#endif
 }
 
+#if TODO_Maybe
+void prop::Dependency_tracer::add(std::string_view name, const Property_link *link) {
+	auto [it, inserted] = object_data.insert({link, {}});
+	if (not inserted) {
+		if (it->second.name.empty()) {
+			it->second.name = name;
+		}
+		return;
+	}
+	auto &object = it->second;
+	object.name = name;
+	object.type = link->type();
+	object.value = link->value_string();
+	std::copy_if(std::begin(link->dependencies), std::end(link->dependencies), std::back_inserter(object.dependents),
+				 [](const prop::Property_link::Property_pointer &pl) { return pl != nullptr; });
+	object.explicit_dependents = link->explicit_dependencies;
+	object.implicit_dependents = link->implicit_dependencies;
+	for (auto &property : object.dependents) {
+		add("", property);
+	}
+}
+#endif
+
+#if TODO_Maybe
 void prop::Dependency_tracer::add(const prop::Property_link *pb) {
 	if (pb == nullptr) {
 		return;
@@ -350,8 +396,9 @@ void prop::Dependency_tracer::add(const prop::Property_link *pb) {
 		add(deps);
 	}
 }
+#endif
 
-std::string prop::Dependency_tracer::dot_property_name(const void *p, prop::Alignment alignment) const {
+std::string prop::Dependency_tracer::dot_name(Link_id object, prop::Alignment alignment) const {
 	if (alignment > center) {
 		alignment = none;
 	}
@@ -373,12 +420,14 @@ std::string prop::Dependency_tracer::dot_property_name(const void *p, prop::Alig
 		":e",  //center_right,
 		":c",  //center,
 	};
-	if (auto pit = properties.find(p); pit != std::end(properties)) {
+#if TODO
+	if (auto pit = properties.find(object); pit != std::end(properties)) {
 		if (pit->second.widget) {
-			return std::format("widget_{}:property_{}{}", prop::to_string(pit->second.widget), prop::to_string(p),
+			return std::format("widget_{}:property_{}{}", prop::to_string(pit->second.widget), prop::to_string(object),
 							   direction[alignment]);
 		}
-		return "property_" + prop::to_string(p);
+		return "property_" + prop::to_string(object);
 	}
-	return "unknown_" + prop::to_string(p);
+#endif
+	return "unknown_" + prop::to_string(object);
 }

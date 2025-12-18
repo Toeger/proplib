@@ -86,7 +86,7 @@ namespace prop {
 				if constexpr (Streamable<T>) {
 					return os << value;
 				} else {
-					return os << prop::type_name<prop::Property<T>>() << '@' << &value;
+					return os << prop::type_name<T>() << '@' << &value;
 				}
 			}
 		};
@@ -403,8 +403,8 @@ namespace prop {
 		friend class Property;
 		friend class prop::Property_link;
 		template <class U>
-		friend std::move_only_function<
-			prop::Updater_result(prop::Property<U> &, std::span<const prop::Property_link::Property_pointer>)>
+		friend std::move_only_function<prop::Updater_result(prop::Property<U> &,
+															std::span<const prop::Property_link::Property_pointer>)>
 		prop::detail::make_direct_update_function(prop::detail::Generator_function<U> auto &&f);
 		template <class U>
 		std::move_only_function<prop::Updater_result(prop::Property<U> &,
@@ -457,8 +457,7 @@ namespace prop {
 		virtual ~Property() = default;
 
 		private:
-		void
-		update_source(std::move_only_function<void(std::span<const prop::Property_link::Property_pointer>)> f);
+		void update_source(std::move_only_function<void(std::span<const prop::Property_link::Property_pointer>)> f);
 		void update() override final;
 		std::move_only_function<void(std::span<const prop::Property_link::Property_pointer>)> source;
 		friend class Binding;
@@ -755,10 +754,9 @@ namespace prop {
 	}
 
 	template <class T>
-	void Property<T>::update_source(
-		std::move_only_function<prop::Updater_result(prop::Property<T> &,
-													 std::span<const prop::Property_link::Property_pointer>)>
-			f) {
+	void Property<T>::update_source(std::move_only_function<prop::Updater_result(
+										prop::Property<T> &, std::span<const prop::Property_link::Property_pointer>)>
+										f) {
 		std::swap(f, source);
 		update();
 	}
@@ -820,8 +818,8 @@ namespace prop {
 	}
 
 	Property<void> &Property<void>::operator=(std::convertible_to<std::move_only_function<void()>> auto &&f) {
-		update_source([source_ = std::forward<decltype(f)>(f)](
-						  std::span<prop::Property_link::Property_pointer>) { source_(); });
+		update_source(
+			[source_ = std::forward<decltype(f)>(f)](std::span<prop::Property_link::Property_pointer>) { source_(); });
 		return *this;
 	}
 

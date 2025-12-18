@@ -9,22 +9,17 @@ namespace prop {
 	struct Tracking_pointer : private prop::Property_link {
 		using prop::Property_link::get_status;
 		using prop::Property_link::print_status;
-		Tracking_pointer(T *p)
+
+		Tracking_pointer(prop::Property_link *p)
 			requires(std::is_base_of_v<prop::Property_link, T>)
-			: prop::Property_link{std::vector<prop::Property_link::Property_pointer>{
-				  {(prop::Property_link *)p, false}}} {}
+			: prop::Property_link{std::vector<prop::Property_link::Property_pointer>{{p, false}}} {}
+
 		constexpr operator T *() const {
 			const auto &deps = get_explicit_dependencies();
-			if (deps.empty()) {
-				return nullptr;
-			}
-			prop::Property_link *b = deps.front();
-			if constexpr (std::is_convertible_v<T *, prop::Property_link *>) {
-				return dynamic_cast<T *>(b);
-			} else {
-				return (T *)b;
-			}
+			assert(deps.size() == 1);
+			return dynamic_cast<T *>(deps.front().get_pointer());
 		}
+
 		constexpr auto operator->() const {
 			return static_cast<T *>(*this);
 		}
@@ -40,16 +35,21 @@ namespace prop {
 			}
 			return prop::to_string(dynamic);
 		}
+
 		std::string_view type() const override {
 			return prop::type_name<Tracking_pointer<T>>();
 		}
+
 		std::string value_string() const override {
 			return displayed_value();
 		}
+
 		bool has_source() const override {
 			return static_cast<T *>(*this) != nullptr;
 		}
 	};
+	template <class T>
+	Tracking_pointer(T *P) -> Tracking_pointer<T>;
 
 #define PROP_COMP(OP)                                                                                                  \
 	template <class T>                                                                                                 \

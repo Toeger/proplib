@@ -50,7 +50,7 @@ void prop::Widget::set_name(std::string_view name) {
 }
 
 void prop::Widget::trace(Dependency_tracer &dependency_tracer) const {
-	Dependency_tracer::Make_current _{this, dependency_tracer};
+	Dependency_tracer::Make_current _{*this, dependency_tracer};
 #define PROP_X(X) PROP_TRACE(dependency_tracer, X)
 	(PROP_WIDGET_PROPERTY_MEMBERS);
 #undef PROP_X

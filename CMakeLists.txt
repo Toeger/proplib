@@ -91,7 +91,7 @@ list(TRANSFORM PROP_LIBRARY_SOURCES REPLACE "\.cpp$" ".h" OUTPUT_VARIABLE PROP_L
 
 list(APPEND PROP_LIBRARY_SOURCES ${PROP_PLATFORM_NAMES})
 
-include_directories(SYSTEM "proplib/platform/external")
+include_directories(SYSTEM "proplib/platform")
 
 #demo
 if (PROP_PLATFORM STREQUAL "SFML")
@@ -121,7 +121,6 @@ add_executable(PropExperiments
 	${PROP_LIBRARY_HEADERS}
 )
 target_include_directories(PropExperiments PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(PropExperiments PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/cppdecl/include)
 if (PROP_PLATFORM STREQUAL "SFML")
 	target_link_libraries(PropExperiments PRIVATE
 		sfml-graphics

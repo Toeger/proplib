@@ -1,6 +1,7 @@
 #include "vertical_layout.h"
 #include "proplib/utility/canvas.h"
 #include "proplib/utility/dependency_tracer.h"
+#include "proplib/utility/tracking_pointer.h"
 
 #include <cassert>
 #ifdef PROPERTY_NAMES
@@ -98,12 +99,12 @@ void prop::swap(Vertical_layout &lhs, Vertical_layout &rhs) {
 }
 
 void prop::Vertical_layout::trace(Dependency_tracer &dependency_tracer) const {
-	prop::Dependency_tracer::Make_current _{this, dependency_tracer};
+	prop::Dependency_tracer::Make_current _{*this, dependency_tracer};
 #define PROP_X(X) PROP_TRACE(dependency_tracer, X)
 	(PROP_VERTICAL_LAYOUT_PROPERTY_MEMBERS);
 #undef PROP_X
 	for (auto &child : children.get()) {
-		dependency_tracer.trace_child(*child);
+		dependency_tracer.trace(*child);
 	}
-	dependency_tracer.trace_base(static_cast<const prop::Widget *>(this));
+	prop::Widget::trace(dependency_tracer);
 }

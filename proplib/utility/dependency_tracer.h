@@ -1,18 +1,17 @@
 #pragma once
 
 #include "alignment.h"
-#include "property.h"
+#include "property_link.h"
 #include "proplib/ui/widget.h"
-#include "proplib/utility/tracking_pointer.h"
 #include "type_name.h"
-#include "type_traits.h"
-#include "utility.h"
+
 #include <filesystem>
 #include <map>
-#include <ostream>
 #include <ranges>
+#include <string>
 #include <string_view>
 #include <type_traits>
+#include <variant>
 
 #define PROP_TRACE(PROP_TRACER, ...) PROP_TRACER.trace(#__VA_ARGS__ __VA_OPT__(, ) __VA_ARGS__)
 #define PROP_TRACER(...)                                                                                               \
@@ -23,89 +22,86 @@
 	}()
 
 namespace prop {
+	class Widget;
 	class Dependency_tracer {
-		struct Widget_id {
-			Widget_id(const prop::Widget *w)
-				: widget_id{dynamic_cast<const void *>(w)} {}
-			operator const void *() const {
-				return widget_id;
-			}
-			auto operator<=>(const Widget_id &) const = default;
-			const void *widget_id;
-		};
-
 		public:
-		struct Make_current {
-			Make_current(std::nullptr_t, Dependency_tracer &tracer)
-				: previous_widget{tracer.current_widget}
-				, previous_sub_widget_type{previous_widget ? tracer.current_sub_widget->type : ""}
-				, dependency_tracer{&tracer} {
-				tracer.current_widget = nullptr;
-				tracer.current_sub_widget = nullptr;
-			}
-			template <class Widget>
-				requires(std::is_base_of_v<prop::Widget, Widget>)
-			Make_current(const Widget *widget, Dependency_tracer &tracer)
-				: previous_widget{tracer.current_widget}
-				, previous_sub_widget_type{previous_widget ? tracer.current_sub_widget->type : ""}
-				, dependency_tracer{&tracer} {
-				tracer.current_widget = widget;
-				auto sub_widget_type = prop::type_name<Widget>();
-				auto &widget_object_data = tracer.widgets[(const prop::Widget *)widget];
-				tracer.current_sub_widget = nullptr;
-				for (auto &base : widget_object_data.bases) {
-					if (base.type == sub_widget_type) {
-						tracer.current_sub_widget = &base;
-						break;
+		using Link_id = prop::Property_link::Property_pointer;
+
+		struct Non_link_member {
+			std::string_view type;
+			std::string value;
+			const void *address{};
+		};
+		struct Member_data {
+			std::string_view name;
+			std::variant<Non_link_member, const prop::Property_link *> data;
+		};
+		struct Widget_data {
+			std::string_view type;
+			std::vector<Member_data> members;
+			std::vector<const prop::Widget *> children;
+		};
+		struct Widget_data_container {
+			Widget_data &operator[](std::string_view type) {
+				for (auto &w : data) {
+					if (w->type == type) {
+						return *w;
 					}
 				}
-				if (not tracer.current_sub_widget) {
-					widget_object_data.bases.push_back({
-						.type = sub_widget_type,
-						.properties = {},
-						.children = {},
-					});
-					tracer.current_sub_widget = &widget_object_data.bases.back();
-				}
+				data.push_back(std::make_unique<Widget_data>(type));
+				return *data.back();
 			}
-			Make_current(const Make_current &) = delete;
-			~Make_current() {
-				dependency_tracer->current_widget = previous_widget;
-				if (not previous_widget) {
-					dependency_tracer->current_sub_widget = nullptr;
-					return;
-				}
-				auto &widget_object_data = dependency_tracer->widgets[previous_widget];
-				for (auto &base : widget_object_data.bases) {
-					if (base.type == previous_sub_widget_type) {
-						dependency_tracer->current_sub_widget = &base;
-					}
-				}
+			Widget_data &operator[](std::size_t index) {
+				assert(data.size() > index);
+				return *data[index];
+			}
+			std::size_t size() const {
+				return data.size();
+			}
+			Widget_data &front() {
+				assert(not data.empty());
+				return *data.front();
+			}
+			Widget_data &back() {
+				assert(not data.empty());
+				return *data.back();
+			}
+			auto begin() const {
+				return std::begin(data);
+			}
+			auto end() const {
+				return std::end(data);
 			}
 
 			private:
-			const prop::Widget *previous_widget;
-			std::string_view previous_sub_widget_type;
+			std::vector<std::unique_ptr<Widget_data>> data;
+		};
+
+		struct Object_data {
+			std::string_view name;
+			Widget_data *parent{};
+			Widget_data_container widget_data;
+		};
+
+		std::map<const prop::Property_link *, Object_data> object_data;
+
+		struct Make_current {
+			template <class Widget>
+				requires(std::is_convertible_v<Widget *, prop::Widget *>)
+			Make_current(const Widget &widget, Dependency_tracer &tracer)
+				: previous_object{tracer.current_widget}
+				, dependency_tracer{&tracer} {
+				assert(tracer.object_data.contains(&widget));
+				tracer.current_widget = &tracer.object_data[&widget].widget_data[prop::type_name<Widget>()];
+			}
+			Make_current(const Make_current &) = delete;
+			~Make_current() {
+				dependency_tracer->current_widget = previous_object;
+			}
+
+			private:
+			Widget_data *previous_object;
 			Dependency_tracer *dependency_tracer;
-		};
-
-		struct Widget_base_data {
-			std::string_view type;
-			std::vector<const void *> properties;
-			std::vector<const prop::Widget *> children;
-		};
-		struct Widget_object_data {
-			std::string_view name;
-			std::vector<Widget_base_data> bases;
-		};
-
-		struct Property_data {
-			std::string_view type;
-			std::string_view name;
-			std::string value;
-			std::vector<const void *> dependents;
-			std::vector<const void *> dependencies;
-			const prop::Widget *widget;
 		};
 
 		template <class... Args>
@@ -114,29 +110,13 @@ namespace prop {
 			auto current_name = std::begin(split_names);
 			(..., add(std::string_view{*current_name++}, args));
 		}
-
-		std::map<Widget_id, Widget_object_data> widgets;
-		std::map<const void *, Property_data> properties;
-		void print_widget_trace(std::ostream &os) const;
-		void to_image(std::filesystem::path output_path) const;
-
 		template <class Widget>
-			requires std::is_base_of_v<prop::Widget, Widget>
-		void trace_base(const Widget *widget) {
-			widget->Widget::trace(*this);
+			requires(std::is_convertible_v<Widget &, prop::Widget &>)
+		void trace(const Widget &widget) {
+			add("", widget);
 		}
-		void trace_child(const prop::Widget &widget) {
-			if (not widgets.contains(&widget)) {
-				widgets[&widget] = {
-					.name = "<unnamed>",
-					.bases = {},
-				};
-				widget.trace(*this);
-			}
-			if (current_sub_widget) {
-				current_sub_widget->children.push_back(&widget);
-			}
-		}
+		std::string to_string() const;
+		void to_image(std::filesystem::path output_path) const;
 
 		static std::intptr_t heap_base_address;
 		static std::intptr_t stack_base_address;
@@ -144,48 +124,80 @@ namespace prop {
 
 		private:
 		template <class T>
-		void add(std::string_view name, const prop::Tracking_pointer<T> &tp) {
-			add(tp);
-			Property_data &prop = properties[tp];
-#ifndef PROPERTY_NAMES
-			prop.type = prop::type_name<T>();
-#endif
-			prop.name = name;
-			prop.value = tp->displayed_value();
-		}
-		template <class T>
-		void add(std::string_view name, const prop::Property<T> &property) {
-			add(&property);
-			Property_data &prop = properties[&property];
-#ifndef PROPERTY_NAMES
-			prop.type = prop::type_name<T>();
-#endif
-			prop.name = name;
-			prop.value = property.displayed_value();
-			if constexpr (requires { std::is_base_of_v<prop::Widget, decltype(*property.get())>; }) {
-				//prop.widget = property.get();
+		void add(std::string_view name, const T &p) {
+			if constexpr (std::is_convertible_v<T &, const prop::Property_link *>) {
+				auto property_link_pointer = static_cast<const prop::Property_link *>(p);
+				if (property_link_pointer) {
+					add(name, *property_link_pointer);
+				}
+				return;
+			}
+			if constexpr (std::is_convertible_v<T &, const prop::Property_link &>) {
+				if (auto widget = dynamic_cast<const prop::Widget *>(&static_cast<const prop::Property_link &>(p))) {
+					if (current_widget) {
+						if (std::find(std::begin(current_widget->children), std::end(current_widget->children),
+									  widget) == std::end(current_widget->children)) {
+							current_widget->children.push_back(widget);
+						}
+					}
+					auto [it, inserted] = object_data.insert({
+						widget,
+						{
+							.name = name,
+							.parent = current_widget,
+							.widget_data = {},
+						},
+					});
+					if (inserted) {
+						widget->trace(*this);
+					}
+					if (name != "") {
+						auto &object_name = it->second.name;
+						if (object_name == "") {
+							object_name = name;
+						}
+					}
+				} else {
+					auto [it, inserted] = object_data.insert({
+						&p,
+						{
+							.name = name,
+							.parent = current_widget,
+							.widget_data = {},
+						},
+					});
+					if (inserted) {
+						if (current_widget) {
+							auto previous_widget = current_widget;
+							current_widget = nullptr;
+							for (auto &dep : it->first->dependencies) {
+								add("", dep);
+							}
+							current_widget = previous_widget;
+							current_widget->members.push_back({.name = name, .data = it->first});
+						} else {
+							for (auto &dep : it->first->dependencies) {
+								add("", dep);
+							}
+						}
+					}
+				}
+			} else {
+				assert(current_widget);
+				current_widget->members.push_back({
+					.name = name,
+					.data =
+						Non_link_member{
+							.type = prop::type_name<T>(),
+							.value = prop::to_string(p),
+							.address = std::addressof(p),
+						},
+				});
 			}
 		}
 
-		template <class Widget>
-			requires std::is_base_of_v<prop::Widget, Widget>
-		void add(std::string_view name, const Widget &widget) {
-			trace_child(widget);
-			widgets[&widget].name = name;
-		}
+		std::string dot_name(Link_id object, prop::Alignment alignment = none) const;
 
-		void add(const prop::Property_link *pb);
-		std::string dot_name(Widget_id wid) const {
-			return "widget_" + prop::to_string(wid.widget_id);
-		}
-		template <class Property>
-			requires prop::is_template_specialization_v<Property, prop::Property>
-		std::string dot_name(const Property *p, prop::Alignment alignment = none) const {
-			return dot_property_name(p, alignment);
-		}
-		std::string dot_property_name(const void *p, prop::Alignment alignment = none) const;
-
-		const prop::Widget *current_widget = nullptr;
-		Widget_base_data *current_sub_widget = nullptr;
+		Widget_data *current_widget = nullptr;
 	};
 }; // namespace prop

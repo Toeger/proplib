@@ -1,5 +1,6 @@
 #include "proplib/ui/widget.h"
 #include "proplib/utility/dependency_tracer.h"
+#include "proplib/utility/tracking_pointer.h"
 
 #include <catch2/catch_all.hpp>
 
