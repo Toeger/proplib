@@ -22,19 +22,9 @@ std::string prop::Dependency_tracer::to_string() const {
 					std::string value;
 					const void *address;
 				};
-				auto [type, value, address] = std::visit(
-					[](auto &&m) -> Name_type_address {
-						if constexpr (std::is_same_v<std::remove_cvref_t<decltype(m)>,
-													 prop::Dependency_tracer::Non_link_member>) {
-							return {.type = m.type, .value = m.value, .address = m.address};
-						} else {
-							return {.type = m->type(), .value = m->value_string(), .address = m};
-						}
-					},
-					member.data);
-				ss << '\t' << prop::Color::type << type << ' ' << prop::Color::variable_name << member.name
-				   << prop::Color::static_text << '@' << prop::Color::address << address << ' '
-				   << prop::Color::variable_value << value << "\n";
+				ss << '\t' << prop::Color::type << member.get_type() << ' ' << prop::Color::variable_name << member.name
+				   << prop::Color::static_text << '@' << prop::Color::address << member.get_address() << ' '
+				   << prop::Color::variable_value << member.get_value_string() << "\n";
 			}
 		}
 	}
@@ -208,9 +198,11 @@ namespace Dot {
 	}
 } // namespace Dot
 
-void prop::Dependency_tracer::to_image([[maybe_unused]] std::filesystem::path output_path) const {
-#if TODO
+void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const {
 	using namespace Dot;
+	if (std::filesystem::is_directory(output_path)) {
+		output_path /= "tmp.png";
+	}
 	const auto extension = output_path.extension().string().erase(0, 1);
 	output_path.replace_extension(".dot");
 	std::ofstream file{output_path};
@@ -219,79 +211,101 @@ void prop::Dependency_tracer::to_image([[maybe_unused]] std::filesystem::path ou
 		Block _{"digraph G"};
 		Command _{"overlap=\"false\""};
 
-		//define widget nodes
-		for (auto &[address, common_data] : widgets) {
-			Block _{dot_name(address), "[", "];"};
-			Command _{"shape=plaintext"};
-			Block _{"label =", "<", ">"};
-			HTML_tag _{"table", "border='1' cellborder='0' cellspacing='1' bgcolor='#" + color_code(address) + "'"};
-			{
-				HTML_tag _{"tr"};
-				HTML_tag _{"td", "", ""};
-				{
-					HTML_tag _{"td", ""};
-					HTML_tag{"font", "color='darkgreen'", bold(html_encode(common_data.name))};
-				}
-				HTML_tag _{"td", "", ""};
-				HTML_tag _{"td", ""};
-				HTML_tag{"font", "color='blue'", prop::to_string(address)};
+		for (auto &[link, data] : object_data) {
+			if (data.parent) {
+				continue;
 			}
-			{
-				HTML_tag _{"tr"};
-				HTML_tag _{"td", "", bold("Type")};
-				HTML_tag _{"td", "", bold("Name")};
-				HTML_tag _{"td", "", bold("Value")};
-				HTML_tag _{"td", "", bold("Address")};
-			}
-
-			for (auto &base : std::views::reverse(common_data.bases)) {
+			if (data.widget_data.size()) {
+				Block _{dot_name(link), "[", "];"};
+				Command _{"shape=plaintext"};
+				Block _{"label =", "<", ">"};
+				HTML_tag _{"table", "border='1' cellborder='0' cellspacing='1' bgcolor='#" + color_code(link) + "'"};
 				{
 					HTML_tag _{"tr"};
+					HTML_tag _{"td", "", ""};
 					{
-						HTML_tag _{"td", "align='right'"};
-						HTML_tag{"font", "color='darkred'", html_encode(base.type)};
+						HTML_tag _{"td", ""};
+						HTML_tag{"font", "color='darkgreen'", bold(html_encode(data.name))};
 					}
 					HTML_tag _{"td", "", ""};
-					HTML_tag _{"td", "", ""};
-					HTML_tag _{"td", "", ""};
+					HTML_tag _{"td", ""};
+					HTML_tag{"font", "color='blue'", prop::to_string(link)};
 				}
-				for (auto &property : base.properties) {
-					auto &property_data = properties.find(property)->second;
-					auto name = property_data.name == "" ? "<unnamed>" : property_data.name;
+				{
+					HTML_tag _{"tr"};
+					HTML_tag _{"td", "", bold("Type")};
+					HTML_tag _{"td", "", bold("Name")};
+					HTML_tag _{"td", "", bold("Value")};
+					HTML_tag _{"td", "", bold("Address")};
+				}
+
+				for (auto &base : data.widget_data) {
 					{
 						HTML_tag _{"tr"};
 						{
 							HTML_tag _{"td", "align='right'"};
-							HTML_tag{"font", "color='darkred'", html_encode(property_data.type)};
+							HTML_tag{"font", "color='darkred'", bold(html_encode(base->type))};
 						}
+						HTML_tag _{"td", "", ""};
+						HTML_tag _{"td", "", ""};
+						HTML_tag _{"td", "", ""};
+					}
+					for (auto &member : base->members) {
 						{
-							HTML_tag _{"td", "align='center'"};
-							HTML_tag{"font", "color='darkgreen'", html_encode(name)};
+							HTML_tag _{"tr"};
+							{
+								HTML_tag _{"td", "align='right'"};
+								HTML_tag{"font", "color='darkred'", html_encode(member.get_type())};
+							}
+							{
+								HTML_tag _{"td", "align='center'"};
+								HTML_tag{"font", "color='darkgreen'", html_encode(member.name)};
+							}
+							HTML_tag _{"td", "align='left'", html_encode(member.get_value_string())};
+							HTML_tag _{"td",
+									   "align='left' port='property_" + prop::to_string(member.get_address()) + "'"};
+							HTML_tag{"font", "color='blue'", prop::to_string(member.get_address())};
 						}
-						HTML_tag _{"td", "align='left'", html_encode(property_data.value)};
-						HTML_tag _{"td", "align='left' port='property_" + prop::to_string(property) + "'"};
-						HTML_tag{"font", "color='blue'", prop::to_string(property)};
 					}
 				}
+			} else {
+				Block _{dot_name(link), "[", "];"};
+				Command _{"shape=rect"};
+				Command _{
+					std::format("label=<<font color='darkred'>{}</font> <font color='darkgreen'>{}</font> {} <font "
+								"color='blue'>{}</font>>",
+								html_encode(link->type()), html_encode(data.name.empty() ? "<unnamed>" : data.name),
+								html_encode(link->displayed_value()), prop::to_string(link))};
+				Command _{"style=\"filled\""};
+				Command _{"fillcolor=\"#" + color_code(link) + "\""};
+			}
+			for (auto &dep : link->get_dependencies()) {
+				//if (auto pit = properties.find(address); pit != std::end(properties) && pit->second.widget) {
+				//	if (auto dit = properties.find(dependent);
+				//		dit != std::end(properties) && dit->second.widget == pit->second.widget) {
+				//		//same widget
+				//		Command _{dot_property_name(address) + " -> " + dot_property_name(dependent) +
+				//				  " [color=\"red\" style=\"bold\"]"};
+				//		continue;
+				//		static int i = 1;
+				//		const auto color = i == 1 ? "red" : "red";
+				//		if (i == 1) {
+				//			Command _{"dummy [shape=circle,width=.01,height=.01,label=\"\"]"};
+				//			Command _{std::format("{} -> {} [color=\"{}\" style=\"bold\" arrowhead=none]",
+				//								  dot_property_name(address), "dummy", color)};
+				//		}
+				//		Command _{std::format("{} -> {} [color=\"{}\" style=\"bold\"]", "dummy",
+				//							  dot_property_name(dependent), color)};
+				//		Command _{std::format("{{rank=same {} {}}}", "dummy", dot_property_name(address))};
+				//		i++;
+				//		continue;
+				//	}
+				//}
+				Command _{dot_name(dep) + " -> " + dot_name(link) + (dep.is_required() ? "" : "[style=dashed]")};
 			}
 		}
 
-		//define non-widget property nodes
-		for (auto &[address, data] : properties) {
-			if (data.widget) {
-				continue;
-			}
-			Block _{dot_property_name(address), "[", "];"};
-			Command _{"shape=rect"};
-			Command _{
-				std::format("label=<<font color='darkred'>{}</font> <font color='darkgreen'>{}</font> {} <font "
-							"color='blue'>{}</font>>",
-							html_encode(data.type), data.name.empty() ? "<unnamed>" : html_encode(data.name),
-							html_encode(data.value), prop::to_string(address))};
-			Command _{"style=\"filled\""};
-			Command _{"fillcolor=\"#" + color_code(address) + "\""};
-		}
-
+#if DELETE_LATER
 		//arrows between widgets
 		for (auto &[address, common_data] : widgets) {
 			for (auto &base : std::views::reverse(common_data.bases)) {
@@ -301,35 +315,7 @@ void prop::Dependency_tracer::to_image([[maybe_unused]] std::filesystem::path ou
 				}
 			}
 		}
-
-		//arrows between properties
-		for (auto &[address, data] : properties) {
-			//dependents? Dependencies?
-			for (auto &dependent : data.dependents) {
-				if (auto pit = properties.find(address); pit != std::end(properties) && pit->second.widget) {
-					if (auto dit = properties.find(dependent);
-						dit != std::end(properties) && dit->second.widget == pit->second.widget) {
-						//same widget
-						Command _{dot_property_name(address) + " -> " + dot_property_name(dependent) +
-								  " [color=\"red\" style=\"bold\"]"};
-						continue;
-						static int i = 1;
-						const auto color = i == 1 ? "red" : "red";
-						if (i == 1) {
-							Command _{"dummy [shape=circle,width=.01,height=.01,label=\"\"]"};
-							Command _{std::format("{} -> {} [color=\"{}\" style=\"bold\" arrowhead=none]",
-												  dot_property_name(address), "dummy", color)};
-						}
-						Command _{std::format("{} -> {} [color=\"{}\" style=\"bold\"]", "dummy",
-											  dot_property_name(dependent), color)};
-						Command _{std::format("{{rank=same {} {}}}", "dummy", dot_property_name(address))};
-						i++;
-						continue;
-					}
-				}
-				Command _{dot_property_name(address) + " -> " + dot_property_name(dependent)};
-			}
-		}
+#endif
 	}
 	file.close();
 	const auto file_path = output_path.string();
@@ -337,68 +323,9 @@ void prop::Dependency_tracer::to_image([[maybe_unused]] std::filesystem::path ou
 	output_path.replace_extension("." + extension);
 	command += " -o \"" + output_path.string() + "\"";
 	std::system(command.c_str());
-#endif
 }
 
-#if TODO_Maybe
-void prop::Dependency_tracer::add(std::string_view name, const Property_link *link) {
-	auto [it, inserted] = object_data.insert({link, {}});
-	if (not inserted) {
-		if (it->second.name.empty()) {
-			it->second.name = name;
-		}
-		return;
-	}
-	auto &object = it->second;
-	object.name = name;
-	object.type = link->type();
-	object.value = link->value_string();
-	std::copy_if(std::begin(link->dependencies), std::end(link->dependencies), std::back_inserter(object.dependents),
-				 [](const prop::Property_link::Property_pointer &pl) { return pl != nullptr; });
-	object.explicit_dependents = link->explicit_dependencies;
-	object.implicit_dependents = link->implicit_dependencies;
-	for (auto &property : object.dependents) {
-		add("", property);
-	}
-}
-#endif
-
-#if TODO_Maybe
-void prop::Dependency_tracer::add(const prop::Property_link *pb) {
-	if (pb == nullptr) {
-		return;
-	}
-	if (current_sub_widget) {
-		auto &ps = current_sub_widget->properties;
-		if (auto it = std::lower_bound(std::begin(ps), std::end(ps), pb); it == std::end(ps) or *it != pb) {
-			ps.insert(it, pb);
-			if (properties.contains(pb)) {
-				properties[pb].widget = current_widget;
-				return;
-			}
-		}
-	}
-	if (properties.contains(pb)) {
-		return;
-	}
-	auto &&dependents = pb->get_dependents();
-	auto &&dependencies = pb->get_dependencies();
-	properties[pb] = {
-		.type = pb->type(),
-		.name = pb->custom_name,
-		.value = pb->displayed_value(),
-		.dependents = {std::begin(dependents), std::end(dependents)},
-		.dependencies = {std::begin(dependencies), std::end(dependencies)},
-		.widget = current_widget,
-	};
-	Make_current _{nullptr, *this};
-	for (auto &deps : pb->dependencies) {
-		add(deps);
-	}
-}
-#endif
-
-std::string prop::Dependency_tracer::dot_name(Link_id object, prop::Alignment alignment) const {
+std::string prop::Dependency_tracer::dot_name(const Property_link *link, prop::Alignment alignment) const {
 	if (alignment > center) {
 		alignment = none;
 	}
@@ -420,14 +347,13 @@ std::string prop::Dependency_tracer::dot_name(Link_id object, prop::Alignment al
 		":e",  //center_right,
 		":c",  //center,
 	};
-#if TODO
-	if (auto pit = properties.find(object); pit != std::end(properties)) {
-		if (pit->second.widget) {
-			return std::format("widget_{}:property_{}{}", prop::to_string(pit->second.widget), prop::to_string(object),
+	if (auto pit = object_data.find(link); pit != std::end(object_data)) {
+		auto &data = pit->second;
+		if (data.parent) {
+			return std::format("widget_{}:property_{}{}", prop::to_string(data.parent), prop::to_string(link),
 							   direction[alignment]);
 		}
-		return "property_" + prop::to_string(object);
+		return "property_" + prop::to_string(link);
 	}
-#endif
-	return "unknown_" + prop::to_string(object);
+	return "unknown_" + prop::to_string(link);
 }

@@ -16,9 +16,9 @@
 #define PROP_TRACE(PROP_TRACER, ...) PROP_TRACER.trace(#__VA_ARGS__ __VA_OPT__(, ) __VA_ARGS__)
 #define PROP_TRACER(...)                                                                                               \
 	[&] {                                                                                                              \
-		prop::Dependency_tracer tracer;                                                                                \
-		tracer.trace(#__VA_ARGS__ __VA_OPT__(, ) __VA_ARGS__);                                                         \
-		return tracer;                                                                                                 \
+		prop::Dependency_tracer PROP_tracer;                                                                           \
+		PROP_tracer.trace(#__VA_ARGS__ __VA_OPT__(, ) __VA_ARGS__);                                                    \
+		return PROP_tracer;                                                                                            \
 	}()
 
 namespace prop {
@@ -35,6 +35,42 @@ namespace prop {
 		struct Member_data {
 			std::string_view name;
 			std::variant<Non_link_member, const prop::Property_link *> data;
+			std::string_view get_type() const {
+				return std::visit(
+					[](auto &&m) {
+						if constexpr (std::is_same_v<std::remove_cvref_t<decltype(m)>,
+													 prop::Dependency_tracer::Non_link_member>) {
+							return m.type;
+						} else {
+							return m->type();
+						}
+					},
+					data);
+			}
+			std::string get_value_string() const {
+				return std::visit(
+					[](auto &&m) {
+						if constexpr (std::is_same_v<std::remove_cvref_t<decltype(m)>,
+													 prop::Dependency_tracer::Non_link_member>) {
+							return m.value;
+						} else {
+							return m->value_string();
+						}
+					},
+					data);
+			}
+			const void *get_address() const {
+				return std::visit(
+					[](auto &&m) -> const void * {
+						if constexpr (std::is_same_v<std::remove_cvref_t<decltype(m)>,
+													 prop::Dependency_tracer::Non_link_member>) {
+							return m.address;
+						} else {
+							return m;
+						}
+					},
+					data);
+			}
 		};
 		struct Widget_data {
 			std::string_view type;
@@ -116,7 +152,7 @@ namespace prop {
 			add("", widget);
 		}
 		std::string to_string() const;
-		void to_image(std::filesystem::path output_path) const;
+		void to_image(std::filesystem::path output_path = std::filesystem::temp_directory_path()) const;
 
 		static std::intptr_t heap_base_address;
 		static std::intptr_t stack_base_address;
@@ -196,7 +232,7 @@ namespace prop {
 			}
 		}
 
-		std::string dot_name(Link_id object, prop::Alignment alignment = none) const;
+		std::string dot_name(const Property_link *link, prop::Alignment alignment = none) const;
 
 		Widget_data *current_widget = nullptr;
 	};

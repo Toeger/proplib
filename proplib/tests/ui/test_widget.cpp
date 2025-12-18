@@ -9,11 +9,11 @@ TEST_CASE("Tracking test") {
 	auto ptr = prop::track(w);
 	REQUIRE(ptr == &w);
 	{
-		PROP_TRACER(ptr, w).to_image("/home/toeger/Projects/Prop/dot test/vl.png");
+		PROP_TRACER(ptr, w).to_image();
 		ptr.print_status();
 		prop::Widget w2 = std::move(w);
 		ptr.print_status();
-		PROP_TRACER(ptr, w, w2).to_image("/home/toeger/Projects/Prop/dot test/vl.png");
+		PROP_TRACER(ptr, w, w2).to_image();
 		REQUIRE(ptr == &w2);
 	}
 	REQUIRE(ptr == nullptr);

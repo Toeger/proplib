@@ -197,3 +197,19 @@ TEST_CASE("Trace printing widgets", "[Dependency_tracer]") {
 		REQUIRE(trace.contains(prop::to_string(std::addressof(b))));
 	}
 }
+
+TEST_CASE("Generating dot file", "[Dependency_tracer]") {
+	//TODO: Find a way to test dot file generation
+	WHEN("Displaying bound properties") {
+		prop::Property p = 42;
+		prop::Property p2 = [&p] { return p + 1; };
+		REQUIRE(p2.is_dependent_on(p));
+		REQUIRE(p.is_dependency_of(p2));
+		PROP_TRACER(p).to_image();
+	}
+	WHEN("Displaying inherited widget") {
+		prop::Button b;
+		prop::Widget &button = b;
+		PROP_TRACER(button).to_image();
+	}
+}
