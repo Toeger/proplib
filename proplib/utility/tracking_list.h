@@ -5,7 +5,7 @@
 namespace prop {
 	template <class T = prop::Property_link>
 		requires(std::is_convertible_v<T *, prop::Property_link *>)
-	class Tracking_list final : private prop::Property_link {
+	class Tracking_list final : public prop::Property_link {
 		private:
 		struct Tracking_list_iterator {
 			Tracking_list_iterator(const Tracking_list *Tracking_list, std::size_t pos = 0)
@@ -60,30 +60,35 @@ namespace prop {
 		public:
 		Tracking_list(std::span<const Property_link::Property_pointer> list)
 			: prop::Property_link{{std::begin(list), std::end(list)}} {}
-		static Tracking_list for_explicit_dependencies(const prop::Property_link &linked) {
-			return {std::begin(linked.dependencies) + linked.explicit_dependencies,
-					std::begin(linked.dependencies) + linked.explicit_dependencies};
+
+		static Tracking_list of_explicit_dependencies(const prop::Property_link &linked) {
+			return {std::begin(linked.dependencies), std::begin(linked.dependencies) + linked.explicit_dependencies};
 		}
 
-		static Tracking_list for_implicit_dependencies(const prop::Property_link &linked) {
+		static Tracking_list of_implicit_dependencies(const prop::Property_link &linked) {
 			return {std::begin(linked.dependencies) + linked.explicit_dependencies,
-					std::begin(linked.dependencies) + linked.explicit_dependencies};
+					std::begin(linked.dependencies) + linked.explicit_dependencies + linked.implicit_dependencies};
 		}
 
-		static Tracking_list for_all_dependencies(const prop::Property_link &linked) {
-			return {std::begin(linked.dependencies) + linked.explicit_dependencies,
-					std::begin(linked.dependencies) + linked.explicit_dependencies};
+		static Tracking_list of_all_dependencies(const prop::Property_link &linked) {
+			return {std::begin(linked.dependencies),
+					std::begin(linked.dependencies) + linked.explicit_dependencies + linked.implicit_dependencies};
 		}
 
-		static Tracking_list for_dependents(const prop::Property_link &linked) {
+		static Tracking_list of_dependents(const prop::Property_link &linked) {
 			return std::span<const prop::Property_link::Property_pointer>{
-				std::begin(linked.dependencies) + linked.explicit_dependencies,
-				std::begin(linked.dependencies) + linked.explicit_dependencies};
+				std::begin(linked.dependencies) + linked.explicit_dependencies + linked.implicit_dependencies,
+				std::end(linked.dependencies)};
 		}
 
-		static Tracking_list for_all_links(const prop::Property_link &linked) {
-			return {std::begin(linked.dependencies) + linked.explicit_dependencies,
-					std::begin(linked.dependencies) + linked.explicit_dependencies};
+		static Tracking_list of_all_links(const prop::Property_link &linked) {
+			return {std::begin(linked.dependencies), std::end(linked.dependencies)};
+		}
+
+		template <class... Args>
+			requires(std::is_convertible_v<std::remove_reference_t<Args> *, prop::Property_link *> and ...)
+		static Tracking_list of(Args &&...args) {
+			return std::span<const prop::Property_link::Property_pointer>{{std::addressof(args), false}...};
 		}
 
 		template <class Container>
@@ -98,6 +103,10 @@ namespace prop {
 
 		auto end() const {
 			return nullptr;
+		}
+
+		const prop::Property_link *operator[](std::size_t index) const {
+			return dependencies[index];
 		}
 
 		std::string_view type() const override {

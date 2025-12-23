@@ -5,7 +5,7 @@
 #include <memory>
 #include <numeric>
 
-TEST_CASE("Compile time checks") {
+TEST_CASE("Compile time checks", "[Property]") {
 	//Primitive types
 	static_assert(std::is_same_v<prop::detail::inner_value_type_t<int>, int>);
 	static_assert(std::is_same_v<prop::detail::inner_value_type_t<const volatile int &>, int>);
@@ -62,15 +62,18 @@ TEST_CASE("Compile time checks") {
 	static_assert(prop::detail::has_operator_arrow_v<prop::Polywrap<int>>);
 }
 
-TEST_CASE("Basic Property tests") {
+TEST_CASE("Basic Property tests", "[Property]") {
 	prop::Property p1 = 42;
 	REQUIRE(p1 == 42);
 	p1 = [] { return 12; };
 	REQUIRE(p1 == 12);
 	prop::Property<int> p2;
 	p2 = [&p1] { return p1 + 3; };
+	REQUIRE(p2.has_source());
+	REQUIRE(p2.is_dependent_on(p1));
 	REQUIRE(p2 == 15);
 	p1 = 1;
+	INFO(p2.get_status());
 	REQUIRE(p2 == 4);
 
 	p1.print_status();
@@ -102,7 +105,7 @@ TEST_CASE("Basic Property tests") {
 	p3.print_status();
 }
 
-TEST_CASE("Property<Move_only>") {
+TEST_CASE("Property<Move_only>", "[Property]") {
 	prop::Property<std::unique_ptr<int>> p1;
 	REQUIRE(p1 == nullptr);
 	p1 = std::make_unique<int>(42);
@@ -125,14 +128,14 @@ struct Acceptor {
 	}
 };
 
-TEST_CASE("Conversion property value") {
+TEST_CASE("Conversion property value", "[Property]") {
 	prop::Property p1 = 42;
 	p1 = Generator{};
 	prop::Property<Acceptor> p2;
 	p2 = 42;
 }
 
-TEST_CASE("Dereference") {
+TEST_CASE("Dereference", "[Property]") {
 	struct S {
 		int i = 42;
 	};
@@ -153,7 +156,7 @@ TEST_CASE("Dereference") {
 	}
 }
 
-TEST_CASE("Property assignment and value capturing") {
+TEST_CASE("Property assignment and value capturing", "[Property]") {
 	prop::Property p1 = 1;
 	prop::Property p2 = p1;
 	REQUIRE(p2 == 1);
@@ -165,7 +168,7 @@ TEST_CASE("Property assignment and value capturing") {
 	REQUIRE(p2 == 1);
 }
 
-TEST_CASE("Moving properties while maintaining binding") {
+TEST_CASE("Moving properties while maintaining binding", "[Property]") {
 	prop::Property p1 = 1;
 	prop::Property<int> p2;
 	p2 = {[](int &p1_value) { return p1_value + 1; }, p1};
@@ -191,7 +194,7 @@ TEST_CASE("Moving properties while maintaining binding") {
 	REQUIRE(p2 == 4);
 }
 
-TEST_CASE("Property function binder") {
+TEST_CASE("Property function binder", "[Property]") {
 	prop::Property p = 42;
 	prop::detail::Property_function_binder<int>{[] { return 0; }};
 	prop::detail::Property_function_binder<int>{[](const prop::Property<int> &) { return 0; }, p};
@@ -212,14 +215,14 @@ TEST_CASE("Property function binder") {
 #endif
 }
 
-TEST_CASE("Property binding mismatch compilation failures") {
+TEST_CASE("Property binding mismatch compilation failures", "[Property]") {
 	//prop::Property<int> p = {[](int &, prop::Property<double> &) { return 42; }}; //Not enough properties
 	//prop::Property<int> p{{[] { return 42; }, p}}; //Too many properties
 	//prop::Property<int> p{{[](double &) {}}}; //incorrect value type
 	//prop::Property<int> p{[](int &) {}}; //does not return update status
 }
 
-TEST_CASE("Explicit bindings") {
+TEST_CASE("Explicit bindings", "[Property]") {
 	prop::Property p1 = 42;
 	prop::Property<int> p2;
 	p2 = {[](const int &i) { return i + 2; }, p1};
@@ -241,7 +244,7 @@ TEST_CASE("Explicit bindings") {
 	p2 = {[](int, int, int) { return 42; }, &p1, &p1, p1};
 }
 
-TEST_CASE("Expiring explicit bindings") {
+TEST_CASE("Expiring explicit bindings", "[Property]") {
 	prop::Property<int> p1;
 	prop::Property p2 = 2;
 	{
@@ -270,7 +273,7 @@ struct S {
 	prop::Property<int> inner;
 };
 
-TEST_CASE("Inner property") {
+TEST_CASE("Inner property", "[Property]") {
 	prop::Property<S> p1;
 	prop::Property<void> p3;
 	p3 = {[](S &s) { s.inner = 42; }, p1};
@@ -290,7 +293,7 @@ struct SS {
 	prop::Property<S> s;
 };
 
-TEST_CASE("Inner inner property") {
+TEST_CASE("Inner inner property", "[Property]") {
 	prop::Property<SS> p1;
 	prop::Property<void> p4;
 	p4 = {[](SS &ss) {
@@ -316,20 +319,20 @@ TEST_CASE("Inner inner property") {
 	REQUIRE(p1.get().s.get().inner == 42);
 }
 
-TEST_CASE("Apply operators") {
+TEST_CASE("Apply operators", "[Property]") {
 	prop::Property p1 = 42;
 	//p1.apply()++;
 	//REQUIRE(p1 == 43);
 }
 
-TEST_CASE("Apply member function calls") {
+TEST_CASE("Apply member function calls", "[Property]") {
 	prop::Property<std::vector<int>> p1;
 	p1.apply()->push_back(42);
 	REQUIRE(p1.get().size() == 1);
 	REQUIRE(p1.get().front() == 42);
 }
 
-TEST_CASE("Dependency checks") {
+TEST_CASE("Dependency checks", "[Property]") {
 	prop::Property p1 = 42;
 	prop::Property p2 = [&] { return p1; };
 	p1.print_status();
@@ -351,7 +354,7 @@ TEST_CASE("Dependency checks") {
 	REQUIRE(p2.is_dependent_on(p1));
 }
 
-TEST_CASE("Vectorsum") {
+TEST_CASE("Vectorsum", "[Property]") {
 	prop::Property<std::vector<int>> pv;
 	prop::Property ps = [&pv] { return std::accumulate(std::begin(pv.get()), std::end(pv.get()), 0); };
 	REQUIRE(ps == 0);
@@ -361,7 +364,7 @@ TEST_CASE("Vectorsum") {
 	REQUIRE(ps == 47);
 }
 
-TEST_CASE("Operators") {
+TEST_CASE("Operators", "[Property]") {
 	prop::Property<int> pi = 42;
 	//pi.apply()++;
 	pi++;
@@ -385,7 +388,7 @@ TEST_CASE("Operators") {
 	REQUIRE(ps_changed == false);
 }
 
-TEST_CASE("Range-based for-loop") {
+TEST_CASE("Range-based for-loop", "[Property]") {
 	prop::Property pv{std::vector<std::size_t>{0, 1, 2, 3, 4, 5}};
 	std::size_t i = 0;
 	for (auto &v : pv.get()) {
@@ -493,7 +496,7 @@ struct Track_function {
 	Track_function &operator=(const Track_function &) = delete;
 };
 
-TEST_CASE("Value-captured property") {
+TEST_CASE("Value-captured property", "[Property]") {
 	prop::Property ptest{Track_function{}};
 	prop::Property p{42};
 	prop::Property p2{[p] mutable -> int { return p; }};
@@ -503,7 +506,7 @@ TEST_CASE("Value-captured property") {
 	REQUIRE(p2 == 42);
 }
 
-TEST_CASE("Sever via update function") {
+TEST_CASE("Sever via update function", "[Property]") {
 	prop::Property<bool> sever = false;
 	prop::Property<int> p{[&sever](int &i) {
 		if (i == 42) {
@@ -518,7 +521,7 @@ TEST_CASE("Sever via update function") {
 	REQUIRE(not p.is_bound());
 }
 
-TEST_CASE("All types of supported explicit parameters") {
+TEST_CASE("All types of supported explicit parameters", "[Property]") {
 	prop::Property<int> pi;
 	pi = {
 		[](int &, int &, int, int *, const int &, const int, const int *, prop::Property<int>, prop::Property<int> &,
@@ -539,9 +542,9 @@ TEST_CASE("All types of supported explicit parameters") {
 	};
 }
 
-TEST_CASE("Property addresses") {
+TEST_CASE("Property addresses", "[Property]") {
 	prop::Property<int> p1_, p2_, p3_, p4_, p5_;
-	prop::Property<int> p = prop::detail::Property_function_binder<int>{
+	prop::Property<int> p{
 		[&](prop::Property<int> &p1, prop::Property<int> *p2) {
 			REQUIRE(&p1 == &p1_);
 			REQUIRE(p2 == &p2_);
@@ -550,4 +553,9 @@ TEST_CASE("Property addresses") {
 		p1_,
 		p2_,
 	};
+}
+
+TEST_CASE("Quoted string property", "[Property]") {
+	prop::Property<std::string> ps;
+	REQUIRE(ps.displayed_value() == "\"\"");
 }

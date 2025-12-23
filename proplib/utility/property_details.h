@@ -54,22 +54,6 @@ namespace prop {
 				{ p.get() } -> Property_value<Inner_property_type>;
 			});
 
-		template <class Function, class T, class... Properties>
-		concept Generator_function = requires(Function &&f) {
-			{ f(std::declval<Properties &>()...) } -> prop::detail::assignable_to<T &>;
-		};
-
-		template <class Function, class T, class... Properties>
-		concept Updater_function = requires(Function &&f) {
-			{
-				f(std::declval<prop::Property<T> &>(), std::declval<Properties &>()...)
-			} -> std::same_as<prop::Updater_result>;
-		};
-
-		template <class Function, class T, class... Properties>
-		concept Property_update_function =
-			Generator_function<Function, T, Properties...> || Updater_function<Function, T, Properties...>;
-
 		template <class T>
 		const prop::Property<T> *get_property_pointer(const prop::Property<T> *p) {
 			return p;
@@ -77,6 +61,10 @@ namespace prop {
 		template <class T>
 		const prop::Property<T> *get_property_pointer(const prop::Property<T> &p) {
 			return get_property_pointer(&p);
+		}
+		template <class T>
+		const prop::Property<T> *get_property_pointer(const prop::Property_link &l) {
+			return static_cast<prop::Property<T> *>(l);
 		}
 
 		template <class Function_arg, class Property>
@@ -249,6 +237,53 @@ namespace prop {
 			}
 		}
 
+		template <class Function, class T, class Properties, class Parameters, std::size_t... indexes>
+		consteval bool generator_function_helper(std::index_sequence<indexes...> index_sequence) {
+			if constexpr (Properties::size != Parameters::size) {
+				return false;
+			} else if constexpr (not are_compatible_function_args_for_properties<T, Parameters, Properties>(
+									 index_sequence)) {
+				return false;
+			} else {
+				return prop::detail::assignable_to<
+					decltype(std::declval<Function &>()(
+						convert_to_function_arg<typename Parameters::template at<indexes>>(
+							get_property_pointer(std::declval<typename Properties::template at<indexes>>()))...)),
+					T &>;
+			}
+		}
+
+		template <class Function, class T, class... Properties>
+		concept Generator_function = generator_function_helper<Function, T, prop::Type_list<Properties...>,
+															   typename prop::Callable_info_for<Function>::Params>(
+			std::index_sequence_for<Properties...>());
+
+		template <class Function, class T, class Properties, class Parameters, std::size_t... indexes>
+		consteval bool updater_function_helper(std::index_sequence<indexes...> index_sequence) {
+			using Extended_properties = typename Properties::template prepend<prop::Property<T> &>;
+			if constexpr (Extended_properties::size != Parameters::size) {
+				return false;
+			} else if constexpr (not are_compatible_function_args_for_properties<T, Parameters, Extended_properties>(
+									 index_sequence)) {
+				return false;
+			} else {
+				return std::is_same_v<
+					decltype(std::declval<Function &>()(
+						convert_to_function_arg<typename Parameters::template at<indexes>>(get_property_pointer(
+							std::declval<typename Extended_properties::template at<indexes>>()))...)),
+					prop::Updater_result>;
+			}
+		}
+
+		template <class Function, class T, class... Properties>
+		concept Updater_function = updater_function_helper<Function, T, prop::Type_list<Properties...>,
+														   typename prop::Callable_info_for<Function>::Params>(
+			std::index_sequence_for<T, Properties...>{});
+
+		template <class Function, class T, class... Properties>
+		concept Property_update_function =
+			Generator_function<Function, T, Properties...> || Updater_function<Function, T, Properties...>;
+
 		template <class... Params, class... Args>
 		constexpr std::string type_comparer(const bool (&highlights)[sizeof...(Params)], prop::Type_list<Params...>,
 											prop::Type_list<Args...>) {
@@ -292,14 +327,14 @@ namespace prop {
 			explicit_dependencies[indexes].get_pointer()))
 					if constexpr (prop::detail::is_equal_comparable_v<T, decltype(source(PROP_ARGS...))>) {
 						auto value = source(PROP_ARGS...);
-						if (prop::detail::is_equal(p, value)) {
+						if (prop::detail::is_equal(p.value, value)) {
 							return prop::Updater_result::unchanged;
 						} else {
-							p = std::move(value);
+							p.value = std::move(value);
 							return prop::Updater_result::changed;
 						}
 					} else {
-						p = source(PROP_ARGS...);
+						p.value = source(PROP_ARGS...);
 						return prop::Updater_result::changed;
 					}
 #undef PROP_ARGS
@@ -454,14 +489,28 @@ namespace prop {
 			};
 		}
 
+		template <class T, std::size_t... indexes>
+		std::move_only_function<prop::Updater_result(prop::Property<T> &,
+													 std::span<const Property_link::Property_pointer>)>
+		make_direct_update_function(Updater_function<T> auto &&f, std::index_sequence<indexes...>) {
+			return [source = std::forward<decltype(f)>(f)](
+					   prop::Property<T> &p, std::span<const Property_link::Property_pointer> links) mutable {
+				using Params = typename prop::Callable_info_for<decltype(f)>::Params;
+				return source(prop::detail::convert_to_function_arg<typename Params::template at<0>>(
+								  prop::detail::get_property_pointer(p)),
+							  prop::detail::convert_to_function_arg<typename Params::template at<indexes + 1>>(
+								  prop::detail::get_property_pointer<typename Params::template at<indexes + 1>>(
+									  links[indexes]))...);
+			};
+		}
+
 		template <class T>
 		std::move_only_function<prop::Updater_result(prop::Property<T> &,
 													 std::span<const Property_link::Property_pointer>)>
 		make_direct_update_function(Updater_function<T> auto &&f) {
-			return [source = std::forward<decltype(f)>(f)](prop::Property<T> &t,
-														   std::span<const Property_link::Property_pointer>) mutable {
-				return source(t);
-			};
+			return make_direct_update_function<T>(
+				std::forward<decltype(f)>(f),
+				std::make_index_sequence<prop::Callable_info_for<decltype(f)>::Params::size - 1>());
 		}
 
 		template <class T>

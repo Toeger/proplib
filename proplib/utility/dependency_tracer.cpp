@@ -210,6 +210,7 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 		target = &file;
 		Block _{"digraph G"};
 		Command _{"overlap=\"false\""};
+		Command _{"fontname=\"FiraCode-Medium\""};
 
 		for (auto &[link, data] : object_data) {
 			if (data.parent) {
@@ -220,17 +221,6 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 				Command _{"shape=plaintext"};
 				Block _{"label =", "<", ">"};
 				HTML_tag _{"table", "border='1' cellborder='0' cellspacing='1' bgcolor='#" + color_code(link) + "'"};
-				{
-					HTML_tag _{"tr"};
-					HTML_tag _{"td", "", ""};
-					{
-						HTML_tag _{"td", ""};
-						HTML_tag{"font", "color='darkgreen'", bold(html_encode(data.name))};
-					}
-					HTML_tag _{"td", "", ""};
-					HTML_tag _{"td", ""};
-					HTML_tag{"font", "color='blue'", prop::to_string(link)};
-				}
 				{
 					HTML_tag _{"tr"};
 					HTML_tag _{"td", "", bold("Type")};
@@ -246,9 +236,15 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 							HTML_tag _{"td", "align='right'"};
 							HTML_tag{"font", "color='darkred'", bold(html_encode(base->type))};
 						}
+						{
+							HTML_tag _{"td"};
+							HTML_tag{"font", "color='darkgreen'", bold(html_encode(data.name))};
+						}
 						HTML_tag _{"td", "", ""};
-						HTML_tag _{"td", "", ""};
-						HTML_tag _{"td", "", ""};
+						{
+							HTML_tag _{"td"};
+							HTML_tag{"font", "color='blue'", bold(prop::to_string(link))};
+						}
 					}
 					for (auto &member : base->members) {
 						{

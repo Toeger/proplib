@@ -64,7 +64,8 @@ namespace prop {
 			ss << std::boolalpha << t;
 		} else if constexpr (std::is_enum_v<T>) {
 			ss << magic_enum::enum_name(t);
-		} else if constexpr (std::is_same_v<T, std::string>) {
+		} else if constexpr (std::is_same_v<T, std::string> or std::is_same_v<T, std::string_view> or
+							 std::is_same_v<T, char *> or std::is_same_v<T, const char *>) {
 			ss << '"' << t << '"';
 		} else if constexpr (requires { ss << t; }) {
 			ss << t;

@@ -148,7 +148,7 @@ void prop::Property_link::write_notify() {
 		return;
 	}
 	TRACE("Notifying  " << get_name() << "->" << get_dependents());
-	for (auto &dependent : prop::Tracking_list<>::for_dependents(*this)) {
+	for (auto &dependent : prop::Tracking_list<>::of_dependents(*this)) {
 		dependent->Property_link::update();
 	}
 }

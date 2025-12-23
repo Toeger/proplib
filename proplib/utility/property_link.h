@@ -30,43 +30,11 @@ namespace prop {
 		public:
 		using Property_pointer = prop::detail::Required_pointer<Property_link>;
 
-		void operator=(const Property_link &) = delete;
-		void operator=(Property_link &&other);
-
-		Property_link(Property_link &&other);
-
 		virtual std::string_view type() const = 0;
 		virtual std::string value_string() const = 0;
 		virtual bool has_source() const = 0;
 		void print_status(const Extended_status_data &esd = {}) const;
 		std::string get_status() const;
-
-		protected:
-		virtual void update() = 0;
-		virtual void unbind() {
-			assert_status();
-			for (std::size_t i = 0; i < explicit_dependencies + implicit_dependencies; i++) {
-				dependencies[i]->remove_dependent(*this);
-			}
-			dependencies.erase(std::begin(dependencies),
-							   std::begin(dependencies) + explicit_dependencies + implicit_dependencies);
-			explicit_dependencies = implicit_dependencies = 0;
-		}
-		virtual std::string displayed_value() const {
-			assert_status();
-			return "<base>";
-		}
-		void read_notify() const;
-		void write_notify();
-		void update_start(Property_link *&previous_binding);
-		void update_complete(Property_link *&previous_binding);
-
-		Property_link(const Property_link &) = delete;
-		Property_link();
-		Property_link(std::string_view type);
-		Property_link(std::vector<Property_pointer> explicit_dependencies);
-
-		friend void swap(Property_link &lhs, Property_link &rhs);
 
 		bool is_dependency_of(const Property_link &other) const {
 			assert_status();
@@ -93,9 +61,6 @@ namespace prop {
 			assert_status();
 			return has_dependency(other);
 		}
-		//Dependency_list(std::vector<Property_pointer> explicit_dependencies_list = {})
-		//	: dependencies{std::move(explicit_dependencies_list)}
-		//	, explicit_dependencies{static_cast<long>(dependencies.size())} {}
 		bool has_dependency(const Property_link &other) const {
 			assert_status();
 			const auto end = std::begin(dependencies) + explicit_dependencies + implicit_dependencies;
@@ -116,6 +81,39 @@ namespace prop {
 			return std::find(std::begin(dependencies) + explicit_dependencies + implicit_dependencies,
 							 std::end(dependencies), &other) != std::end(dependencies);
 		}
+
+		protected:
+		void operator=(const Property_link &) = delete;
+		void operator=(Property_link &&other);
+
+		Property_link(Property_link &&other);
+
+		virtual void update() = 0;
+		virtual void unbind() {
+			assert_status();
+			for (std::size_t i = 0; i < explicit_dependencies + implicit_dependencies; i++) {
+				dependencies[i]->remove_dependent(*this);
+			}
+			dependencies.erase(std::begin(dependencies),
+							   std::begin(dependencies) + explicit_dependencies + implicit_dependencies);
+			explicit_dependencies = implicit_dependencies = 0;
+		}
+		virtual std::string displayed_value() const {
+			assert_status();
+			return "<base>";
+		}
+		void read_notify() const;
+		void write_notify();
+		void update_start(Property_link *&previous_binding);
+		void update_complete(Property_link *&previous_binding);
+
+		Property_link(const Property_link &) = delete;
+		Property_link();
+		Property_link(std::string_view type);
+		Property_link(std::vector<Property_pointer> explicit_dependencies);
+
+		friend void swap(Property_link &lhs, Property_link &rhs);
+
 		void add_explicit_dependency(Property_pointer property) {
 			assert_status();
 			dependencies.insert(std::begin(dependencies) + explicit_dependencies++, property);
