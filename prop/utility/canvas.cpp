@@ -1,8 +1,8 @@
 #include "canvas.h"
 
-#include "proplib/platform/platform.h"
-#include "proplib/ui/widget.h"
-#include "proplib/utility/font.h"
+#include "prop/platform/platform.h"
+#include "prop/ui/widget.h"
+#include "prop/utility/font.h"
 
 prop::Canvas::Canvas(Rect rect_, platform::Canvas_context &canvas_context_)
 	: rect{std::move(rect_)}

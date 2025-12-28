@@ -1,5 +1,5 @@
 #include "font.h"
-#include "proplib/utility/style.h"
+#include "prop/utility/style.h"
 
 #define PROP_MEMBERS                                                                                                   \
 	PROP_X(color), PROP_X(name), PROP_X(alignment), PROP_X(size), PROP_X(bold), PROP_X(italic), PROP_X(strikeout),     \

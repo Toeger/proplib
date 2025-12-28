@@ -1,6 +1,6 @@
 #include "window.h"
-#include "proplib/platform/platform.h"
-#include "proplib/utility/canvas.h"
+#include "prop/platform/platform.h"
+#include "prop/utility/canvas.h"
 
 #include <SFML/Graphics.hpp>
 

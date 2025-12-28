@@ -1,7 +1,7 @@
 #pragma once
 
 #include "color.h"
-#include "proplib/utility/utility.h"
+#include "prop/utility/utility.h"
 #include "required_pointer.h"
 
 #include <cassert>

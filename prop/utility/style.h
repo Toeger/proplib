@@ -1,7 +1,7 @@
 #pragma once
 
-#include "proplib/utility/font.h"
-#include "proplib/utility/property.h"
+#include "prop/utility/font.h"
+#include "prop/utility/property.h"
 
 #include <chrono>
 

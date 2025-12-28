@@ -2,7 +2,7 @@
 
 #include "alignment.h"
 #include "property_link.h"
-#include "proplib/ui/widget.h"
+#include "prop/ui/widget.h"
 #include "type_name.h"
 
 #include <filesystem>

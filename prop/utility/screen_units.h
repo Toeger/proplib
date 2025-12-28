@@ -1,7 +1,7 @@
 #pragma once
 
-#include "proplib/platform/platform.h"
-#include "proplib/utility/property.h"
+#include "prop/platform/platform.h"
+#include "prop/utility/property.h"
 
 #include <cmath>
 #include <format>

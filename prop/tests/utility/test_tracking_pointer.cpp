@@ -1,5 +1,5 @@
-#include "proplib/utility/property.h"
-#include "proplib/utility/tracking_pointer.h"
+#include "prop/utility/property.h"
+#include "prop/utility/tracking_pointer.h"
 #include <catch2/catch_all.hpp>
 
 TEST_CASE("Basic tracking") {

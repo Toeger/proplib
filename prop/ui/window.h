@@ -1,9 +1,9 @@
 #pragma once
 
-#include "proplib/ui/widget.h"
-#include "proplib/utility/polywrap.h"
-#include "proplib/utility/property.h"
-#include "proplib/utility/rect.h"
+#include "prop/ui/widget.h"
+#include "prop/utility/polywrap.h"
+#include "prop/utility/property.h"
+#include "prop/utility/rect.h"
 
 #include <memory>
 #include <string>

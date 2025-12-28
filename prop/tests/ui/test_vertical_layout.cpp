@@ -1,6 +1,6 @@
-#include "proplib/ui/label.h"
-#include "proplib/ui/vertical_layout.h"
-#include "proplib/utility/dependency_tracer.h"
+#include "prop/ui/label.h"
+#include "prop/ui/vertical_layout.h"
+#include "prop/utility/dependency_tracer.h"
 
 #include <catch2/catch_all.hpp>
 

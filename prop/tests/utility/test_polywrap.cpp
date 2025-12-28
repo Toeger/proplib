@@ -1,5 +1,5 @@
-#include "proplib/utility/polywrap.h"
-#include "proplib/utility/type_traits.h"
+#include "prop/utility/polywrap.h"
+#include "prop/utility/type_traits.h"
 
 #include <catch2/catch_all.hpp>
 #include <functional>

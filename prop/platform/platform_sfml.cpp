@@ -1,7 +1,7 @@
 #include "platform.h"
-#include "proplib/ui/window.h"
-#include "proplib/utility/canvas.h"
-#include "proplib/utility/utility.h"
+#include "prop/ui/window.h"
+#include "prop/utility/canvas.h"
+#include "prop/utility/utility.h"
 
 #include <SFML/Graphics/RenderWindow.hpp>
 #include <SFML/Graphics/Text.hpp>

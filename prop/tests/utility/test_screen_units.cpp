@@ -1,5 +1,5 @@
-#include "proplib/platform/platform.h"
-#include "proplib/utility/screen_units.h"
+#include "prop/platform/platform.h"
+#include "prop/utility/screen_units.h"
 
 #include <catch2/catch_all.hpp>
 #include <iostream>

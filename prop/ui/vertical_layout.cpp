@@ -1,7 +1,7 @@
 #include "vertical_layout.h"
-#include "proplib/utility/canvas.h"
-#include "proplib/utility/dependency_tracer.h"
-#include "proplib/utility/tracking_pointer.h"
+#include "prop/utility/canvas.h"
+#include "prop/utility/dependency_tracer.h"
+#include "prop/utility/tracking_pointer.h"
 
 #include <cassert>
 #ifdef PROPERTY_NAMES

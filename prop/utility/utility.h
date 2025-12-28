@@ -1,6 +1,6 @@
 #pragma once
 
-#include "proplib/platform/external/magic_enum.hpp"
+#include "prop/platform/external/magic_enum.hpp"
 #include <algorithm>
 #include <ranges>
 #include <sstream>

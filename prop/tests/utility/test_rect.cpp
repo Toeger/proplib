@@ -1,4 +1,4 @@
-#include "proplib/utility/rect.h"
+#include "prop/utility/rect.h"
 
 #include <catch2/catch_all.hpp>
 

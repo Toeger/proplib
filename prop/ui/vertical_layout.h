@@ -1,10 +1,10 @@
 #pragma once
 
-#include "proplib/ui/widget.h"
-#include "proplib/utility/alignment.h"
-#include "proplib/utility/dependency_tracer.h"
-#include "proplib/utility/polywrap.h"
-#include "proplib/utility/property.h"
+#include "prop/ui/widget.h"
+#include "prop/utility/alignment.h"
+#include "prop/utility/dependency_tracer.h"
+#include "prop/utility/polywrap.h"
+#include "prop/utility/property.h"
 
 #include <boost/pfr/core.hpp>
 #include <vector>

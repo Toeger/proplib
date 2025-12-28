@@ -1,4 +1,4 @@
-#include "proplib/utility/required_pointer.h"
+#include "prop/utility/required_pointer.h"
 
 #include <catch2/catch_all.hpp>
 

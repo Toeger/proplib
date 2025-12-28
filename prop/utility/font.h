@@ -1,8 +1,8 @@
 #pragma once
 
-#include "proplib/utility/alignment.h"
-#include "proplib/utility/color.h"
-#include "proplib/utility/screen_units.h"
+#include "prop/utility/alignment.h"
+#include "prop/utility/color.h"
+#include "prop/utility/screen_units.h"
 
 #include <optional>
 #include <string>

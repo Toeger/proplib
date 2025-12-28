@@ -1,8 +1,8 @@
 #include "label.h"
-#include "proplib/platform/platform.h"
-#include "proplib/utility/canvas.h"
-#include "proplib/utility/tracking_pointer.h"
-#include "proplib/utility/utility.h"
+#include "prop/platform/platform.h"
+#include "prop/utility/canvas.h"
+#include "prop/utility/tracking_pointer.h"
+#include "prop/utility/utility.h"
 
 #include <boost/pfr/tuple_size.hpp>
 #include <cassert>

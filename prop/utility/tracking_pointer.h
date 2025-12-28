@@ -1,8 +1,8 @@
 #pragma once
 
-#include "proplib/utility/property_link.h"
-#include "proplib/utility/type_name.h"
-#include "proplib/utility/utility.h"
+#include "prop/utility/property_link.h"
+#include "prop/utility/type_name.h"
+#include "prop/utility/utility.h"
 
 namespace prop {
 	template <class T>

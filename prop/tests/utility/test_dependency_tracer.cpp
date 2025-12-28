@@ -1,8 +1,8 @@
-#include "proplib/ui/button.h"
-#include "proplib/ui/vertical_layout.h"
-#include "proplib/ui/widget.h"
-#include "proplib/utility/dependency_tracer.h"
-#include "proplib/utility/property.h"
+#include "prop/ui/button.h"
+#include "prop/ui/vertical_layout.h"
+#include "prop/ui/widget.h"
+#include "prop/utility/dependency_tracer.h"
+#include "prop/utility/property.h"
 
 #include <catch2/catch_all.hpp>
 

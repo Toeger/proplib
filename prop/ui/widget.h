@@ -1,8 +1,8 @@
 #pragma once
 
-#include "proplib/utility/property.h"
-#include "proplib/utility/rect.h"
-#include "proplib/utility/signal.h"
+#include "prop/utility/property.h"
+#include "prop/utility/rect.h"
+#include "prop/utility/signal.h"
 
 #ifdef PROPERTY_NAMES
 #include <string_view>

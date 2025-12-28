@@ -1,7 +1,7 @@
 #include "widget.h"
-#include "proplib/utility/canvas.h"
-#include "proplib/utility/dependency_tracer.h"
-#include "proplib/utility/utility.h"
+#include "prop/utility/canvas.h"
+#include "prop/utility/dependency_tracer.h"
+#include "prop/utility/utility.h"
 
 #include <boost/pfr/tuple_size.hpp>
 #ifdef PROPERTY_NAMES

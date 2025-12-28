@@ -1,6 +1,6 @@
 #include "external/ansi_color.hpp"
 #include "platform.h"
-#include "proplib/utility/color.h"
+#include "prop/utility/color.h"
 #include <iostream>
 
 #ifdef WIN32

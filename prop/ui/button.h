@@ -1,8 +1,8 @@
 #pragma once
 
-#include "proplib/ui/widget.h"
-#include "proplib/utility/font.h"
-#include "proplib/utility/style.h"
+#include "prop/ui/widget.h"
+#include "prop/utility/font.h"
+#include "prop/utility/style.h"
 
 #include <functional>
 

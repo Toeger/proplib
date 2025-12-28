@@ -1,5 +1,5 @@
 #include "color.h"
-#include "proplib/platform/platform.h"
+#include "prop/platform/platform.h"
 
 std::ostream &prop::operator<<(std::ostream &os, prop::Color color) {
 	prop::platform::Console::set_foreground_text_color(os, color);

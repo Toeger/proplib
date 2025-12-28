@@ -1,4 +1,4 @@
-#include "proplib/utility/signal.h"
+#include "prop/utility/signal.h"
 
 #include <catch2/catch_all.hpp>
 

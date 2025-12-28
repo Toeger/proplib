@@ -1,5 +1,5 @@
-#include "proplib/utility/polywrap.h"
-#include "proplib/utility/property.h"
+#include "prop/utility/polywrap.h"
+#include "prop/utility/property.h"
 
 #include <catch2/catch_all.hpp>
 #include <memory>

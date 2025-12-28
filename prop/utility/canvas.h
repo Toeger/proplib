@@ -1,7 +1,7 @@
 #pragma once
 
-#include "proplib/utility/font.h"
-#include "proplib/utility/rect.h"
+#include "prop/utility/font.h"
+#include "prop/utility/rect.h"
 
 #include <string_view>
 
