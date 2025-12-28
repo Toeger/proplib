@@ -35,3 +35,23 @@
 	}();
 	- std::intptr_t prop::Dependency_tracer::heap_base_address =
 		reinterpret_cast<std::intptr_t>(std::launder(std::make_unique<int>().get()));
+
+- Reasons for GUI language
+	- Easier to learn and write
+	- Better at expressing GUIs
+	- Hot reload (compilation speed)
+- Reasons for native
+	- No duplicate syntax
+	- Full integration with backend
+	- Future language improvements
+
+- Designer
+	- Scan through code to detect widgets
+	- Visual editor with widgets and their properties
+	- Property and widget graph
+	- Hot reload
+	- Widget selection in application
+		- Display properties
+		- Object graph
+		- Go to source
+		- Property data watchpoint
