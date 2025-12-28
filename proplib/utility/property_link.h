@@ -28,7 +28,7 @@ namespace prop {
 
 	class Property_link {
 		public:
-		using Property_pointer = prop::detail::Required_pointer<Property_link>;
+		using Property_pointer = prop::Required_pointer<Property_link>;
 
 		virtual std::string_view type() const = 0;
 		virtual std::string value_string() const = 0;
@@ -80,6 +80,10 @@ namespace prop {
 			assert_status();
 			return std::find(std::begin(dependencies) + explicit_dependencies + implicit_dependencies,
 							 std::end(dependencies), &other) != std::end(dependencies);
+		}
+
+		static const Property_link *get_current_binding() {
+			return current_binding;
 		}
 
 		protected:
@@ -142,22 +146,19 @@ namespace prop {
 		}
 		std::span<const Property_pointer> get_explicit_dependencies() const {
 			assert_status();
-			return std::span{dependencies}.subspan(0, static_cast<std::size_t>(explicit_dependencies));
+			return std::span{dependencies}.subspan(0, explicit_dependencies);
 		}
 		std::span<const Property_pointer> get_implicit_dependencies() const {
 			assert_status();
-			return std::span{dependencies}.subspan(static_cast<std::size_t>(explicit_dependencies),
-												   static_cast<std::size_t>(implicit_dependencies));
+			return std::span{dependencies}.subspan(explicit_dependencies, implicit_dependencies);
 		}
 		std::span<const Property_pointer> get_dependencies() const {
 			assert_status();
-			return std::span{dependencies}.subspan(
-				0, static_cast<std::size_t>(explicit_dependencies + implicit_dependencies));
+			return std::span{dependencies}.subspan(0, explicit_dependencies + implicit_dependencies);
 		}
 		std::span<const Property_pointer> get_dependents() const {
 			assert_status();
-			return std::span{dependencies}.subspan(
-				static_cast<std::size_t>(explicit_dependencies + implicit_dependencies));
+			return std::span{dependencies}.subspan(explicit_dependencies + implicit_dependencies);
 		}
 
 		//Stable_list get_stable_dependents() const;

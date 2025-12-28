@@ -44,7 +44,7 @@ void prop::Widget::draw(prop::Canvas) const {}
 
 #ifdef PROPERTY_NAMES
 void prop::Widget::set_name(std::string_view name) {
-#define PROP_X(MEMBER) MEMBER.custom_name = std::string{name.data(), name.size()} + "." #MEMBER
+#define PROP_X(MEMBER) MEMBER.custom_name = std::string{name} + "." #MEMBER
 	(PROP_WIDGET_PROPERTY_MEMBERS);
 #undef PROP_X
 }

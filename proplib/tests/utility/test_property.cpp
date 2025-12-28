@@ -62,25 +62,38 @@ TEST_CASE("Compile time checks", "[Property]") {
 	static_assert(prop::detail::has_operator_arrow_v<prop::Polywrap<int>>);
 }
 
+TEST_CASE("Current binding", "[Property]") {
+	REQUIRE(prop::Property_link::get_current_binding() == nullptr);
+	prop::Property p1 = 1;
+	REQUIRE(prop::Property_link::get_current_binding() == nullptr);
+	p1 = [&p1] {
+		REQUIRE(prop::Property_link::get_current_binding() == &p1);
+		return 2;
+	};
+	REQUIRE(prop::Property_link::get_current_binding() == nullptr);
+}
+
 TEST_CASE("Basic Property tests", "[Property]") {
+	std::clog << std::endl;
 	prop::Property p1 = 42;
+	p1.custom_name = "p1";
 	REQUIRE(p1 == 42);
 	p1 = [] { return 12; };
 	REQUIRE(p1 == 12);
 	prop::Property<int> p2;
+	p2.custom_name = "p2";
 	p2 = [&p1] { return p1 + 3; };
 	REQUIRE(p2.has_source());
 	REQUIRE(p2.is_dependent_on(p1));
 	REQUIRE(p2 == 15);
+	REQUIRE(prop::Property_link::get_current_binding() == nullptr);
 	p1 = 1;
 	INFO(p2.get_status());
 	REQUIRE(p2 == 4);
 
-	p1.print_status();
-	p2.print_status();
-
 	int call_counter = 0;
 	prop::Property<int> p3;
+	p3.custom_name = "p3";
 	p3 = [&] {
 		call_counter++;
 		if (p1) {
@@ -89,20 +102,19 @@ TEST_CASE("Basic Property tests", "[Property]") {
 		return p2;
 	};
 
-	p1.print_status();
-	p2.print_status();
-	p3.print_status();
-
 	REQUIRE(p3 == 1);
+	REQUIRE(p2.has_source());
+	REQUIRE(p3.has_source());
 	REQUIRE(call_counter == 1);
 	p1 = 0;
+	REQUIRE(p2.has_source());
+	REQUIRE(p3.has_source());
+	INFO(p1.get_status());
+	INFO(p2.get_status());
+	INFO(p3.get_status());
 	REQUIRE(p2 == 3);
 	REQUIRE(p3 == 3);
 	REQUIRE(call_counter == 2);
-
-	p1.print_status();
-	p2.print_status();
-	p3.print_status();
 }
 
 TEST_CASE("Property<Move_only>", "[Property]") {
@@ -176,20 +188,20 @@ TEST_CASE("Moving properties while maintaining binding", "[Property]") {
 	p1 = 2;
 	REQUIRE(p2 == 3);
 
-	p1.print_status();
-	p2.print_status();
+	INFO(p1.get_status());
+	INFO(p2.get_status());
 
 	prop::Property p3 = std::move(p1);
 
-	p1.print_status();
-	p2.print_status();
-	p3.print_status();
+	INFO(p1.get_status());
+	INFO(p2.get_status());
+	INFO(p3.get_status());
 
 	p3 = 3;
 
-	p1.print_status();
-	p2.print_status();
-	p3.print_status();
+	INFO(p1.get_status());
+	INFO(p2.get_status());
+	INFO(p3.get_status());
 
 	REQUIRE(p2 == 4);
 }
@@ -277,15 +289,15 @@ TEST_CASE("Inner property", "[Property]") {
 	prop::Property<S> p1;
 	prop::Property<void> p3;
 	p3 = {[](S &s) { s.inner = 42; }, p1};
-	p1.print_status();
-	p3.print_status();
+	INFO(p1.get_status());
+	INFO(p3.get_status());
 	p1 = S{};
-	p1.print_status();
-	p3.print_status();
+	INFO(p1.get_status());
+	INFO(p3.get_status());
 	REQUIRE(p1.get().inner == 42);
 	p1 = S{};
-	p1.print_status();
-	p3.print_status();
+	INFO(p1.get_status());
+	INFO(p3.get_status());
 	REQUIRE(p1.get().inner == 42);
 }
 
@@ -295,8 +307,8 @@ struct SS {
 
 TEST_CASE("Inner inner property", "[Property]") {
 	prop::Property<SS> p1;
-	prop::Property<void> p4;
-	p4 = {[](SS &ss) {
+	prop::Property<void> p2;
+	p2 = {[](SS &ss) {
 			  ss.s = [](S &s) {
 				  if (s.inner == 42) {
 					  return prop::Updater_result::unchanged;
@@ -307,15 +319,15 @@ TEST_CASE("Inner inner property", "[Property]") {
 			  };
 		  },
 		  p1};
-	p1.print_status();
-	p4.print_status();
+	INFO(p1.get_status());
+	INFO(p2.get_status());
 	p1 = SS{};
-	p1.print_status();
-	p4.print_status();
+	INFO(p1.get_status());
+	INFO(p2.get_status());
 	REQUIRE(p1.get().s.get().inner == 42);
 	p1 = SS{};
-	p1.print_status();
-	p4.print_status();
+	INFO(p1.get_status());
+	INFO(p2.get_status());
 	REQUIRE(p1.get().s.get().inner == 42);
 }
 
@@ -335,8 +347,8 @@ TEST_CASE("Apply member function calls", "[Property]") {
 TEST_CASE("Dependency checks", "[Property]") {
 	prop::Property p1 = 42;
 	prop::Property p2 = [&] { return p1; };
-	p1.print_status();
-	p2.print_status();
+	INFO(p1.get_status());
+	INFO(p2.get_status());
 	REQUIRE(p1.is_implicit_dependency_of(p2));
 	REQUIRE(p2.is_implicit_dependent_of(p1));
 	REQUIRE_FALSE(p1.is_explicit_dependency_of(p2));
@@ -344,8 +356,8 @@ TEST_CASE("Dependency checks", "[Property]") {
 	REQUIRE(p1.is_dependency_of(p2));
 	REQUIRE(p2.is_dependent_on(p1));
 	p2 = {[](int i) { return i; }, p1};
-	p1.print_status();
-	p2.print_status();
+	INFO(p1.get_status());
+	INFO(p2.get_status());
 	REQUIRE(p1.is_explicit_dependency_of(p2));
 	REQUIRE(p2.is_explicit_dependent_of(p1));
 	REQUIRE_FALSE(p1.is_implicit_dependency_of(p2));
@@ -500,7 +512,7 @@ TEST_CASE("Value-captured property", "[Property]") {
 	prop::Property ptest{Track_function{}};
 	prop::Property p{42};
 	prop::Property p2{[p] mutable -> int { return p; }};
-	p2.print_status();
+	INFO(p2.get_status());
 	REQUIRE(p2 == 42);
 	p++; //no effect since we're not actually bound to p
 	REQUIRE(p2 == 42);

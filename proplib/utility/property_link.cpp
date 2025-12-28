@@ -136,9 +136,9 @@ struct Tracer {
 void prop::Property_link::read_notify() const {
 	assert_status();
 	if (current_binding and current_binding != this and not current_binding->has_dependency(*this)) {
+		current_binding->add_implicit_dependency({this, true});
 		TRACE("Added      " << get_name() << " as an implicit dependency of\n           "
 							<< current_binding->get_name());
-		current_binding->add_implicit_dependency({this, true});
 	}
 }
 
@@ -162,6 +162,7 @@ void prop::Property_link::update_start(Property_link *&previous_binding) {
 	}
 	dependencies.erase(std::begin(dependencies) + explicit_dependencies,
 					   std::begin(dependencies) + explicit_dependencies + implicit_dependencies);
+	implicit_dependencies = 0;
 	current_binding = this;
 }
 
