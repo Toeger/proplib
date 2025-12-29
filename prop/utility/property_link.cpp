@@ -4,8 +4,8 @@
 #include "type_name.h"
 
 #ifdef PROP_LIFETIMES
-std::map<const prop::Property_link *, prop::Property_link::Property_state> &prop::Property_link::lifetimes() {
-	static std::map<const prop::Property_link *, prop::Property_link::Property_state> Property_link_lifetimes;
+std::map<const prop::Property_link *, prop::Property_link::Property_link_lifetime_status> &prop::Property_link::lifetimes() {
+	static std::map<const prop::Property_link *, prop::Property_link::Property_link_lifetime_status> Property_link_lifetimes;
 	return Property_link_lifetimes;
 }
 #endif
@@ -273,7 +273,7 @@ prop::Property_link::~Property_link() {
 #ifdef PROPERTY_DEBUG
 	custom_name = "~" + custom_name;
 #endif
-	set_status(Property_state::post);
+	set_status(Property_link_lifetime_status::post);
 }
 
 void prop::swap(Property_link &lhs, Property_link &rhs) {

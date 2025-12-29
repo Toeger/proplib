@@ -2,6 +2,7 @@
 
 #include "color.h"
 #include "prop/utility/utility.h"
+#include "property_decls.h"
 #include "required_pointer.h"
 
 #include <cassert>
@@ -181,15 +182,41 @@ namespace prop {
 
 		private:
 #ifdef PROP_LIFETIMES
-		enum class Property_state { pre, alive, post };
-		static std::map<const Property_link *, Property_state> &lifetimes();
+		enum class Property_link_lifetime_status { pre, alive, post };
+		friend std::ostream &operator<<(std::ostream &os, Property_link_lifetime_status state) {
+			switch (state) {
+				case Property_link_lifetime_status::pre:
+					return os << "before construction";
+				case Property_link_lifetime_status::alive:
+					return os << "after construction and before destruction";
+				case Property_link_lifetime_status::post:
+					return os << "after destruction";
+			}
+			return os << "unknown";
+		}
+		static std::map<const Property_link *, Property_link_lifetime_status> &lifetimes();
 #endif
-		void assert_status([[maybe_unused]] Property_state state = Property_state::alive) const {
+		void assert_status(
+			[[maybe_unused]] Property_link_lifetime_status state = Property_link_lifetime_status::alive) const {
 #ifdef PROP_LIFETIMES
+			if (lifetimes()[this] == state) {
+				return;
+			}
+			std::stringstream ss;
+			auto error =
+				(std::stringstream{} << prop::Color::red << "Error" << prop::Color::reset << ": Expected "
+									 << prop::Color::type << "Property_link" << prop::Color::reset << "@"
+									 << prop::Color::address << this << prop::Color::reset << " to be in status "
+									 << prop::Color::variable_value << state << prop::Color::reset << ", but it is in "
+									 << prop::Color::variable_value << lifetimes()[this] << prop::Color::reset << ".")
+					.str();
+			std::clog << error << '\n';
 			assert(lifetimes()[this] == state);
+			throw std::runtime_error{std::move(error)};
 #endif
 		}
-		void set_status([[maybe_unused]] Property_state state = Property_state::alive) const {
+		void
+		set_status([[maybe_unused]] Property_link_lifetime_status state = Property_link_lifetime_status::alive) const {
 #ifdef PROP_LIFETIMES
 			lifetimes()[this] = state;
 #endif
@@ -207,6 +234,15 @@ namespace prop {
 				 it != std::end(dependencies); ++it) {
 				if (*it == &other) {
 					dependencies.erase(it);
+					return;
+				}
+			}
+		}
+		void remove_implicit_dependency(const Property_link &other) {
+			for (unsigned int index = 0; index < implicit_dependencies; index++) {
+				if (dependencies[explicit_dependencies + index] == &other) {
+					dependencies.erase(std::begin(dependencies) + explicit_dependencies + index);
+					implicit_dependencies--;
 					return;
 				}
 			}
@@ -230,6 +266,12 @@ namespace prop {
 			requires(std::is_convertible_v<T *, prop::Property_link *>)
 		friend class Tracking_list;
 		friend prop::Dependency_tracer;
+
+		template <class T, class Function, class... Properties, std::size_t... indexes>
+			requires(not std::is_same_v<T, void>)
+		friend std::move_only_function<prop::Updater_result(
+			prop::Property<T> &, std::span<const Property_link::Property_pointer> explicit_dependencies)>
+		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
 	};
 	inline void Property_link::update() {
 		assert_status();

@@ -3,12 +3,12 @@
 #include <catch2/catch_all.hpp>
 
 TEST_CASE("Basic value", "[Required_pointer]") {
-	int i;
+	int i{};
 	prop::Required_pointer<int> ri{&i, true};
 	REQUIRE(ri == &i);
 	REQUIRE(ri.is_required());
 	REQUIRE(ri.get_pointer() == &i);
-	int j;
+	int j{};
 	ri = &j;
 	REQUIRE(ri == &j);
 	REQUIRE(ri.is_required());

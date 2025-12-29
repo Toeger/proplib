@@ -118,8 +118,4 @@ struct Tracer {
 	std::ostream &os;
 	std::source_location source_location;
 };
-
-#define TRACE(...) Tracer{} << __VA_ARGS__
-#else
-#define TRACE(...)
 #endif

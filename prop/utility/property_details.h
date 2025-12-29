@@ -1,6 +1,7 @@
 #pragma once
 
 #include "callable.h"
+#include "property_decls.h"
 #include "property_link.h"
 #include "type_list.h"
 #include "type_name.h"
@@ -16,11 +17,6 @@
 #endif
 
 namespace prop {
-	template <class T>
-	class Property;
-
-	enum struct Updater_result : char { unchanged, changed, sever };
-
 	namespace detail {
 		template <class T, class U = T>
 		concept is_equal_comparable_v = requires(const T &t, const U &u) {
@@ -326,15 +322,43 @@ namespace prop {
 		static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(                                         \
 			explicit_dependencies[indexes].get_pointer()))
 					if constexpr (prop::detail::is_equal_comparable_v<T, decltype(source(PROP_ARGS...))>) {
-						auto value = source(PROP_ARGS...);
-						if (prop::detail::is_equal(p.value, value)) {
-							return prop::Updater_result::unchanged;
+						auto &&value = source(PROP_ARGS...);
+						const bool is_equal = prop::detail::is_equal(p.value, value);
+						if constexpr (prop::is_template_specialization_v<
+										  typename prop::Callable_info_for<Function>::Return_type, prop::Property>) {
+							auto dependents = value.get_dependents();
+							if (dependents.size() == 1) {
+								dependents.front()->remove_implicit_dependency(value);
+								value.remove_dependent(*dependents.front());
+							}
+							if (is_equal) {
+								return prop::Updater_result::unchanged;
+							} else {
+								p.value = std::move(value.value);
+								return prop::Updater_result::changed;
+							}
 						} else {
-							p.value = std::move(value);
-							return prop::Updater_result::changed;
+							if (is_equal) {
+								return prop::Updater_result::unchanged;
+							} else {
+								p.value = std::move(value);
+								return prop::Updater_result::changed;
+							}
 						}
 					} else {
-						p.value = source(PROP_ARGS...);
+						if constexpr (prop::is_template_specialization_v<
+										  typename prop::Callable_info_for<Function>::Return_type, prop::Property>) {
+							auto &&value = source(PROP_ARGS...);
+							value.read_notify();
+							auto dependents = value.get_dependents();
+							if (dependents.size() == 1) {
+								dependents.front()->remove_implicit_dependency(value);
+								value.remove_dependent(*dependents.front());
+							}
+							p.value = std::move(value.value);
+						} else {
+							p.value = source(PROP_ARGS...);
+						}
 						return prop::Updater_result::changed;
 					}
 #undef PROP_ARGS
@@ -494,7 +518,8 @@ namespace prop {
 													 std::span<const Property_link::Property_pointer>)>
 		make_direct_update_function(Updater_function<T> auto &&f, std::index_sequence<indexes...>) {
 			return [source = std::forward<decltype(f)>(f)](
-					   prop::Property<T> &p, std::span<const Property_link::Property_pointer> links) mutable {
+					   prop::Property<T> &p,
+					   [[maybe_unused]] std::span<const Property_link::Property_pointer> links) mutable {
 				using Params = typename prop::Callable_info_for<decltype(f)>::Params;
 				return source(prop::detail::convert_to_function_arg<typename Params::template at<0>>(
 								  prop::detail::get_property_pointer(p)),

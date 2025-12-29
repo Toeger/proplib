@@ -1,8 +1,8 @@
-#include "proplib/ui/button.h"
-#include "proplib/ui/label.h"
-#include "proplib/ui/vertical_layout.h"
-#include "proplib/ui/window.h"
-#include "proplib/utility/widget_helper.h"
+#include "prop/ui/button.h"
+#include "prop/ui/label.h"
+#include "prop/ui/vertical_layout.h"
+#include "prop/ui/window.h"
+#include "prop/utility/widget_helper.h"
 
 #include <iostream>
 

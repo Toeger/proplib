@@ -74,7 +74,6 @@ TEST_CASE("Current binding", "[Property]") {
 }
 
 TEST_CASE("Basic Property tests", "[Property]") {
-	std::clog << std::endl;
 	prop::Property p1 = 42;
 	p1.custom_name = "p1";
 	REQUIRE(p1 == 42);

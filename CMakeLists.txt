@@ -45,6 +45,7 @@ set(PROP_LIBRARY_UTILITY_NAMES
 	font
 	polywrap
 	property
+	property_decls
 	property_details
 	property_link
 	raii

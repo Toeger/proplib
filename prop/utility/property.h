@@ -793,7 +793,7 @@ namespace prop {
 		prop::detail::RAII updater{[this, &previous_binding] { update_start(previous_binding); },
 								   [this, &previous_binding] { update_complete(previous_binding); }};
 		try {
-			switch (source(*this, this->get_explicit_dependencies())) {
+			switch (source(*this, get_explicit_dependencies())) {
 				case prop::Updater_result::sever:
 					unbind();
 					[[fallthrough]];
@@ -810,37 +810,6 @@ namespace prop {
 			unbind();
 			throw;
 		}
-#if 0
-		Write_notifier wn{this};
-		auto call_source = [this, &previous_binding] {
-			prop::detail::RAII updater{[this, &previous_binding] { update_start(previous_binding); },
-									   [this, &previous_binding] { update_complete(previous_binding); }};
-			return source(explicit_dependencies);
-		};
-		if constexpr (prop::detail::is_equal_comparable_v<T>) {
-			try {
-				T t = call_source();
-				if (prop::detail::is_equal(t, value)) {
-					wn.p = nullptr;
-				} else {
-					value = std::move(t);
-				}
-			} catch (const prop::Property_expired &) {
-				unbind();
-			}
-		} else {
-			if constexpr (std::is_move_assignable_v<T>) {
-				try {
-					value = call_source();
-				} catch (const prop::Property_expired &) {
-					unbind();
-				}
-			} else {
-				throw prop::Logic_error{"Trying to update a " + std::string{prop::type_name<prop::Property<T>>()} +
-										" which is not move-assignable"};
-			}
-		}
-#endif
 	}
 
 	Property<void> &Property<void>::operator=(std::convertible_to<std::move_only_function<void()>> auto &&f) {
