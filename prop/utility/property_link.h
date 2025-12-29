@@ -97,7 +97,9 @@ namespace prop {
 		virtual void unbind() {
 			assert_status();
 			for (std::size_t i = 0; i < explicit_dependencies + implicit_dependencies; i++) {
-				dependencies[i]->remove_dependent(*this);
+				if (dependencies[i]) {
+					dependencies[i]->remove_dependent(*this);
+				}
 			}
 			dependencies.erase(std::begin(dependencies),
 							   std::begin(dependencies) + explicit_dependencies + implicit_dependencies);

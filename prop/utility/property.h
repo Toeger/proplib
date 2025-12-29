@@ -187,7 +187,6 @@ namespace prop {
 		std::string displayed_value() const final {
 			return prop::to_display_string(value, 30);
 		}
-		void sever();
 		Write_notifier apply();
 		template <class Functor>
 		std::invoke_result_t<Functor, T &> apply(Functor &&f);
@@ -794,7 +793,7 @@ namespace prop {
 								   [this, &previous_binding] { update_complete(previous_binding); }};
 		try {
 			switch (source(*this, get_explicit_dependencies())) {
-				case prop::Updater_result::sever:
+				case prop::Updater_result::unbind:
 					unbind();
 					[[fallthrough]];
 				case prop::Updater_result::changed:

@@ -10,7 +10,7 @@ namespace prop {
 	template <class T>
 	class Property;
 
-	enum struct Updater_result : char { unchanged, changed, sever };
+	enum struct Updater_result : char { unchanged, changed, unbind };
 
 	class Property_link;
 	namespace detail {

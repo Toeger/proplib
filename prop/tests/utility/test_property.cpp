@@ -220,17 +220,19 @@ TEST_CASE("Property function binder", "[Property]") {
 	prop::detail::Property_function_binder<int>{[](double) { return 0; }, &p};
 #if defined PROP_RUN_FAILED_TESTS || 0
 	/* Number of function arguments and properties don't match: */
-	prop::detail::Property_function_binder<int>{[](int i) { return 0; }};
+	//prop::detail::Property_function_binder<int>{[](int) { return 0; }};
 	/* Callable arguments and parameters are incompatible: */
-	prop::detail::Property_function_binder<int>{[](double &d) { return 0; }, p};
+	//prop::detail::Property_function_binder<int>{[](double &) { return 0; }, p};
 #endif
 }
 
 TEST_CASE("Property binding mismatch compilation failures", "[Property]") {
-	//prop::Property<int> p = {[](int &, prop::Property<double> &) { return 42; }}; //Not enough properties
-	//prop::Property<int> p{{[] { return 42; }, p}}; //Too many properties
-	//prop::Property<int> p{{[](double &) {}}}; //incorrect value type
-	//prop::Property<int> p{[](int &) {}}; //does not return update status
+#if defined PROP_RUN_FAILED_TESTS || 0
+	//prop::Property<int> p1{[](int &, prop::Property<double> &) { return 42; }}; //Not enough properties
+	//prop::Property<int> p2{{[] { return 42; }, p2}};							//Too many properties
+	//prop::Property<int> p3{{[](double &) {}}};									//incorrect value type
+	//prop::Property<int> p4{[](int &) {}};										//does not return update status
+#endif
 }
 
 TEST_CASE("Explicit bindings", "[Property]") {
@@ -263,6 +265,7 @@ TEST_CASE("Expiring explicit bindings", "[Property]") {
 		{
 			prop::Property p4 = 4;
 			p1 = {[&p2](int &vp3, int *vp4) { return 1 + p2 + vp3 + (vp4 ? *vp4 : 0); }, p3, p4};
+			REQUIRE(p1.is_bound());
 			//1 + 2 + 3 + 4 = 10
 			REQUIRE(p1 == 10);
 			p4 = 44;
@@ -270,13 +273,16 @@ TEST_CASE("Expiring explicit bindings", "[Property]") {
 			REQUIRE(p1 == 50);
 		}
 		//p4 died, but it's ok because vp4 is a pointer
+		REQUIRE(p1.is_bound());
 		//1 + 2 + 3 + 0 = 6
 		REQUIRE(p1 == 6);
 	}
-	//p3 died, so p1 has been severed, old value 6 still exists
+	//p3 died, so p1 has been unbound, old value 6 still exists
+	REQUIRE(not p1.is_bound());
 	REQUIRE(p1 == 6);
 	p2 = 2;
-	//changes to p2 have no effect on p1 because p1 has been severed
+	//changes to p2 have no effect on p1 because p1 has been unbound
+	REQUIRE(not p1.is_bound());
 	REQUIRE(p1 == 6);
 }
 
@@ -345,7 +351,9 @@ TEST_CASE("Apply member function calls", "[Property]") {
 
 TEST_CASE("Dependency checks", "[Property]") {
 	prop::Property p1 = 42;
+	p1.custom_name = "p1";
 	prop::Property p2 = [&] { return p1; };
+	p2.custom_name = "p2";
 	INFO(p1.get_status());
 	INFO(p2.get_status());
 	REQUIRE(p1.is_implicit_dependency_of(p2));
@@ -517,18 +525,18 @@ TEST_CASE("Value-captured property", "[Property]") {
 	REQUIRE(p2 == 42);
 }
 
-TEST_CASE("Sever via update function", "[Property]") {
-	prop::Property<bool> sever = false;
-	prop::Property<int> p{[&sever](int &i) {
+TEST_CASE("Unbind via update function", "[Property]") {
+	prop::Property<bool> unbind = false;
+	prop::Property<int> p{[&unbind](int &i) {
 		if (i == 42) {
-			return sever ? prop::Updater_result::sever : prop::Updater_result::unchanged;
+			return unbind ? prop::Updater_result::unbind : prop::Updater_result::unchanged;
 		}
 		i = 42;
-		return sever ? prop::Updater_result::sever : prop::Updater_result::changed;
+		return unbind ? prop::Updater_result::unbind : prop::Updater_result::changed;
 	}};
 	REQUIRE(p == 42);
 	REQUIRE(p.is_bound());
-	sever = true;
+	unbind = true;
 	REQUIRE(not p.is_bound());
 }
 
@@ -569,4 +577,6 @@ TEST_CASE("Property addresses", "[Property]") {
 TEST_CASE("Quoted string property", "[Property]") {
 	prop::Property<std::string> ps;
 	REQUIRE(ps.displayed_value() == "\"\"");
+	ps = "Hello world";
+	REQUIRE(ps.displayed_value() == "\"Hello world\"");
 }

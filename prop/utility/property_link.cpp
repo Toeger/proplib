@@ -4,8 +4,10 @@
 #include "type_name.h"
 
 #ifdef PROP_LIFETIMES
-std::map<const prop::Property_link *, prop::Property_link::Property_link_lifetime_status> &prop::Property_link::lifetimes() {
-	static std::map<const prop::Property_link *, prop::Property_link::Property_link_lifetime_status> Property_link_lifetimes;
+std::map<const prop::Property_link *, prop::Property_link::Property_link_lifetime_status> &
+prop::Property_link::lifetimes() {
+	static std::map<const prop::Property_link *, prop::Property_link::Property_link_lifetime_status>
+		Property_link_lifetimes;
 	return Property_link_lifetimes;
 }
 #endif
@@ -247,6 +249,7 @@ prop::Property_link::~Property_link() {
 	for (std::size_t dependent_index = explicit_dependencies + implicit_dependencies;
 		 dependent_index < std::size(dependencies); ++dependent_index) {
 		auto &dependent = *dependencies[dependent_index];
+		bool update_needed = false;
 		for (std::uint16_t dependent_dependency_index = 0;
 			 dependent_dependency_index < dependent.explicit_dependencies + dependent.implicit_dependencies;
 			 ++dependent_dependency_index) {
@@ -255,18 +258,24 @@ prop::Property_link::~Property_link() {
 				if (dependent_dependency.is_required()) {
 					dependent.unbind();
 					TRACE("Removed    " << this << " from required dependencies of " << dependent.get_name());
+					update_needed = false;
 					break; //all dependents and dependencies are gone
 				}
 				if (dependent_dependency_index < dependent.explicit_dependencies) { //explicit dependency
 					dependent_dependency = nullptr;
 					TRACE("Removed    " << this << " from optional explicit dependencies of " << dependent.get_name());
+					update_needed = true;
 					//duplicate explicit dependency possible
 				} else { //implicit dependency
 					dependent.dependencies.erase(std::begin(dependent.dependencies) + dependent_dependency_index);
 					TRACE("Removed    " << this << " from optional implicit dependencies of " << dependent.get_name());
+					update_needed = true;
 					break; //only 1 implicit dependency possible
 				}
 			}
+		}
+		if (update_needed) {
+			dependent.update();
 		}
 	}
 	TRACE("Destroyed  " << this);
@@ -439,9 +448,9 @@ void prop::Property_link::print_extended_status(const prop::Extended_status_data
 #else
 	esd.output << prop::Color::address << this << '\n';
 #endif
-	esd.output << indent << prop::Color::static_text << "           value: " << prop::Color::reset << value_string()
-			   << "\n";
-	esd.output << indent << prop::Color::static_text << "           source: " << prop::Color::reset
+	esd.output << indent << prop::Color::static_text << "           Value: " << prop::Color::variable_value
+			   << value_string() << "\n";
+	esd.output << indent << prop::Color::static_text << "           Bound: " << prop::Color::variable_value
 			   << (has_source() ? "Yes" : "No") << "\n";
 	esd.output << indent << prop::Color::static_text << "           Explicit dependencies: " << prop::Color::reset;
 	print_dep(get_explicit_dependencies());
