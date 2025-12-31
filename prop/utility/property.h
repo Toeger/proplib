@@ -622,6 +622,7 @@ namespace prop {
 #endif
 		value{std::move(generator.value)}
 		, source{std::move(generator.source)} {
+		set_explicit_dependencies(std::move(generator.dependencies));
 	}
 
 	template <class T>
@@ -633,6 +634,7 @@ namespace prop {
 #endif
 		value{std::move(generator.value)}
 		, source{std::move(generator.source)} {
+		set_explicit_dependencies(std::move(generator.dependencies));
 	}
 
 	template <class T>
@@ -676,6 +678,7 @@ namespace prop {
 
 	template <class T>
 	Property<T> &Property<T>::operator=(Updater<T> &&updater) {
+		set_explicit_dependencies(std::move(updater.dependencies));
 		update_source(std::move(updater.source));
 		return *this;
 	}

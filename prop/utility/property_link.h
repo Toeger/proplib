@@ -170,14 +170,12 @@ namespace prop {
 		std::string custom_name;
 		std::string get_name() const {
 			assert_status();
-			std::string auto_name =
-				prop::to_string(prop::Color::type) + std::string{type()} + prop::to_string(prop::Color::static_text) +
-				"@" + prop::to_string(prop::Color::address) + prop::to_string(static_cast<const void *>(this)) +
-				prop::to_string(prop::Color::reset);
+			std::string auto_name = to_string(true);
 			if (custom_name.empty()) {
-				return auto_name;
+				return auto_name + prop::to_string(prop::Color::reset);
 			}
-			return auto_name + ' ' + custom_name;
+			return auto_name + ' ' + prop::to_string(prop::Color::variable_name) + custom_name +
+				   prop::to_string(prop::Color::reset);
 		}
 #endif
 		~Property_link();
@@ -259,6 +257,8 @@ namespace prop {
 				}
 			}
 		}
+
+		std::string to_string(bool do_dynamic_lookup) const;
 
 		mutable std::vector<Property_pointer> dependencies;
 		mutable std::uint16_t explicit_dependencies = 0;

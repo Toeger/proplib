@@ -323,42 +323,14 @@ namespace prop {
 			explicit_dependencies[indexes].get_pointer()))
 					if constexpr (prop::detail::is_equal_comparable_v<T, decltype(source(PROP_ARGS...))>) {
 						auto &&value = source(PROP_ARGS...);
-						const bool is_equal = prop::detail::is_equal(p.value, value);
-						if constexpr (prop::is_template_specialization_v<
-										  typename prop::Callable_info_for<Function>::Return_type, prop::Property>) {
-							auto dependents = value.get_dependents();
-							if (dependents.size() == 1) {
-								dependents.front()->remove_implicit_dependency(value);
-								value.remove_dependent(*dependents.front());
-							}
-							if (is_equal) {
-								return prop::Updater_result::unchanged;
-							} else {
-								p.value = std::move(value.value);
-								return prop::Updater_result::changed;
-							}
+						if (prop::detail::is_equal(p.value, value)) {
+							return prop::Updater_result::unchanged;
 						} else {
-							if (is_equal) {
-								return prop::Updater_result::unchanged;
-							} else {
-								p.value = std::move(value);
-								return prop::Updater_result::changed;
-							}
+							p.value = std::move(value);
+							return prop::Updater_result::changed;
 						}
 					} else {
-						if constexpr (prop::is_template_specialization_v<
-										  typename prop::Callable_info_for<Function>::Return_type, prop::Property>) {
-							auto &&value = source(PROP_ARGS...);
-							value.read_notify();
-							auto dependents = value.get_dependents();
-							if (dependents.size() == 1) {
-								dependents.front()->remove_implicit_dependency(value);
-								value.remove_dependent(*dependents.front());
-							}
-							p.value = std::move(value.value);
-						} else {
-							p.value = source(PROP_ARGS...);
-						}
+						p.value = source(PROP_ARGS...);
 						return prop::Updater_result::changed;
 					}
 #undef PROP_ARGS

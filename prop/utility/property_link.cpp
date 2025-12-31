@@ -115,9 +115,9 @@ struct Tracer {
 		os << '[';
 		const char *sep = "";
 		for (auto &l : span) {
-			os << prop::Color::type << l->type() << prop::Color::static_text << '@' << prop::Color::address
-			   << l.get_pointer() << prop::Color::static_text << sep;
-			sep = ",";
+			os << sep << prop::Color::type << l->type() << prop::Color::static_text << '@' << prop::Color::address
+			   << l.get_pointer() << prop::Color::static_text;
+			sep = ", ";
 		}
 		os << ']';
 		return std::move(*this);
@@ -158,6 +158,7 @@ void prop::Property_link::write_notify() {
 void prop::Property_link::update_start(Property_link *&previous_binding) {
 	assert_status();
 	TRACE("Updating   " << get_name());
+	TRACE(get_status());
 	previous_binding = current_binding;
 	for (std::size_t i = explicit_dependencies; i < explicit_dependencies + implicit_dependencies; i++) {
 		dependencies[i]->remove_dependent(*this);
@@ -170,29 +171,61 @@ void prop::Property_link::update_start(Property_link *&previous_binding) {
 
 void prop::Property_link::update_complete(Property_link *&previous_binding) {
 	TRACE("Updated    " << get_name());
+	TRACE(get_status());
 	current_binding = previous_binding;
+}
+
+std::string prop::Property_link::to_string(bool do_type_lookup = false) const {
+	std::stringstream ss;
+	ss << prop::Color::type;
+	if (do_type_lookup) {
+		ss << type();
+	} else {
+		ss << prop::type_name<prop::Property_link>();
+	}
+	ss << prop::Color::static_text << '@' << prop::Color::address << this;
+	if (custom_name.empty()) {
+		ss << prop::Color::static_text;
+	} else {
+		ss << prop::Color::variable_name << ' ' << custom_name << prop::Color::static_text;
+	}
+	return ss.str();
 }
 
 prop::Property_link::Property_link() {
 	set_status();
-	TRACE("Created    " << this);
+	if (current_binding) {
+		TRACE("Created    " << to_string() << " inside binding of\n           " << current_binding->to_string(true));
+		current_binding->add_implicit_dependency({this, false});
+	} else {
+		TRACE("Created    " << to_string());
+	}
 }
 
 prop::Property_link::Property_link([[maybe_unused]] std::string_view type) {
 	set_status();
-	TRACE("Created    " << prop::Color::type << type << prop::Color::static_text << '@' << prop::Color::address << this
-						<< prop::Color::reset);
+	if (current_binding) {
+		TRACE("Created    " << to_string() << " inside binding of\n           " << current_binding->to_string(true));
+		current_binding->add_implicit_dependency({this, false});
+	} else {
+		TRACE("Created    " << to_string());
+	}
 }
 
 prop::Property_link::Property_link(std::vector<prop::Property_link::Property_pointer> initial_explicit_dependencies)
 	: dependencies{std::move(initial_explicit_dependencies)}
 	, explicit_dependencies{static_cast<decltype(explicit_dependencies)>(dependencies.size())} {
 	set_status();
-	TRACE("Created    " << this);
 	for (auto &explicit_dependency : dependencies) {
 		if (auto ptr = explicit_dependency.get_pointer()) {
 			ptr->add_dependent(*this);
 		}
+	}
+	if (current_binding) {
+		TRACE("Created    " << to_string() << " inside binding of\n           " << current_binding->to_string(true));
+		current_binding->add_implicit_dependency({this, false});
+	} else {
+		TRACE("Created    " << to_string());
 	}
 }
 
@@ -268,13 +301,14 @@ prop::Property_link::~Property_link() {
 					//duplicate explicit dependency possible
 				} else { //implicit dependency
 					dependent.dependencies.erase(std::begin(dependent.dependencies) + dependent_dependency_index);
+					dependent.implicit_dependencies--;
 					TRACE("Removed    " << this << " from optional implicit dependencies of " << dependent.get_name());
 					update_needed = true;
 					break; //only 1 implicit dependency possible
 				}
 			}
 		}
-		if (update_needed) {
+		if (update_needed and &dependent != current_binding) {
 			dependent.update();
 		}
 	}
@@ -444,7 +478,7 @@ void prop::Property_link::print_extended_status(const prop::Extended_status_data
 	};
 	esd.output << indent << prop::Color::static_text;
 #ifdef PROPERTY_NAMES
-	esd.output << get_name() << '\n';
+	esd.output << prop::Color::variable_name << get_name() << '\n';
 #else
 	esd.output << prop::Color::address << this << '\n';
 #endif
