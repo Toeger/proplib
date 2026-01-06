@@ -46,6 +46,24 @@ namespace prop {
 		return std::move(ss).str();
 	}
 
+	template <class Container>
+	std::string to_string(const Container &c)
+		requires(
+			not requires(std::stringstream &ss) { ss << c; } and
+			requires(std::stringstream &ss) {
+				prop::to_string(*std::begin(c));
+				std::end(c);
+			})
+	{
+		std::stringstream ss;
+		const char *sep = "";
+		for (auto &e : c) {
+			ss << sep << e;
+			sep = ", ";
+		}
+		return std::move(ss).str();
+	}
+
 	template <class T>
 	std::string to_display_string(const T &t, const std::size_t max_length = static_cast<std::size_t>(-1)) {
 		if (max_length == 0) {

@@ -2,6 +2,7 @@
 
 #include "property_details.h"
 #include "raii.h"
+#include "utility.h"
 #include <string>
 #include <string_view>
 
@@ -791,9 +792,8 @@ namespace prop {
 
 	template <class T>
 	void Property<T>::update() {
-		prop::Property_link *previous_binding;
-		prop::detail::RAII updater{[this, &previous_binding] { update_start(previous_binding); },
-								   [this, &previous_binding] { update_complete(previous_binding); }};
+		auto data = update_start();
+		prop::detail::RAII updater{[this, &data] { update_complete(data); }};
 		try {
 			switch (source(*this, get_explicit_dependencies())) {
 				case prop::Updater_result::unbind:

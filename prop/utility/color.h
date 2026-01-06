@@ -95,7 +95,7 @@ inline constexpr prop::Color prop::Color::purple{{.rgb = 0x800080}};
 
 inline prop::Color prop::Color::static_text = prop::Color::silver;
 inline prop::Color prop::Color::type = prop::Color::yellow;
-inline prop::Color prop::Color::variable_name = prop::Color::aqua;
+inline prop::Color prop::Color::variable_name = prop::Color::green;
 inline prop::Color prop::Color::variable_value = prop::Color::white;
 inline prop::Color prop::Color::address = prop::Color::olive;
 inline prop::Color prop::Color::file = prop::Color::aqua;

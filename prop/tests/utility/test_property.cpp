@@ -259,11 +259,15 @@ TEST_CASE("Explicit bindings", "[Property]") {
 
 TEST_CASE("Expiring explicit bindings", "[Property]") {
 	prop::Property<int> p1;
+	p1.custom_name = "p1";
 	prop::Property p2 = 2;
+	p2.custom_name = "p2";
 	{
 		prop::Property p3 = 3;
+		p3.custom_name = "p3";
 		{
 			prop::Property p4 = 4;
+			p4.custom_name = "p4";
 			p1 = {[&p2](int &vp3, int *vp4) { return 1 + p2 + vp3 + (vp4 ? *vp4 : 0); }, p3, p4};
 			REQUIRE(p1.is_bound());
 			//1 + 2 + 3 + 4 = 10
@@ -280,7 +284,7 @@ TEST_CASE("Expiring explicit bindings", "[Property]") {
 	//p3 died, so p1 has been unbound, old value 6 still exists
 	REQUIRE(not p1.is_bound());
 	REQUIRE(p1 == 6);
-	p2 = 2;
+	p2 = 123;
 	//changes to p2 have no effect on p1 because p1 has been unbound
 	REQUIRE(not p1.is_bound());
 	REQUIRE(p1 == 6);
@@ -312,7 +316,9 @@ struct SS {
 
 TEST_CASE("Inner inner property", "[Property]") {
 	prop::Property<SS> p1;
+	p1.custom_name = "p1";
 	prop::Property<void> p2;
+	p2.custom_name = "p2";
 	p2 = {[](SS &ss) {
 			  ss.s = [](S &s) {
 				  if (s.inner == 42) {
@@ -384,27 +390,35 @@ TEST_CASE("Vectorsum", "[Property]") {
 }
 
 TEST_CASE("Operators", "[Property]") {
-	prop::Property<int> pi = 42;
-	//pi.apply()++;
-	pi++;
-	REQUIRE(pi == 43);
-	pi++;
-	REQUIRE(pi == 44);
+	WHEN("Having a simple increment") {
+		prop::Property<int> pi = 42;
+		//pi.apply()++;
+		pi++;
+		REQUIRE(pi == 43);
+		pi++;
+		REQUIRE(pi == 44);
+	}
 
-	struct S {
-		void mf() {}
-		void cf() const {}
-	};
-	prop::Property<S> ps;
-	bool ps_changed = false;
-	prop::Property<bool> pb = {{[&ps_changed](const S &) { return ps_changed = true; }, ps}};
-	REQUIRE(ps_changed == true);
-	ps_changed = false;
-	ps.apply()->mf();
-	REQUIRE(ps_changed == true);
-	ps_changed = false;
-	ps->cf();
-	REQUIRE(ps_changed == false);
+	WHEN("Using call operator") {
+		struct S {
+			void mf() {}
+			void cf() const {}
+		};
+		prop::Property<S> ps;
+		ps.custom_name = "ps";
+		bool ps_changed = false;
+		prop::Property<bool> pb = {{[&ps_changed](const S &) { return ps_changed = true; }, ps}};
+		pb.custom_name = "pb";
+		INFO(ps.get_status());
+		INFO(pb.get_status());
+		REQUIRE(ps_changed == true);
+		ps_changed = false;
+		ps.apply()->mf();
+		REQUIRE(ps_changed == true);
+		ps_changed = false;
+		ps->cf();
+		REQUIRE(ps_changed == false);
+	}
 }
 
 TEST_CASE("Range-based for-loop", "[Property]") {
@@ -423,6 +437,7 @@ TEST_CASE("Range-based for-loop", "[Property]") {
 struct Track_function {
 	private:
 	enum class Function_part { before_name, name, after_name };
+	std::ostream &out;
 	static constexpr std::string_view function_part(std::string_view function, Function_part fp) {
 		auto name_end_pos = function.find('(');
 		if (name_end_pos == function.npos) {
@@ -483,32 +498,34 @@ struct Track_function {
 
 	public:
 	int operator()() {
-		std::clog << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
-				  << prop::Color::address << this << '\n'
-				  << trace;
+		out << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
+			<< prop::Color::address << this << '\n'
+			<< trace;
 		return 42;
 	}
-	Track_function() {
-		std::clog << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
-				  << prop::Color::address << this << '\n'
-				  << trace;
+	Track_function(std::ostream &out_ = std::clog)
+		: out{out_} {
+		out << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
+			<< prop::Color::address << this << '\n'
+			<< trace;
 	}
 	~Track_function() {
-		std::clog << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
-				  << prop::Color::address << this << '\n'
-				  << trace;
+		out << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
+			<< prop::Color::address << this << '\n'
+			<< trace;
 	}
-	Track_function(Track_function &&other) {
-		std::clog << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
-				  << prop::Color::address << this << prop::Color::static_text << " from " << prop::Color::address
-				  << &other << '\n'
-				  << trace;
+	Track_function(Track_function &&other)
+		: out{other.out} {
+		out << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
+			<< prop::Color::address << this << prop::Color::static_text << " from " << prop::Color::address << &other
+			<< '\n'
+			<< trace;
 	}
 	Track_function &operator=(Track_function &&other) {
-		std::clog << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
-				  << prop::Color::address << this << prop::Color::static_text << " from " << prop::Color::address
-				  << &other << '\n'
-				  << trace;
+		out << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
+			<< prop::Color::address << this << prop::Color::static_text << " from " << prop::Color::address << &other
+			<< '\n'
+			<< trace;
 		return *this;
 	}
 	Track_function(const Track_function &) = delete;
@@ -516,10 +533,12 @@ struct Track_function {
 };
 
 TEST_CASE("Value-captured property", "[Property]") {
-	prop::Property ptest{Track_function{}};
+	std::stringstream ss;
+	prop::Property ptest{Track_function{ss}};
 	prop::Property p{42};
 	prop::Property p2{[p] mutable -> int { return p; }};
 	INFO(p2.get_status());
+	INFO(ss.str());
 	REQUIRE(p2 == 42);
 	p++; //no effect since we're not actually bound to p
 	REQUIRE(p2 == 42);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "prop/utility/type_name.h"
 #include "property_link.h"
 
 namespace prop {
@@ -59,7 +60,9 @@ namespace prop {
 
 		public:
 		Tracking_list(std::span<const Property_link::Property_pointer> list)
-			: prop::Property_link{{std::begin(list), std::end(list)}} {}
+			: prop::Property_link{prop::type_name<Tracking_list>()} {
+			set_explicit_dependencies({std::begin(list), std::end(list)});
+		}
 
 		static Tracking_list of_explicit_dependencies(const prop::Property_link &linked) {
 			return {std::begin(linked.dependencies), std::begin(linked.dependencies) + linked.explicit_dependencies};
@@ -110,15 +113,21 @@ namespace prop {
 		}
 
 		std::string_view type() const override {
-			return "Tracking_list";
+			return prop::type_name<std::remove_cvref_t<decltype(*this)>>();
 		}
 
 		std::string value_string() const override {
-			return "Tracking_list";
+			std::string result;
+			const char *sep = "";
+			for (std::size_t i = 0; i < std::size(dependencies); i++) {
+				result += sep + dependencies[i]->to_string();
+				sep = ", ";
+			}
+			return result;
 		}
 
-		bool has_source() const override {
-			return false;
+		std::string displayed_value() const override {
+			return value_string();
 		}
 
 		void update() override {}

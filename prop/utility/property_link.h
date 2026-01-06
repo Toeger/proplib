@@ -1,13 +1,13 @@
 #pragma once
 
 #include "color.h"
-#include "prop/utility/utility.h"
 #include "property_decls.h"
 #include "required_pointer.h"
 
 #include <cassert>
 #include <iostream>
 #include <map>
+#include <sstream>
 #include <vector>
 
 #ifdef PROPERTY_NAMES
@@ -27,13 +27,29 @@ namespace prop {
 		int depth = 0;
 	};
 
+	struct Update_data {
+		std::size_t index;
+	};
+
+	struct Implicit_dependency_list {
+		void read_notify(const prop::Property_link *p);
+		const Update_data update_start(prop::Property_link *p);
+		void update_end(const Update_data &update_data);
+		prop::Property_link *current_binding() const;
+		void remove(prop::Property_link *p);
+		int binding_depth() const;
+
+		private:
+		std::vector<prop::Required_pointer<Property_link>> data;
+	};
+
 	class Property_link {
 		public:
 		using Property_pointer = prop::Required_pointer<Property_link>;
 
-		virtual std::string_view type() const = 0;
-		virtual std::string value_string() const = 0;
-		virtual bool has_source() const = 0;
+		virtual std::string_view type() const;
+		virtual std::string value_string() const;
+		virtual bool has_source() const;
 		void print_status(const Extended_status_data &esd = {}) const;
 		std::string get_status() const;
 
@@ -84,8 +100,10 @@ namespace prop {
 		}
 
 		static const Property_link *get_current_binding() {
-			return current_binding;
+			return binding_data.current_binding();
 		}
+
+		std::string to_string() const;
 
 		protected:
 		void operator=(const Property_link &) = delete;
@@ -93,7 +111,7 @@ namespace prop {
 
 		Property_link(Property_link &&other);
 
-		virtual void update() = 0;
+		virtual void update();
 		virtual void unbind() {
 			assert_status();
 			for (std::size_t i = 0; i < explicit_dependencies + implicit_dependencies; i++) {
@@ -107,12 +125,12 @@ namespace prop {
 		}
 		virtual std::string displayed_value() const {
 			assert_status();
-			return "<base>";
+			return "";
 		}
 		void read_notify() const;
 		void write_notify();
-		void update_start(Property_link *&previous_binding);
-		void update_complete(Property_link *&previous_binding);
+		const prop::Update_data update_start();
+		void update_complete(const Update_data &update_data);
 
 		Property_link(const Property_link &) = delete;
 		Property_link();
@@ -134,7 +152,7 @@ namespace prop {
 				property->add_dependent(*this);
 			}
 		}
-		void set_explicit_dependencies(std::vector<Property_pointer> deps);
+		void set_explicit_dependencies(std::vector<Property_pointer> &&deps);
 		void replace_dependency(const Property_link &old_value, const Property_link &new_value) {
 			assert_status();
 			for (auto it = std::begin(dependencies),
@@ -170,12 +188,7 @@ namespace prop {
 		std::string custom_name;
 		std::string get_name() const {
 			assert_status();
-			std::string auto_name = to_string(true);
-			if (custom_name.empty()) {
-				return auto_name + prop::to_string(prop::Color::reset);
-			}
-			return auto_name + ' ' + prop::to_string(prop::Color::variable_name) + custom_name +
-				   prop::to_string(prop::Color::reset);
+			return to_string();
 		}
 #endif
 		~Property_link();
@@ -258,12 +271,16 @@ namespace prop {
 			}
 		}
 
-		std::string to_string(bool do_dynamic_lookup) const;
+		std::string to_string(std::string_view type_name) const;
 
+		public:
 		mutable std::vector<Property_pointer> dependencies;
+
 		mutable std::uint16_t explicit_dependencies = 0;
 		mutable std::uint16_t implicit_dependencies = 0;
-		static inline Property_link *current_binding;
+
+		private:
+		static inline Implicit_dependency_list binding_data;
 		template <class T>
 			requires(std::is_convertible_v<T *, prop::Property_link *>)
 		friend class Tracking_list;
@@ -274,10 +291,12 @@ namespace prop {
 		friend std::move_only_function<prop::Updater_result(
 			prop::Property<T> &, std::span<const Property_link::Property_pointer> explicit_dependencies)>
 		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
+
+		friend prop::Implicit_dependency_list;
 	};
 	inline void Property_link::update() {
 		assert_status();
-		if (this != current_binding) {
+		if (this != binding_data.current_binding()) {
 			update();
 		}
 	}

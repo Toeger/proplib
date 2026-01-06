@@ -12,9 +12,8 @@ void prop::Property<void>::update() {
 	if (!source) {
 		return;
 	}
-	Property_link *previous_binding;
-	prop::detail::RAII updater{[this, &previous_binding] { update_start(previous_binding); },
-							   [this, &previous_binding] { update_complete(previous_binding); }};
+	auto data = update_start();
+	prop::detail::RAII updater{[this, &data] { update_complete(data); }};
 	source(get_explicit_dependencies());
 }
 

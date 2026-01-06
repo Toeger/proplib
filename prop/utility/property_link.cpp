@@ -2,6 +2,7 @@
 #include "color.h"
 #include "tracking_list.h"
 #include "type_name.h"
+#include "utility.h"
 
 #ifdef PROP_LIFETIMES
 std::map<const prop::Property_link *, prop::Property_link::Property_link_lifetime_status> &
@@ -115,8 +116,8 @@ struct Tracer {
 		os << '[';
 		const char *sep = "";
 		for (auto &l : span) {
-			os << sep << prop::Color::type << l->type() << prop::Color::static_text << '@' << prop::Color::address
-			   << l.get_pointer() << prop::Color::static_text;
+			os << sep << (l.is_required() ? "!" : "") << l->to_string() << prop::Color::static_text << "{"
+			   << l->displayed_value() << prop::Color::static_text << "}";
 			sep = ", ";
 		}
 		os << ']';
@@ -137,11 +138,7 @@ struct Tracer {
 
 void prop::Property_link::read_notify() const {
 	assert_status();
-	if (current_binding and current_binding != this and not current_binding->has_dependency(*this)) {
-		current_binding->add_implicit_dependency({this, true});
-		TRACE("Added      " << get_name() << " as an implicit dependency of\n           "
-							<< current_binding->get_name());
-	}
+	binding_data.read_notify(this);
 }
 
 void prop::Property_link::write_notify() {
@@ -155,34 +152,23 @@ void prop::Property_link::write_notify() {
 	}
 }
 
-void prop::Property_link::update_start(Property_link *&previous_binding) {
+const prop::Update_data prop::Property_link::update_start() {
 	assert_status();
-	TRACE("Updating   " << get_name());
-	TRACE(get_status());
-	previous_binding = current_binding;
-	for (std::size_t i = explicit_dependencies; i < explicit_dependencies + implicit_dependencies; i++) {
-		dependencies[i]->remove_dependent(*this);
-	}
-	dependencies.erase(std::begin(dependencies) + explicit_dependencies,
-					   std::begin(dependencies) + explicit_dependencies + implicit_dependencies);
-	implicit_dependencies = 0;
-	current_binding = this;
+	return binding_data.update_start(this);
 }
 
-void prop::Property_link::update_complete(Property_link *&previous_binding) {
-	TRACE("Updated    " << get_name());
-	TRACE(get_status());
-	current_binding = previous_binding;
+void prop::Property_link::update_complete(const prop::Update_data &update_data) {
+	binding_data.update_end(update_data);
 }
 
-std::string prop::Property_link::to_string(bool do_type_lookup = false) const {
+std::string prop::Property_link::to_string() const {
+	return to_string(type());
+}
+
+std::string prop::Property_link::to_string(std::string_view type_name) const {
 	std::stringstream ss;
 	ss << prop::Color::type;
-	if (do_type_lookup) {
-		ss << type();
-	} else {
-		ss << prop::type_name<prop::Property_link>();
-	}
+	ss << type_name;
 	ss << prop::Color::static_text << '@' << prop::Color::address << this;
 	if (custom_name.empty()) {
 		ss << prop::Color::static_text;
@@ -194,9 +180,10 @@ std::string prop::Property_link::to_string(bool do_type_lookup = false) const {
 
 prop::Property_link::Property_link() {
 	set_status();
-	if (current_binding) {
-		TRACE("Created    " << to_string() << " inside binding of\n           " << current_binding->to_string(true));
-		current_binding->add_implicit_dependency({this, false});
+	if (binding_data.current_binding()) {
+		TRACE("Created    " << to_string() << " inside binding of\n           "
+							<< binding_data.current_binding()->to_string());
+		binding_data.current_binding()->add_implicit_dependency({this, false});
 	} else {
 		TRACE("Created    " << to_string());
 	}
@@ -204,11 +191,12 @@ prop::Property_link::Property_link() {
 
 prop::Property_link::Property_link([[maybe_unused]] std::string_view type) {
 	set_status();
-	if (current_binding) {
-		TRACE("Created    " << to_string() << " inside binding of\n           " << current_binding->to_string(true));
-		current_binding->add_implicit_dependency({this, false});
+	if (binding_data.current_binding()) {
+		TRACE("Created    " << to_string(type) << " inside binding of\n           "
+							<< binding_data.current_binding()->to_string());
+		binding_data.current_binding()->add_implicit_dependency({this, false});
 	} else {
-		TRACE("Created    " << to_string());
+		TRACE("Created    " << to_string(type));
 	}
 }
 
@@ -221,9 +209,10 @@ prop::Property_link::Property_link(std::vector<prop::Property_link::Property_poi
 			ptr->add_dependent(*this);
 		}
 	}
-	if (current_binding) {
-		TRACE("Created    " << to_string() << " inside binding of\n           " << current_binding->to_string(true));
-		current_binding->add_implicit_dependency({this, false});
+	if (binding_data.current_binding()) {
+		TRACE("Created    " << to_string() << " inside binding of\n           "
+							<< binding_data.current_binding()->to_string());
+		binding_data.current_binding()->add_implicit_dependency({this, false});
 	} else {
 		TRACE("Created    " << to_string());
 	}
@@ -231,7 +220,7 @@ prop::Property_link::Property_link(std::vector<prop::Property_link::Property_poi
 
 prop::Property_link::Property_link(Property_link &&other) {
 	set_status();
-	TRACE("Moved " << other.get_name() << " from  " << &other << " to " << this);
+	TRACE("Moved " << other.get_name() << " from  " << &other << " to " << to_string());
 #ifdef PROPERTY_DEBUG
 	custom_name = std::move(other.custom_name);
 	other.custom_name = "<moved from>";
@@ -272,47 +261,54 @@ void prop::Property_link::operator=(Property_link &&other) {
 
 prop::Property_link::~Property_link() {
 	assert_status();
-	TRACE("Destroying " << this);
-	for (std::size_t i = 0; i < explicit_dependencies + implicit_dependencies; ++i) {
-		if (auto dependency = dependencies[i]) {
+	TRACE("Destroying " << to_string());
+	binding_data.remove(this);
+	for (std::size_t dependency_index = 0; dependency_index < explicit_dependencies + implicit_dependencies;
+		 dependency_index++) {
+		auto &dependency = dependencies[dependency_index];
+		if (dependency) {
+			TRACE("Removing   " << to_string() << " from dependents of " << dependency->to_string());
 			dependency->remove_dependent(*this);
-			TRACE("Removed    " << this << " from dependents of " << dependency->get_name());
 		}
 	}
 	for (std::size_t dependent_index = explicit_dependencies + implicit_dependencies;
 		 dependent_index < std::size(dependencies); ++dependent_index) {
 		auto &dependent = *dependencies[dependent_index];
+		TRACE("Handling dependent " << dependent.get_status());
 		bool update_needed = false;
 		for (std::uint16_t dependent_dependency_index = 0;
 			 dependent_dependency_index < dependent.explicit_dependencies + dependent.implicit_dependencies;
 			 ++dependent_dependency_index) {
 			auto &dependent_dependency = dependent.dependencies[dependent_dependency_index];
-			if (dependent_dependency == this) {
-				if (dependent_dependency.is_required()) {
-					dependent.unbind();
-					TRACE("Removed    " << this << " from required dependencies of " << dependent.get_name());
-					update_needed = false;
-					break; //all dependents and dependencies are gone
-				}
-				if (dependent_dependency_index < dependent.explicit_dependencies) { //explicit dependency
-					dependent_dependency = nullptr;
-					TRACE("Removed    " << this << " from optional explicit dependencies of " << dependent.get_name());
-					update_needed = true;
-					//duplicate explicit dependency possible
-				} else { //implicit dependency
-					dependent.dependencies.erase(std::begin(dependent.dependencies) + dependent_dependency_index);
-					dependent.implicit_dependencies--;
-					TRACE("Removed    " << this << " from optional implicit dependencies of " << dependent.get_name());
-					update_needed = true;
-					break; //only 1 implicit dependency possible
-				}
+			if (dependent_dependency != this) {
+				continue;
+			}
+			if (dependent_dependency.is_required()) {
+				dependent.unbind();
+				TRACE("Removed    " << to_string() << " from required dependencies of " << dependent.get_name());
+				update_needed = false;
+				break; //all dependents and dependencies are gone
+			}
+			if (dependent_dependency_index < dependent.explicit_dependencies) { //explicit dependency
+				dependent_dependency = nullptr;
+				TRACE("Removed    " << to_string() << " from optional explicit dependencies of "
+									<< dependent.get_name());
+				update_needed = true;
+				continue; //duplicate explicit dependency possible
+			} else {	  //implicit dependency
+				dependent.dependencies.erase(std::begin(dependent.dependencies) + dependent_dependency_index);
+				dependent.implicit_dependencies--;
+				TRACE("Removed    " << to_string() << " from optional implicit dependencies of "
+									<< dependent.get_name());
+				update_needed = true;
+				break; //only 1 implicit dependency possible
 			}
 		}
-		if (update_needed and &dependent != current_binding) {
+		if (update_needed and &dependent != binding_data.current_binding()) {
 			dependent.update();
 		}
 	}
-	TRACE("Destroyed  " << this);
+	TRACE("Destroyed  " << to_string());
 #ifdef PROPERTY_DEBUG
 	custom_name = "~" + custom_name;
 #endif
@@ -376,15 +372,22 @@ void prop::swap(Property_link &lhs, Property_link &rhs) {
 }
 
 std::string_view prop::Property_link::type() const {
-	return prop::type_name<decltype(*this)>();
+	return prop::type_name<std::remove_cvref_t<decltype(*this)>>();
 }
 
-void prop::Property_link::set_explicit_dependencies(std::vector<Property_link::Property_pointer> deps) {
+std::string prop::Property_link::value_string() const {
+	return "";
+}
+
+bool prop::Property_link::has_source() const {
+	return false;
+}
+
+void prop::Property_link::set_explicit_dependencies(std::vector<Property_link::Property_pointer> &&deps) {
 	assert_status();
 	assert(deps.size() < std::numeric_limits<decltype(explicit_dependencies)>::max());
 	if (dependencies.empty()) {
-		TRACE("Setting    " << prop::Color::type << type() << "@" << this << "'s explicit dependencies to\n           "
-							<< deps);
+		TRACE("Setting    " << to_string() << "'s explicit dependencies to\n           " << deps);
 		if (dependencies.capacity() > deps.capacity()) {
 			std::copy(std::begin(deps), std::end(deps), std::back_inserter(dependencies));
 		} else {
@@ -397,8 +400,7 @@ void prop::Property_link::set_explicit_dependencies(std::vector<Property_link::P
 		return;
 	}
 	if (deps.empty()) {
-		TRACE("Removing   " << prop::Color::type << type() << "@" << this << "'s explicit dependencies "
-							<< dependencies);
+		TRACE("Removing   " << to_string() << "'s explicit dependencies " << dependencies);
 		for (std::size_t i = 0; i < explicit_dependencies; i++) {
 			dependencies[i]->remove_dependent(*this);
 		}
@@ -406,8 +408,8 @@ void prop::Property_link::set_explicit_dependencies(std::vector<Property_link::P
 		explicit_dependencies = 0;
 		return;
 	}
-	TRACE("Replacing  " << prop::Color::type << type() << "@" << this << "'s explicit dependencies:\n           old: "
-						<< dependencies << "\n           new: " << deps);
+	TRACE("Replacing  " << to_string() << "'s explicit dependencies:\n           old: " << dependencies
+						<< "\n           new: " << deps);
 	for (std::size_t i = 0, end = std::min<std::size_t>(explicit_dependencies, deps.size()); i < end; i++) {
 		if (dependencies[i].get_pointer() == deps[i].get_pointer()) {
 			dependencies[i] = deps[i];
@@ -445,24 +447,18 @@ void prop::Property_link::print_extended_status(const prop::Extended_status_data
 			const char *sep = "";
 			if (esd.depth == current_depth) {
 				for (auto &dep : deps) {
+					esd.output << prop::Color::static_text << sep;
 					if (dep) {
-						//esd.output << prop::Color::static_text << sep << prop::Color::type << dep->type()
-						//		   << prop::Color::static_text << '(' << prop::Color::reset << dep->value_string()
-						//		   << prop::Color::static_text << ")@" << prop::Color::address << dep;
-						esd.output << prop::Color::static_text;
-						esd.output << sep;
-						esd.output << prop::Color::type;
-						esd.output << dep->type();
-						esd.output << prop::Color::static_text;
-						esd.output << '(';
-						esd.output << prop::Color::reset;
-						esd.output << dep->value_string();
-						esd.output << prop::Color::static_text;
-						esd.output << ")@";
-						sep = ", ";
+						if (dep.is_required()) {
+							esd.output << prop::Color::white << '!';
+						}
+						esd.output << dep->to_string();
+						esd.output << prop::Color::static_text << "{" << dep->displayed_value()
+								   << prop::Color::static_text << "}";
+					} else {
+						esd.output << prop::Color::address << "nullptr";
 					}
-					esd.output << prop::Color::address;
-					esd.output << prop::to_string(dep);
+					sep = ", ";
 				}
 				esd.output << prop::Color::reset << "]\n";
 			} else {
@@ -477,11 +473,7 @@ void prop::Property_link::print_extended_status(const prop::Extended_status_data
 		}
 	};
 	esd.output << indent << prop::Color::static_text;
-#ifdef PROPERTY_NAMES
-	esd.output << prop::Color::variable_name << get_name() << '\n';
-#else
-	esd.output << prop::Color::address << this << '\n';
-#endif
+	esd.output << to_string() << '\n';
 	esd.output << indent << prop::Color::static_text << "           Value: " << prop::Color::variable_value
 			   << value_string() << "\n";
 	esd.output << indent << prop::Color::static_text << "           Bound: " << prop::Color::variable_value
@@ -503,4 +495,99 @@ std::string prop::Property_link::get_status() const {
 	std::stringstream ss;
 	print_status({.output = ss});
 	return std::move(ss).str();
+}
+
+static std::size_t current_index;
+
+void prop::Implicit_dependency_list::read_notify(const Property_link *p) {
+	if (data.empty()) {
+		return;
+	}
+	const auto current = current_binding();
+	if (p == current) {
+		return;
+	}
+	const auto is_an_explicit_dependency = [&] {
+		return std::find(std::begin(current->dependencies),
+						 std::begin(current->dependencies) + current->explicit_dependencies,
+						 p) != std::begin(current->dependencies) + current->explicit_dependencies;
+	};
+	const auto is_duplicate_dependency = [&] {
+		return std::find(std::begin(data) + current_index, std::end(data), p) != std::end(data);
+	};
+	if (not is_an_explicit_dependency() and not is_duplicate_dependency()) {
+		data.push_back({p, true});
+		TRACE("Added      " << p->get_name() << " as an implicit dependency of\n           " << current->get_name());
+	}
+}
+
+const prop::Update_data prop::Implicit_dependency_list::update_start(Property_link *p) {
+	TRACE("Updating   " << p->get_status());
+	data.push_back({p, false});
+	current_index = data.size();
+	return {.index = current_index - 1};
+}
+
+void prop::Implicit_dependency_list::update_end(const prop::Update_data &update_data) {
+	const auto current = current_binding();
+	assert(current);
+
+	const auto new_implicit_dependencies = std::size(data) - current_index;
+
+	//overwrite overlap
+	const auto overlap_size = std::min<std::size_t>(current->implicit_dependencies, new_implicit_dependencies);
+	for (std::size_t i = 0; i < overlap_size; i++) {
+		auto &old = current->dependencies[i + current->explicit_dependencies];
+		auto &now = data[current_index + i];
+		if (old.get_pointer() != now.get_pointer()) {
+			old->remove_dependent(*current);
+			old = now;
+			old->add_dependent(*current);
+		}
+		old.set_required(now.is_required());
+	}
+
+	if (new_implicit_dependencies > current->implicit_dependencies) {
+		//insert additional dependencies
+		for (auto it = std::begin(data) + current_index + current->implicit_dependencies; it != std::end(data); ++it) {
+			it->get_pointer()->add_dependent(*current);
+		}
+		current->dependencies.insert(std::begin(current->dependencies) + current->explicit_dependencies +
+										 current->implicit_dependencies,
+									 std::begin(data) + current_index + current->implicit_dependencies, std::end(data));
+	} else if (new_implicit_dependencies < current->implicit_dependencies) {
+		//remove extra dependencies
+		const auto from =
+			std::begin(current->dependencies) + current->explicit_dependencies + new_implicit_dependencies;
+		const auto to =
+			std::begin(current->dependencies) + current->explicit_dependencies + current->implicit_dependencies;
+		for (auto it = from; it < to; ++it) {
+			it->get_pointer()->remove_dependent(*current);
+		}
+		current->dependencies.erase(from, to);
+	}
+	current->implicit_dependencies = new_implicit_dependencies;
+	data.resize(current_index - 1, {nullptr, false});
+	current_index = update_data.index;
+	TRACE("Updated    " << current->get_status());
+}
+
+prop::Property_link *prop::Implicit_dependency_list::current_binding() const {
+	if (data.empty()) {
+		return nullptr;
+	}
+	return data[current_index - 1];
+}
+
+void prop::Implicit_dependency_list::remove(Property_link *p) {
+	if (data.empty()) {
+		return;
+	}
+	for (std::size_t i = current_index; i < std::size(data); ++i) {
+		if (data[i] == p) {
+			data.erase(std::begin(data) + i);
+			TRACE("Removed    " << p << " from dependents of " << data[current_index - 1]->get_name());
+			return;
+		}
+	}
 }
