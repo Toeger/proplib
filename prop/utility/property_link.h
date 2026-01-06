@@ -33,6 +33,7 @@ namespace prop {
 
 	struct Implicit_dependency_list {
 		void read_notify(const prop::Property_link *p);
+		void read_notify(prop::Required_pointer<prop::Property_link> p);
 		const Update_data update_start(prop::Property_link *p);
 		void update_end(const Update_data &update_data);
 		prop::Property_link *current_binding() const;

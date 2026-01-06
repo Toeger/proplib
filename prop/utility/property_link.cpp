@@ -187,23 +187,15 @@ std::string prop::Property_link::to_string(std::string_view type_name) const {
 	return ss.str();
 }
 
-prop::Property_link::Property_link() {
-	set_status();
-	if (binding_data.current_binding()) {
-		TRACE("Created    " << to_string() << " inside binding of\n           "
-							<< binding_data.current_binding()->to_string());
-		binding_data.current_binding()->add_implicit_dependency({this, false});
-	} else {
-		TRACE("Created    " << to_string());
-	}
-}
+prop::Property_link::Property_link()
+	: Property_link(prop::type_name<std::remove_cvref_t<decltype(*this)>>()) {}
 
 prop::Property_link::Property_link([[maybe_unused]] std::string_view type) {
 	set_status();
 	if (binding_data.current_binding()) {
 		TRACE("Created    " << to_string(type) << " inside binding of\n           "
 							<< binding_data.current_binding()->to_string());
-		binding_data.current_binding()->add_implicit_dependency({this, false});
+		binding_data.read_notify({this, false});
 	} else {
 		TRACE("Created    " << to_string(type));
 	}
@@ -219,11 +211,11 @@ prop::Property_link::Property_link(std::vector<prop::Property_link::Property_poi
 		}
 	}
 	if (binding_data.current_binding()) {
-		TRACE("Created    " << to_string() << " inside binding of\n           "
+		TRACE("Created    " << to_string(type()) << " inside binding of\n           "
 							<< binding_data.current_binding()->to_string());
-		binding_data.current_binding()->add_implicit_dependency({this, false});
+		binding_data.read_notify({this, false});
 	} else {
-		TRACE("Created    " << to_string());
+		TRACE("Created    " << to_string(type()));
 	}
 }
 
@@ -509,6 +501,10 @@ std::string prop::Property_link::get_status() const {
 static std::size_t current_index;
 
 void prop::Implicit_dependency_list::read_notify(const Property_link *p) {
+	read_notify({p, true});
+}
+
+void prop::Implicit_dependency_list::read_notify(prop::Required_pointer<Property_link> p) {
 	if (data.empty()) {
 		return;
 	}
@@ -525,7 +521,7 @@ void prop::Implicit_dependency_list::read_notify(const Property_link *p) {
 		return std::find(std::begin(data) + current_index, std::end(data), p) != std::end(data);
 	};
 	if (not is_an_explicit_dependency() and not is_duplicate_dependency()) {
-		data.push_back({p, true});
+		data.push_back(p);
 		TRACE("Added      " << p->get_name() << " as an implicit dependency of\n           " << current->get_name());
 	}
 }
