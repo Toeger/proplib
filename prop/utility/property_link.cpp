@@ -595,7 +595,7 @@ void prop::Implicit_dependency_list::remove(Property_link *p) {
 	for (std::size_t i = current_index; i < std::size(data); ++i) {
 		if (data[i] == p) {
 			data.erase(std::begin(data) + i);
-			TRACE("Removed    " << p << " from dependents of " << data[current_index - 1]->get_name());
+			TRACE("Removed    " << p->to_string() << " from dependents of " << data[current_index - 1]->get_name());
 			return;
 		}
 	}
