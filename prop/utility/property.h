@@ -432,13 +432,13 @@ namespace prop {
 		bool is_bound() const;
 		void unbind() final override;
 		std::string displayed_value() const final {
-			return "<void>";
+			return "";
 		}
 		std::string_view type() const override {
-			return "void";
+			return prop::type_name<std::remove_cvref_t<decltype(*this)>>();
 		}
 		std::string value_string() const override {
-			return "void";
+			return "";
 		}
 		bool has_source() const override {
 			return !!source;

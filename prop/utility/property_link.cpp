@@ -117,7 +117,7 @@ struct Tracer {
 		const char *sep = "";
 		for (auto &l : span) {
 			os << sep << (l.is_required() ? "!" : "") << l->to_string() << prop::Color::static_text << "{"
-			   << l->displayed_value() << prop::Color::static_text << "}";
+			   << l->value_string() << prop::Color::static_text << "}";
 			sep = ", ";
 		}
 		os << ']';
@@ -147,8 +147,17 @@ void prop::Property_link::write_notify() {
 		return;
 	}
 	TRACE("Notifying  " << get_name() << "->" << get_dependents());
-	for (auto &dependent : prop::Tracking_list<>::of_dependents(*this)) {
-		dependent->Property_link::update();
+	switch (dependencies.size() - explicit_dependencies - implicit_dependencies) {
+		case 0:
+			return;
+		case 1:
+			dependencies.back()->Property_link::update();
+			break;
+		default:
+			for (auto &dependent : prop::Tracking_list<>::of_dependents(*this)) {
+				dependent->Property_link::update();
+			}
+			break;
 	}
 }
 

@@ -561,6 +561,7 @@ TEST_CASE("Unbind via update function", "[Property]") {
 
 TEST_CASE("All types of supported explicit parameters", "[Property]") {
 	prop::Property<int> pi;
+	pi.custom_name = "pi";
 	pi = {
 		[](int &, int &, int, int *, const int &, const int, const int *, prop::Property<int>, prop::Property<int> &,
 		   prop::Property<int> *, const prop::Property<int>, const prop::Property<int> &,
