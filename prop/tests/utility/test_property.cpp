@@ -1,9 +1,13 @@
+#include "prop/utility/dependency_tracer.h"
 #include "prop/utility/polywrap.h"
 #include "prop/utility/property.h"
+#include "prop/utility/tracking_list.h"
 
 #include <catch2/catch_all.hpp>
 #include <memory>
 #include <numeric>
+
+static bool _{std::cout << std::unitbuf};
 
 TEST_CASE("Compile time checks", "[Property]") {
 	//Primitive types
@@ -499,32 +503,30 @@ struct Track_function {
 	public:
 	int operator()() {
 		out << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
-			<< prop::Color::address << this << '\n'
+			<< prop::color_address(this) << '\n'
 			<< trace;
 		return 42;
 	}
-	Track_function(std::ostream &out_ = std::clog)
+	Track_function(std::ostream &out_ = std::cout)
 		: out{out_} {
 		out << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
-			<< prop::Color::address << this << '\n'
+			<< prop::color_address(this) << '\n'
 			<< trace;
 	}
 	~Track_function() {
 		out << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
-			<< prop::Color::address << this << '\n'
+			<< prop::color_address(this) << '\n'
 			<< trace;
 	}
 	Track_function(Track_function &&other)
 		: out{other.out} {
 		out << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
-			<< prop::Color::address << this << prop::Color::static_text << " from " << prop::Color::address << &other
-			<< '\n'
+			<< prop::color_address(this) << prop::Color::static_text << " from " << prop::color_address(&other) << '\n'
 			<< trace;
 	}
 	Track_function &operator=(Track_function &&other) {
 		out << prop::Color::function_name << __PRETTY_FUNCTION__ << prop::Color::static_text << " @ "
-			<< prop::Color::address << this << prop::Color::static_text << " from " << prop::Color::address << &other
-			<< '\n'
+			<< prop::color_address(this) << prop::Color::static_text << " from " << prop::color_address(&other) << '\n'
 			<< trace;
 		return *this;
 	}
@@ -599,4 +601,131 @@ TEST_CASE("Quoted string property", "[Property]") {
 	REQUIRE(ps.displayed_value() == "\"\"");
 	ps = "Hello world";
 	REQUIRE(ps.displayed_value() == "\"Hello world\"");
+}
+
+TEST_CASE("Updates inside updates", "[Property]") {
+	std::cout << std::string('\n', 20);
+	prop::Property p1 = 1;
+	p1.custom_name = "p1";
+	prop::Property<int> p2;
+	p2.custom_name = "p2";
+	p2 = [&p1] { return p1 + 1; };
+	prop::Property<int> p3;
+	p3.custom_name = "p3";
+	p3 = [&p2] { return p2 + 1; };
+	{
+		INFO(p2.get_status());
+		REQUIRE(p1 == 1);
+		REQUIRE(p2 == p1 + 1);
+		REQUIRE(p3 == p2 + 1);
+		REQUIRE(p3.is_dependent_on(p2));
+		REQUIRE(p2.is_dependent_on(p1));
+	}
+	p1 = 11;
+	{
+		INFO(p2.get_status());
+		REQUIRE(p1 == 11);
+		REQUIRE(p2 == p1 + 1);
+		REQUIRE(p3 == p2 + 1);
+		REQUIRE(p3.is_dependent_on(p2));
+		REQUIRE(p2.is_dependent_on(p1));
+	}
+	p1 = 1;
+	prop::Property<int> pi1 = 1;
+	pi1.custom_name = "pi1";
+	prop::Property<int> pi2;
+	pi2.custom_name = "pi2";
+	pi2 = [&p1, &pi1] { return p1 + pi1 + 1; };
+	prop::Property<int> pi3;
+	pi3.custom_name = "pi3";
+	pi3 = [&p2, &pi2] { return p2 + pi2 + 1; };
+	{
+		INFO(p2.get_status());
+		INFO(pi2.get_status());
+		REQUIRE(pi1 == 1);
+		REQUIRE(pi2 == p1 + pi1 + 1);
+		REQUIRE(pi3 == p2 + pi2 + 1);
+		REQUIRE(pi3.is_dependent_on(pi2));
+		REQUIRE(pi2.is_dependent_on(pi1));
+	}
+	p1 = pi1 = 11;
+	{
+		INFO(p2.get_status());
+		INFO(pi2.get_status());
+		REQUIRE(pi1 == 11);
+		REQUIRE(pi2 == p1 + pi1 + 1);
+		REQUIRE(pi3 == p2 + pi2 + 1);
+		REQUIRE(pi3.is_dependent_on(pi2));
+		REQUIRE(pi2.is_dependent_on(pi1));
+	}
+	auto tl = prop::Tracking_list<prop::Property<int>>::of(pi1, pi2, pi3);
+	tl.custom_name = "tl";
+	{
+		INFO(tl.get_status());
+		REQUIRE(tl.is_explicit_dependent_of(pi1));
+		REQUIRE(tl.is_explicit_dependent_of(pi2));
+		REQUIRE(tl.is_explicit_dependent_of(pi3));
+	}
+	PROP_TRACER(tl).to_image();
+	auto{std::move(pi1)};
+	auto{std::move(pi2)};
+	auto{std::move(pi3)};
+	{
+		INFO(tl.get_status());
+		REQUIRE(tl[0] == nullptr);
+		REQUIRE(tl[1] == nullptr);
+		REQUIRE(tl[2] == nullptr);
+	}
+}
+
+TEST_CASE("Void properties", "[Property]") {
+	prop::Property pi = 0;
+	pi.custom_name = "pi";
+	prop::Property<void> pv;
+	pv.custom_name = "pv";
+	pv = [&pi] { pi.get(); };
+	prop::Property<int> counter;
+	counter.custom_name = "counter";
+	counter = [&pv](int &value) {
+		pv.get();
+		value++;
+		return prop::Updater_result::changed;
+	};
+	{
+		INFO(pv.get_status());
+		INFO(counter.get_status());
+		REQUIRE(pv.is_bound());
+		REQUIRE(pv.is_dependent_on(pi));
+		REQUIRE(counter == 1);
+	}
+	pi++;
+	{
+		INFO(pv.get_status());
+		INFO(counter.get_status());
+		REQUIRE(pv.is_bound());
+		REQUIRE(pv.is_dependent_on(pi));
+		REQUIRE(counter == 2);
+	}
+	auto{std::move(pi)};
+	{
+		INFO(pv.get_status());
+		INFO(counter.get_status());
+		REQUIRE(not pv.is_bound());
+		REQUIRE(not pv.is_dependent_on(pi));
+		REQUIRE(counter == 2);
+	}
+	prop::Property pi2 = 1;
+	pi2.custom_name = "pi2";
+	pv = [&pi, &pi2] {
+		pi.get();
+		pi2.get();
+	};
+	{
+		INFO(pv.get_status());
+		INFO(counter.get_status());
+		REQUIRE(pv.is_bound());
+		REQUIRE(pv.is_dependent_on(pi));
+		REQUIRE(pv.is_dependent_on(pi2));
+		REQUIRE(counter == 3);
+	}
 }

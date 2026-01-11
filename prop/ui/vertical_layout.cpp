@@ -12,13 +12,13 @@
 	PROP_X(name_updater), PROP_X(children), PROP_X(alignment), PROP_X(child_positioners)
 
 prop::Vertical_layout::Vertical_layout()
-	: child_positioners{[self_ = prop::track(this)] mutable {
+	: child_positioners{[self_pointer = prop::track(this)] mutable {
 		//return;
-		self_->children.apply([self = std::move(self_)](std::vector<prop::Polywrap<prop::Widget>> &children_) {
+		self_pointer->children.apply([&self = *self_pointer](std::vector<prop::Polywrap<prop::Widget>> &children_) {
 			if (children_.empty()) {
-				self->min_size = prop::Size{0, 0};
-				self->max_size = prop::Size::max;
-				self->preferred_size = prop::Size{0, 0};
+				self.min_size = prop::Size{0, 0};
+				self.max_size = prop::Size::max;
+				self.preferred_size = prop::Size{0, 0};
 				return;
 			}
 			int min_width = 0;
@@ -26,7 +26,7 @@ prop::Vertical_layout::Vertical_layout()
 			int max_width = 0;
 			int max_height = 0;
 			int ypos = 0;
-			const int width = self->position->width();
+			const int width = self.position->width();
 			for (auto &child : children_) {
 				//TODO: Don't just go with minimum size, instead take actual size into account and spread leftover space across widgets
 				const auto &min_size = child->get_min_size().get();
@@ -43,11 +43,11 @@ prop::Vertical_layout::Vertical_layout()
 				};
 				ypos += min_size.height;
 			}
-			self->min_size = prop::Size{min_width, min_height};
-			self->max_size = prop::Size{max_width, max_height};
+			self.min_size = prop::Size{min_width, min_height};
+			self.max_size = prop::Size{max_width, max_height};
 		});
 	}} {
-	//assert(child_positioners.is_dependent_on(children));
+	assert(child_positioners.is_dependent_on(children));
 }
 
 prop::Vertical_layout::Vertical_layout(Vertical_layout &&other) noexcept {

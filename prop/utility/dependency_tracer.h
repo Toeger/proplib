@@ -1,8 +1,8 @@
 #pragma once
 
 #include "alignment.h"
-#include "property_link.h"
 #include "prop/ui/widget.h"
+#include "property_link.h"
 #include "type_name.h"
 
 #include <filesystem>
@@ -197,7 +197,7 @@ namespace prop {
 					auto [it, inserted] = object_data.insert({
 						&p,
 						{
-							.name = name,
+							.name = name.empty() ? static_cast<const prop::Property_link &>(p).custom_name : name,
 							.parent = current_widget,
 							.widget_data = {},
 						},

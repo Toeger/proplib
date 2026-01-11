@@ -81,7 +81,9 @@ namespace prop {
 				: value{t} {}
 			const T &value;
 			std::ostream &print(std::ostream &os) {
-				if constexpr (Streamable<T>) {
+				if constexpr (std::is_enum_v<T>) {
+					return os << magic_enum::enum_name(value) << '=' << +std::to_underlying(value);
+				} else if constexpr (Streamable<T>) {
 					return os << value;
 				} else {
 					return os << prop::type_name<T>() << '@' << &value;
@@ -425,10 +427,22 @@ namespace prop {
 		Property();
 		Property(Property &&other);
 		Property &operator=(Property &&other);
-		Property(std::convertible_to<std::move_only_function<void()>> auto &&f)
-			: source{prop::detail::create_explicit_caller<void>(std::forward<decltype(f)>(f), {})} {}
-		Property &operator=(std::convertible_to<std::move_only_function<void()>> auto &&f);
+		Property(prop::detail::Updater_function<void> auto &&f) {
+			update_source(prop::detail::create_explicit_caller<void>(std::forward<decltype(f)>(f), {}));
+		}
+		Property(prop::detail::Generator_function<void> auto &&f) {
+			update_source(prop::detail::create_explicit_caller<void>(std::forward<decltype(f)>(f), {}));
+		}
+		Property &operator=(std::convertible_to<std::move_only_function<prop::Updater_result()>> auto &&f);
 		Property &operator=(prop::detail::Property_function_binder<void> binder);
+		Property &operator=(prop::detail::Updater_function<void> auto &&f) {
+			update_source(prop::detail::create_explicit_caller<void>(std::forward<decltype(f)>(f), {}));
+			return *this;
+		}
+		Property &operator=(prop::detail::Generator_function<void> auto &&f) {
+			update_source(prop::detail::create_explicit_caller<void>(std::forward<decltype(f)>(f), {}));
+			return *this;
+		}
 		bool is_bound() const;
 		void unbind() final override;
 		std::string displayed_value() const final {
@@ -442,6 +456,9 @@ namespace prop {
 		}
 		bool has_source() const override {
 			return !!source;
+		}
+		void get() const {
+			read_notify();
 		}
 
 		template <class U>
@@ -459,12 +476,15 @@ namespace prop {
 #ifdef PROPERTY_NAMES
 		using prop::Property_link::custom_name;
 #endif
-		virtual ~Property() = default;
+		virtual ~Property() {
+			auto{std::move(source)};
+		}
 
 		private:
-		void update_source(std::move_only_function<void(std::span<const prop::Property_link::Property_pointer>)> f);
+		void update_source(
+			std::move_only_function<prop::Updater_result(std::span<const prop::Property_link::Property_pointer>)> f);
 		void update() override final;
-		std::move_only_function<void(std::span<const prop::Property_link::Property_pointer>)> source;
+		std::move_only_function<prop::Updater_result(std::span<const prop::Property_link::Property_pointer>)> source;
 		friend class Binding;
 		template <class U>
 		friend class Property;
@@ -814,9 +834,11 @@ namespace prop {
 		}
 	}
 
-	Property<void> &Property<void>::operator=(std::convertible_to<std::move_only_function<void()>> auto &&f) {
-		update_source(
-			[source_ = std::forward<decltype(f)>(f)](std::span<prop::Property_link::Property_pointer>) { source_(); });
+	Property<void> &
+	Property<void>::operator=(std::convertible_to<std::move_only_function<prop::Updater_result()>> auto &&f) {
+		update_source([source_ = std::forward<decltype(f)>(f)](std::span<const prop::Property_link::Property_pointer>) {
+			source_();
+		});
 		return *this;
 	}
 

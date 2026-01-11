@@ -20,7 +20,7 @@ namespace prop {
 		Vertical_layout();
 		template <class... Children>
 		Vertical_layout(Children &&...children)
-			requires(std::is_convertible_v<decltype(std::forward<Children>(children)), prop::Polywrap<prop::Widget>> &&
+			requires(std::is_convertible_v<decltype(std::forward<Children>(children)), prop::Polywrap<prop::Widget>> and
 					 ...);
 		Vertical_layout(Vertical_layout &&other) noexcept;
 		~Vertical_layout() override;
@@ -35,8 +35,9 @@ namespace prop {
 		Vertical_layout(std::string_view name);
 		template <class... Children>
 		Vertical_layout(std::string_view name, Children &&...children_)
-			requires(std::is_convertible_v<decltype(std::forward<Children>(children_)), prop::Polywrap<prop::Widget>> &&
-					 ...)
+			requires(
+				std::is_convertible_v<decltype(std::forward<Children>(children_)), prop::Polywrap<prop::Widget>> and
+				...)
 			: Vertical_layout{children_...} {
 			set_name(name);
 		}
@@ -57,7 +58,7 @@ namespace prop {
 //implementation
 template <class... Children>
 prop::Vertical_layout::Vertical_layout(Children &&...children_)
-	requires(std::is_convertible_v<decltype(std::forward<Children>(children_)), prop::Polywrap<prop::Widget>> && ...)
+	requires(std::is_convertible_v<decltype(std::forward<Children>(children_)), prop::Polywrap<prop::Widget>> and ...)
 	: Vertical_layout{} {
 	//PROP_TRACER(*this).to_image();
 	std::vector<prop::Polywrap<prop::Widget>> children_list;

@@ -59,7 +59,13 @@ namespace prop {
 		using prop::Property_link::implicit_dependencies;
 
 		public:
+		using prop::Property_link::custom_name;
+
 		Tracking_list(std::span<const Property_link::Property_pointer> list)
+			: prop::Property_link{prop::type_name<Tracking_list>()} {
+			set_explicit_dependencies({std::begin(list), std::end(list)});
+		}
+		Tracking_list(std::span<const Property_link> list)
 			: prop::Property_link{prop::type_name<Tracking_list>()} {
 			set_explicit_dependencies({std::begin(list), std::end(list)});
 		}

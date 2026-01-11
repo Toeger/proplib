@@ -1,5 +1,6 @@
 #include "property_details.h"
 #include "color.h"
+#include "utility.h"
 
 #ifdef PROPERTY_DEBUG
 #include <algorithm>
@@ -97,7 +98,7 @@ struct Tracer {
 		return std::move(*this);
 	}
 	Tracer &&operator<<(const void *p) && {
-		os << prop::Color::address << p;
+		os << prop::color_address(p);
 		return std::move(*this);
 	}
 	Tracer &&operator<<(std::span<const prop::Property_link::Property_pointer> span) && {

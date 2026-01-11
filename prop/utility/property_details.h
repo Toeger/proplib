@@ -79,7 +79,7 @@ namespace prop {
 			return false;
 		}
 
-		template <class T, class Function_args_list, class Properties_list, std::size_t... indexes>
+		template <class Function_args_list, class Properties_list, std::size_t... indexes>
 		consteval bool are_compatible_function_args_for_properties(std::index_sequence<indexes...>) {
 			if constexpr (Function_args_list::size == Properties_list::size) {
 				return (is_compatible_function_arg_for_property<typename Function_args_list::template at<indexes>,
@@ -237,9 +237,15 @@ namespace prop {
 		consteval bool generator_function_helper(std::index_sequence<indexes...> index_sequence) {
 			if constexpr (Properties::size != Parameters::size) {
 				return false;
-			} else if constexpr (not are_compatible_function_args_for_properties<T, Parameters, Properties>(
+			} else if constexpr (not are_compatible_function_args_for_properties<Parameters, Properties>(
 									 index_sequence)) {
 				return false;
+			} else if constexpr (std::is_same_v<T, void>) {
+				return std::is_same_v<decltype(std::declval<Function &>()(
+										  convert_to_function_arg<typename Parameters::template at<indexes>>(
+											  get_property_pointer(
+												  std::declval<typename Properties::template at<indexes>>()))...)),
+									  void>;
 			} else {
 				return prop::detail::assignable_to<
 					decltype(std::declval<Function &>()(
@@ -256,25 +262,41 @@ namespace prop {
 
 		template <class Function, class T, class Properties, class Parameters, std::size_t... indexes>
 		consteval bool updater_function_helper(std::index_sequence<indexes...> index_sequence) {
-			using Extended_properties = typename Properties::template prepend<prop::Property<T> &>;
-			if constexpr (Extended_properties::size != Parameters::size) {
-				return false;
-			} else if constexpr (not are_compatible_function_args_for_properties<T, Parameters, Extended_properties>(
-									 index_sequence)) {
-				return false;
+			if constexpr (std::is_same_v<T, void>) {
+				if constexpr (Properties::size != Parameters::size) {
+					return false;
+				} else if constexpr (not are_compatible_function_args_for_properties<Parameters, Properties>(
+										 index_sequence)) {
+					return false;
+				} else {
+					return std::is_same_v<decltype(std::declval<Function &>()(
+											  convert_to_function_arg<typename Parameters::template at<indexes>>(
+												  get_property_pointer(
+													  std::declval<typename Properties::template at<indexes>>()))...)),
+										  prop::Updater_result>;
+				}
 			} else {
-				return std::is_same_v<
-					decltype(std::declval<Function &>()(
-						convert_to_function_arg<typename Parameters::template at<indexes>>(get_property_pointer(
-							std::declval<typename Extended_properties::template at<indexes>>()))...)),
-					prop::Updater_result>;
+				using Extended_properties = typename Properties::template prepend<prop::Property<T> &>;
+				if constexpr (Extended_properties::size != Parameters::size) {
+					return false;
+				} else if constexpr (not are_compatible_function_args_for_properties<Parameters, Extended_properties>(
+										 index_sequence)) {
+					return false;
+				} else {
+					return std::is_same_v<
+						decltype(std::declval<Function &>()(
+							convert_to_function_arg<typename Parameters::template at<indexes>>(get_property_pointer(
+								std::declval<typename Extended_properties::template at<indexes>>()))...)),
+						prop::Updater_result>;
+				}
 			}
 		}
 
 		template <class Function, class T, class... Properties>
 		concept Updater_function = updater_function_helper<Function, T, prop::Type_list<Properties...>,
 														   typename prop::Callable_info_for<Function>::Params>(
-			std::index_sequence_for<T, Properties...>{});
+			std::conditional_t<std::is_same_v<T, void>, std::index_sequence_for<Properties...>,
+							   std::index_sequence_for<T, Properties...>>{});
 
 		template <class Function, class T, class... Properties>
 		concept Property_update_function =
@@ -367,15 +389,29 @@ namespace prop {
 
 		template <class T, class Function, class... Properties, std::size_t... indexes>
 			requires(std::is_same_v<T, void>)
-		std::move_only_function<void(std::span<const Property_link::Property_pointer>)>
+		std::move_only_function<prop::Updater_result(std::span<const Property_link::Property_pointer>)>
 		create_explicit_caller(Function &&function, std::index_sequence<indexes...>) {
 			return [source = std::forward<Function>(function)](
 					   std::span<const Property_link::Property_pointer> explicit_dependencies) mutable {
 				using Args_list = prop::Callable_info_for<Function>::Params;
 				if constexpr (Args_list::size == sizeof...(indexes)) {
-					source(convert_to_function_arg<typename Args_list::template at<indexes>>(
-						static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(
-							explicit_dependencies[indexes].get_pointer()))...);
+					using Return_type = typename prop::Callable_info_for<Function>::Return_type;
+					if constexpr (std::is_same_v<Return_type, void>) {
+						source(convert_to_function_arg<typename Args_list::template at<indexes>>(
+							static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(
+								explicit_dependencies[indexes].get_pointer()))...);
+						return prop::Updater_result::changed;
+					} else if constexpr (std::is_same_v<Return_type, prop::Updater_result>) {
+						return source(convert_to_function_arg<typename Args_list::template at<indexes>>(
+							static_cast<std::remove_pointer_t<std::remove_cvref_t<Properties>> *>(
+								explicit_dependencies[indexes].get_pointer()))...);
+						return prop::Updater_result::changed;
+					} else {
+						static_assert(
+							false,
+							"Expected return type of void binding to be either void or prop::Updater_result, got " +
+								std::string{prop::type_name<Return_type>()} + " instead");
+					}
 				} else {
 					using Function_parameter_list = prop::Callable_info_for<Function>::Params;
 					static_assert(false, "Number of parameters (" + std::string(Function_parameter_list::type_names) +
@@ -434,7 +470,7 @@ namespace prop {
 				: Property_function_binder(std::forward<Function>(function_),
 										   typename prop::Callable_info_for<Function>::Params{}, properties...) {}
 
-			std::move_only_function<void(std::span<const Property_link::Property_pointer>)> function;
+			std::move_only_function<prop::Updater_result(std::span<const Property_link::Property_pointer>)> function;
 			std::vector<prop::Property_link::Property_pointer> dependencies;
 
 			private:

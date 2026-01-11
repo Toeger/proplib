@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <format>
 #include <fstream>
+#include <regex>
 
 std::string prop::Dependency_tracer::to_string() const {
 	std::stringstream ss;
@@ -23,7 +24,7 @@ std::string prop::Dependency_tracer::to_string() const {
 					const void *address;
 				};
 				ss << '\t' << prop::Color::type << member.get_type() << ' ' << prop::Color::variable_name << member.name
-				   << prop::Color::static_text << '@' << prop::Color::address << member.get_address() << ' '
+				   << prop::Color::static_text << '@' << prop::color_address(member.get_address()) << ' '
 				   << prop::Color::variable_value << member.get_value_string() << "\n";
 			}
 		}
@@ -43,7 +44,23 @@ std::intptr_t prop::Dependency_tracer::heap_base_address =
 namespace Dot {
 	static std::string html_encode(std::string_view sv) {
 		std::string result;
-		for (auto &chr : sv) {
+		bool colored = false;
+		const auto end_color = [&colored, &result] {
+			if (not colored) {
+				return;
+			}
+			colored = false;
+			if (result.back() == '>') {
+				while (result.back() != '<') {
+					result.pop_back();
+				}
+				result.pop_back();
+			} else {
+				result += "</font>";
+			}
+		};
+		for (std::size_t i = 0; i < std::size(sv); i++) {
+			const char chr = sv[i];
 			switch (chr) {
 				case '<':
 					result += "&lt;";
@@ -57,10 +74,32 @@ namespace Dot {
 				case '&':
 					result += "&amp;";
 					break;
+				case '\033': {
+					end_color();
+					if (sv[++i] == '[') {
+						i++;
+						std::size_t end_pos = i;
+						while (end_pos + 1 < std::size(sv) and sv[++end_pos] != 'm') {
+						}
+						static const std::regex re(R"((\d+);(\d+);(\d+);(\d+);(\d+))");
+						std::cmatch m;
+						if (std::regex_match(&sv[i], &sv[end_pos], m, re)) {
+							if (m[1].str() == "38" and m[2].str() == "2") {
+								result += std::format("<font color='#{:02X}{:02X}{:02X}'>", stoi(m[3].str()),
+													  stoi(m[4].str()), stoi(m[5].str()));
+								colored = true;
+							}
+						}
+						i = end_pos - 1;
+					}
+					while (i + 1 < std::size(sv) and sv[++i] != 'm') {
+					}
+				} break;
 				default:
 					result += chr;
 			}
 		}
+		end_color();
 		return result;
 	}
 
@@ -186,7 +225,7 @@ namespace Dot {
 		while (value > 0x1fffff) {
 			value >>= 1;
 		}
-		std::uint32_t rgb[3] = {0x80, 0x80, 0x80};
+		std::uint32_t rgb[3] = {0x0, 0x0, 0x0};
 		for (int i = 0; i < 7; i++) {
 			for (int ci = 0; ci < 3; ci++) {
 				rgb[ci] |= (value & 1) << i;
@@ -209,6 +248,7 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 	{
 		target = &file;
 		Block _{"digraph G"};
+		Command _{"bgcolor=\"#303030\""};
 		Command _{"overlap=\"false\""};
 		Command _{"fontname=\"FiraCode-Medium\""};
 
@@ -234,16 +274,19 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 						HTML_tag _{"tr"};
 						{
 							HTML_tag _{"td", "align='right'"};
-							HTML_tag{"font", "color='darkred'", bold(html_encode(base->type))};
+							HTML_tag{"font", std::format("color='#{:hex}'", prop::Color::type),
+									 bold(html_encode(base->type))};
 						}
 						{
 							HTML_tag _{"td"};
-							HTML_tag{"font", "color='darkgreen'", bold(html_encode(data.name))};
+							HTML_tag{"font", std::format("color='#{:hex}'", prop::Color::variable_name),
+									 bold(html_encode(data.name))};
 						}
 						HTML_tag _{"td", "", ""};
 						{
 							HTML_tag _{"td"};
-							HTML_tag{"font", "color='blue'", bold(prop::to_string(link))};
+							HTML_tag{"font", std::format("color='#{:hex}'", prop::Color::address),
+									 bold(prop::to_string(link))};
 						}
 					}
 					for (auto &member : base->members) {
@@ -251,16 +294,19 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 							HTML_tag _{"tr"};
 							{
 								HTML_tag _{"td", "align='right'"};
-								HTML_tag{"font", "color='darkred'", html_encode(member.get_type())};
+								HTML_tag{"font", std::format("color='#{:hex}'", prop::Color::type),
+										 html_encode(member.get_type())};
 							}
 							{
 								HTML_tag _{"td", "align='center'"};
-								HTML_tag{"font", "color='darkgreen'", html_encode(member.name)};
+								HTML_tag{"font", std::format("color='#{:hex}'", prop::Color::variable_name),
+										 html_encode(member.name)};
 							}
-							HTML_tag _{"td", "align='left'", html_encode(member.get_value_string())};
+							HTML_tag _{"td", "align='left'", "{" + html_encode(member.get_value_string()) + "}"};
 							HTML_tag _{"td",
 									   "align='left' port='property_" + prop::to_string(member.get_address()) + "'"};
-							HTML_tag{"font", "color='blue'", prop::to_string(member.get_address())};
+							HTML_tag{"font", std::format("color='#{:hex}'", prop::Color::address),
+									 prop::to_string(member.get_address())};
 						}
 					}
 				}
@@ -268,10 +314,23 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 				Block _{dot_name(link), "[", "];"};
 				Command _{"shape=rect"};
 				Command _{
-					std::format("label=<<font color='darkred'>{}</font> <font color='darkgreen'>{}</font> {} <font "
-								"color='blue'>{}</font>>",
-								html_encode(link->type()), html_encode(data.name.empty() ? "<unnamed>" : data.name),
-								html_encode(link->displayed_value()), prop::to_string(link))};
+					std::format("label=<"
+								"<font color='#{:hex}'>{}</font>"  //type
+								"<font color='#{:hex}'>{}</font>"  //@
+								"{} "							   //address
+								"<font color='#{:hex}'>{}</font> " //name
+								"<font color='#{:hex}'>{}</font>"  //{
+								"<font color='#{:hex}'>{}</font>"  //value
+								"<font color='#{:hex}'>{}</font> " //}
+								">",
+								prop::Color::type, html_encode(prop::color_type(std::string{link->type()})),  //type
+								prop::Color::static_text, "@",												  //@
+								html_encode(prop::color_address(link)),										  //address
+								prop::Color::variable_name, html_encode(data.name.empty() ? " " : data.name), //name
+								prop::Color::static_text, "{",												  //{
+								prop::Color::variable_value, html_encode(link->displayed_value()),			  //value
+								prop::Color::static_text, "}")												  //}
+				};
 				Command _{"style=\"filled\""};
 				Command _{"fillcolor=\"#" + color_code(link) + "\""};
 			}

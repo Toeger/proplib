@@ -218,11 +218,11 @@ namespace prop {
 			}
 			std::stringstream ss;
 			auto error =
-				(std::stringstream{} << prop::Color::red << "Error" << prop::Color::reset << ": Expected "
-									 << prop::Color::type << "Property_link" << prop::Color::reset << "@"
-									 << prop::Color::address << this << prop::Color::reset << " to be in status "
-									 << prop::Color::variable_value << state << prop::Color::reset << ", but it is in "
-									 << prop::Color::variable_value << lifetimes()[this] << prop::Color::reset << ".")
+				(std::stringstream{} << prop::Color::red << "Error" << prop::Color::static_text << ": Expected "
+									 << this->to_string() << prop::Color::static_text << " to be in status "
+									 << prop::Color::variable_value << state << prop::Color::static_text
+									 << ", but it is in " << prop::Color::variable_value << lifetimes()[this]
+									 << prop::Color::static_text << "." << prop::Color::reset)
 					.str();
 			std::clog << error << '\n';
 			assert(lifetimes()[this] == state);

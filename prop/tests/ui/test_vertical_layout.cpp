@@ -4,7 +4,7 @@
 
 #include <catch2/catch_all.hpp>
 
-TEST_CASE("Apply width to reference children") {
+TEST_CASE("Apply width to reference children", "[Vertical_layout]") {
 	prop::Widget w1, w2;
 	prop::Vertical_layout vl{&w1, &w2};
 	//prop::print_status(vl.position);
@@ -20,7 +20,7 @@ TEST_CASE("Apply width to reference children") {
 	REQUIRE(w2.position->right == vl.position->right);
 }
 
-TEST_CASE("Apply width to constructor children") {
+TEST_CASE("Apply width to constructor children", "[Vertical_layout]") {
 	prop::Vertical_layout vl{
 		prop::Label{{.text = "L1"}},
 		prop::Label{{.text = "L2"}},
@@ -31,7 +31,7 @@ TEST_CASE("Apply width to constructor children") {
 	REQUIRE(vl.children[1]->position->right == vl.position->right);
 }
 
-TEST_CASE("Apply width to assigned children") {
+TEST_CASE("Apply width to assigned children", "[Vertical_layout]") {
 	prop::Vertical_layout vl;
 	vl.position.apply()->right = vl.position.apply()->bottom = 100;
 	vl.children.apply()->push_back(prop::Label{{.text = "L1"}});

@@ -1,6 +1,8 @@
 #pragma once
 
+#include "color.h"
 #include "prop/platform/external/magic_enum.hpp"
+
 #include <algorithm>
 #include <ranges>
 #include <sstream>
@@ -45,6 +47,19 @@ namespace prop {
 		ss << t;
 		return std::move(ss).str();
 	}
+
+	inline std::string color_address(const void *p) {
+		if (p == nullptr) {
+			return prop::to_string(prop::Color::address_highlight) + "nullptr" + prop::to_string(prop::Color::reset);
+		}
+		auto address = reinterpret_cast<std::uintptr_t>(p);
+		std::stringstream ss;
+		ss << prop::Color::address << std::hex << (address >> 8) << std::dec << prop::Color::address_highlight
+		   << std::hex << (address & 0xffff) << prop::Color::reset;
+		return std::move(ss).str();
+	}
+
+	std::string color_type(std::string type);
 
 	template <class Container>
 	std::string to_string(const Container &c)

@@ -60,8 +60,8 @@ namespace prop {
 			fuchsia, purple;
 
 		//prop colors
-		static Color static_text, type, variable_name, variable_value, address, file, path, function_name,
-			function_type;
+		static Color static_text, type, type_highlight, variable_name, variable_value, address, address_highlight, file,
+			path, function_name, function_type;
 
 		struct Reset {
 		} static constexpr reset{};
@@ -74,7 +74,41 @@ namespace prop {
 	std::ostream &operator<<(std::ostream &os, prop::Color color);
 	std::ostream &operator<<(std::ostream &os, prop::Background background);
 	std::ostream &operator<<(std::ostream &os, prop::Color::Reset);
+
 } // namespace prop
+
+template <>
+struct std::formatter<prop::Color, char> {
+	enum class Color_format { ansi, hex } color_format;
+
+	template <class ParseContext>
+	constexpr ParseContext::iterator parse(ParseContext &ctx) {
+		std::string arg;
+		auto it = ctx.begin();
+		for (; it != ctx.end() && *it != '}'; ++it) {
+			arg.push_back(*it);
+		}
+		if (arg == "ansi") {
+			color_format = Color_format::ansi;
+		} else if (arg == "hex") {
+			color_format = Color_format::hex;
+		} else {
+			throw std::format_error{"Invalid format specifier \"" + arg + "\" for prop::Color"};
+		}
+		return it;
+	}
+
+	template <class FmtContext>
+	FmtContext::iterator format(const prop::Color &color, FmtContext &ctx) const {
+		switch (color_format) {
+			case Color_format::ansi:
+				return std::format_to(ctx.out(), "\033[38;2;{};{};{}m", color.r, color.g, color.b);
+			case Color_format::hex:
+				return std::format_to(ctx.out(), "{:02X}{:02X}{:02X}", color.r, color.g, color.b);
+		}
+		return ctx.out();
+	}
+};
 
 inline constexpr prop::Color prop::Color::white{{.rgb = 0xFFFFFF}};
 inline constexpr prop::Color prop::Color::silver{{.rgb = 0xC0C0C0}};
@@ -94,10 +128,12 @@ inline constexpr prop::Color prop::Color::fuchsia{{.rgb = 0xFF00FF}};
 inline constexpr prop::Color prop::Color::purple{{.rgb = 0x800080}};
 
 inline prop::Color prop::Color::static_text = prop::Color::silver;
-inline prop::Color prop::Color::type = prop::Color::yellow;
-inline prop::Color prop::Color::variable_name = prop::Color::green;
+inline prop::Color prop::Color::type = prop::Color::olive;
+inline prop::Color prop::Color::type_highlight = prop::Color::yellow;
+inline prop::Color prop::Color::variable_name = prop::Color::lime;
 inline prop::Color prop::Color::variable_value = prop::Color::white;
-inline prop::Color prop::Color::address = prop::Color::olive;
+inline prop::Color prop::Color::address = prop::Color::purple;
+inline prop::Color prop::Color::address_highlight = prop::Color::fuchsia;
 inline prop::Color prop::Color::file = prop::Color::aqua;
 inline prop::Color prop::Color::path = prop::Color::teal;
 inline prop::Color prop::Color::function_name = prop::Color::aqua;

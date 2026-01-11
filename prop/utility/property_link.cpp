@@ -109,7 +109,7 @@ struct Tracer {
 		return std::move(*this);
 	}
 	Tracer &&operator<<(const void *p) && {
-		os << prop::Color::address << p;
+		os << prop::color_address(p);
 		return std::move(*this);
 	}
 	Tracer &&operator<<(std::span<const prop::Property_link::Property_pointer> span) && {
@@ -177,8 +177,8 @@ std::string prop::Property_link::to_string() const {
 std::string prop::Property_link::to_string(std::string_view type_name) const {
 	std::stringstream ss;
 	ss << prop::Color::type;
-	ss << type_name;
-	ss << prop::Color::static_text << '@' << prop::Color::address << this;
+	ss << prop::color_type(std::string{type_name});
+	ss << prop::Color::static_text << '@' << prop::color_address(this);
 	if (custom_name.empty()) {
 		ss << prop::Color::static_text;
 	} else {
@@ -262,7 +262,7 @@ void prop::Property_link::operator=(Property_link &&other) {
 
 prop::Property_link::~Property_link() {
 	assert_status();
-	TRACE("Destroying " << to_string());
+	TRACE("Destroying " << get_status());
 	binding_data.remove(this);
 	for (std::size_t dependency_index = 0; dependency_index < explicit_dependencies + implicit_dependencies;
 		 dependency_index++) {
@@ -457,7 +457,7 @@ void prop::Property_link::print_extended_status(const prop::Extended_status_data
 						esd.output << prop::Color::static_text << "{" << dep->displayed_value()
 								   << prop::Color::static_text << "}";
 					} else {
-						esd.output << prop::Color::address << "nullptr";
+						esd.output << prop::Color::address_highlight << "nullptr";
 					}
 					sep = ", ";
 				}
