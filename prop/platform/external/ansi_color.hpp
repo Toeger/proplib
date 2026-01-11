@@ -25,6 +25,7 @@
 #define AYIN_ANSI_COLOR_HPP_
 
 #include <cassert>
+#include <charconv>
 #include <cstdint>
 #include <ostream>
 
@@ -123,28 +124,48 @@ namespace ansi_color {
 	};
 
 	inline std::ostream &operator<<(std::ostream &ost, AnsiColor const &ac) {
-		ost << "\033[";
 		switch (ac.color_.spec_) {
 			case ColorSpec::kNone:
 				return ost;
 			case ColorSpec::kReset:
-				return (ost << "0m");
+				return (ost << "\033[0m");
 			default:
 				break;
 		}
+
+		// "\033[00;2;000;000;000m"
+		constexpr std::size_t kBufSize = 4 +		 // \033[00
+										 3 +		 // ;2;
+										 3 * 3 + 2 + // 000;000;000
+										 1;			 // m
+		char buf[kBufSize];
+
+		char *p = buf;
+		*p++ = '\033';
+		*p++ = '[';
 
 		// foreground: 30-39
 		// background: 40-49
 		int co = detail::_toConsoleCode(ac.color_.spec_);
 		int co_offset = (ac.target_ == ColorTarget::kBg) ? 40 : 30;
-		ost << (co + co_offset);
+		p = std::to_chars(p, p + 2, co + co_offset).ptr;
+
+		// rgb mode
 		if (co == 8) {
-			// use rgb color
-			auto &_rgb = ac.color_.rgb_;
-			ost << ";2;" << int(_rgb.red_) << ';' << int(_rgb.green_) << ';' << int(_rgb.blue_);
+			const auto &rgb = ac.color_.rgb_;
+			*p++ = ';';
+			*p++ = '2';
+			*p++ = ';';
+			p = std::to_chars(p, p + 3, rgb.red_).ptr;
+			*p++ = ';';
+			p = std::to_chars(p, p + 3, rgb.green_).ptr;
+			*p++ = ';';
+			p = std::to_chars(p, p + 3, rgb.blue_).ptr;
 		}
 
-		ost << 'm';
+		*p++ = 'm';
+
+		ost.write(buf, static_cast<std::streamsize>(p - buf));
 		return ost;
 	}
 } // namespace ansi_color
