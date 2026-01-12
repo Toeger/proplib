@@ -84,7 +84,7 @@ namespace prop {
 				if constexpr (std::is_enum_v<T>) {
 					return os << magic_enum::enum_name(value) << '=' << +std::to_underlying(value);
 				} else if constexpr (Streamable<T>) {
-					return os << value;
+					return os << std::boolalpha << value;
 				} else {
 					return os << prop::type_name<T>() << '@' << &value;
 				}

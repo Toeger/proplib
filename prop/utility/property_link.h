@@ -49,6 +49,16 @@ namespace prop {
 		public:
 		using Property_pointer = prop::Required_pointer<Property_link>;
 		static inline std::ostream *debug_output;
+		struct Output_setter {
+			Output_setter(std::ostream &os)
+				: prev{debug_output} {
+				debug_output = &os;
+			}
+			~Output_setter() {
+				debug_output = prev;
+			}
+			std::ostream *prev;
+		};
 
 		virtual std::string_view type() const;
 		virtual std::string value_string() const;

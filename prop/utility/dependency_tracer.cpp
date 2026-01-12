@@ -275,7 +275,7 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 						{
 							HTML_tag _{"td", "align='right'"};
 							HTML_tag{"font", std::format("color='#{:hex}'", prop::Color::type),
-									 bold(html_encode(base->type))};
+									 bold(html_encode(prop::color_type(std::string{base->type})))};
 						}
 						{
 							HTML_tag _{"td"};
@@ -286,51 +286,63 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 						{
 							HTML_tag _{"td"};
 							HTML_tag{"font", std::format("color='#{:hex}'", prop::Color::address),
-									 bold(prop::to_string(link))};
+									 bold(html_encode(prop::color_address(link)))};
 						}
 					}
 					for (auto &member : base->members) {
 						{
 							HTML_tag _{"tr"};
 							{
-								HTML_tag _{"td", "align='right'"};
-								HTML_tag{"font", std::format("color='#{:hex}'", prop::Color::type),
-										 html_encode(member.get_type())};
+								HTML_tag _{"td", "align='right'",
+										   html_encode(prop::color_type(std::string{member.get_type()}))};
 							}
 							{
 								HTML_tag _{"td", "align='center'"};
 								HTML_tag{"font", std::format("color='#{:hex}'", prop::Color::variable_name),
 										 html_encode(member.name)};
 							}
-							HTML_tag _{"td", "align='left'", "{" + html_encode(member.get_value_string()) + "}"};
+							const auto value = member.get_value_string();
+							const auto value_string =
+								value.size() ?
+									std::format(
+										"<font color='#{:hex}'>{{</font><font color='#{:hex}'>{}</font><font "
+										"color='#{:hex}'>}}</font>",
+										prop::Color::static_text, prop::Color::variable_value, html_encode(value),
+										prop::Color::static_text) :
+									std::format("<font color='#{:hex}'>{{}}</font>", prop::Color::static_text);
+							HTML_tag _{"td", "align='left'", value_string};
 							HTML_tag _{"td",
 									   "align='left' port='property_" + prop::to_string(member.get_address()) + "'"};
 							HTML_tag{"font", std::format("color='#{:hex}'", prop::Color::address),
-									 prop::to_string(member.get_address())};
+									 html_encode(prop::color_address(member.get_address()))};
 						}
 					}
 				}
 			} else {
 				Block _{dot_name(link), "[", "];"};
 				Command _{"shape=rect"};
+				const auto value = link->displayed_value();
+				const auto value_string =
+					value.size() ? std::format(
+									   "<font color='#{:hex}'>{{</font><font color='#{:hex}'>{}</font><font "
+									   "color='#{:hex}'>}}</font>",
+									   prop::Color::static_text, prop::Color::variable_value, html_encode(value),
+									   prop::Color::static_text) :
+								   std::format("<font color='#{:hex}'>{{}}</font>", prop::Color::static_text);
 				Command _{
 					std::format("label=<"
 								"<font color='#{:hex}'>{}</font>"  //type
-								"<font color='#{:hex}'>{}</font>"  //@
+								"<font color='#{:hex}'>@</font>"   //@
 								"{} "							   //address
 								"<font color='#{:hex}'>{}</font> " //name
-								"<font color='#{:hex}'>{}</font>"  //{
-								"<font color='#{:hex}'>{}</font>"  //value
-								"<font color='#{:hex}'>{}</font> " //}
+								"{}"							   //value
 								">",
 								prop::Color::type, html_encode(prop::color_type(std::string{link->type()})),  //type
-								prop::Color::static_text, "@",												  //@
+								prop::Color::static_text,													  //@
 								html_encode(prop::color_address(link)),										  //address
 								prop::Color::variable_name, html_encode(data.name.empty() ? " " : data.name), //name
-								prop::Color::static_text, "{",												  //{
-								prop::Color::variable_value, html_encode(link->displayed_value()),			  //value
-								prop::Color::static_text, "}")												  //}
-				};
+								value_string																  //value
+								)};
 				Command _{"style=\"filled\""};
 				Command _{"fillcolor=\"#" + color_code(link) + "\""};
 			}

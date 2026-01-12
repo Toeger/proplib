@@ -5,6 +5,7 @@
 #include <catch2/catch_all.hpp>
 
 TEST_CASE("Apply width to reference children", "[Vertical_layout]") {
+	prop::Property_link::Output_setter _{std::cout};
 	prop::Widget w1, w2;
 	prop::Vertical_layout vl{&w1, &w2};
 	//prop::print_status(vl.position);
