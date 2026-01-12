@@ -9,12 +9,12 @@ TEST_CASE("Apply width to reference children", "[Vertical_layout]") {
 	prop::Vertical_layout vl{&w1, &w2};
 	//prop::print_status(vl.position);
 	//prop::print_status(w1.position);
-	//PROP_TRACER(vl).print_widget_trace(std::clog);
+	//PROP_TRACER(vl).print_widget_trace();
 	PROP_TRACER(vl, w1, w2).to_image();
 	vl.position.apply()->right = 100;
 	//prop::print_status(vl.position);
 	//prop::print_status(w1.position);
-	//PROP_TRACER(vl).print_widget_trace(std::clog);
+	//PROP_TRACER(vl).print_widget_trace();
 	REQUIRE(vl.position->right == 100);
 	REQUIRE(w1.position->right == vl.position->right);
 	REQUIRE(w2.position->right == vl.position->right);

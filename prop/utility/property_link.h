@@ -22,7 +22,7 @@ namespace prop {
 	class Dependency_tracer;
 
 	struct Extended_status_data {
-		std::ostream &output = std::clog;
+		std::ostream &output = std::cout;
 		std::string indent_with = "\t";
 		int depth = 0;
 	};
@@ -113,17 +113,7 @@ namespace prop {
 		Property_link(Property_link &&other);
 
 		virtual void update();
-		virtual void unbind() {
-			assert_status();
-			for (std::size_t i = 0; i < explicit_dependencies + implicit_dependencies; i++) {
-				if (dependencies[i]) {
-					dependencies[i]->remove_dependent(*this);
-				}
-			}
-			dependencies.erase(std::begin(dependencies),
-							   std::begin(dependencies) + explicit_dependencies + implicit_dependencies);
-			explicit_dependencies = implicit_dependencies = 0;
-		}
+		virtual void unbind();
 		virtual std::string displayed_value() const {
 			assert_status();
 			return "";

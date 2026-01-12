@@ -62,7 +62,7 @@ constexpr std::string_view function_part(std::string_view function, Function_par
 }
 
 struct Tracer {
-	Tracer(std::ostream &output_stream = std::clog, std::source_location sl = std::source_location::current())
+	Tracer(std::ostream &output_stream = std::cout, std::source_location sl = std::source_location::current())
 		: os{output_stream}
 		, source_location{sl} {
 		//std::move(*this) << prop::Color::path << path(sl.file_name());

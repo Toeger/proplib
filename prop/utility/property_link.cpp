@@ -73,7 +73,7 @@ constexpr std::string_view function_part(std::string_view function, Function_par
 }
 
 struct Tracer {
-	Tracer(std::ostream &output_stream = std::clog, std::source_location sl = std::source_location::current())
+	Tracer(std::ostream &output_stream = std::cout, std::source_location sl = std::source_location::current())
 		: os{output_stream}
 		, source_location{sl} {
 		//std::move(*this) << prop::Color::path << path(sl.file_name());
@@ -117,7 +117,7 @@ struct Tracer {
 		const char *sep = "";
 		for (auto &l : span) {
 			os << sep << (l.is_required() ? "!" : "") << l->to_string() << prop::Color::static_text << "{"
-			   << l->value_string() << prop::Color::static_text << "}";
+			   << prop::Color::variable_value << l->value_string() << prop::Color::static_text << "}";
 			sep = ", ";
 		}
 		os << ']';
@@ -253,6 +253,20 @@ prop::Property_link::Property_link(Property_link &&other) {
 	}
 }
 
+void prop::Property_link::unbind() {
+	assert_status();
+	TRACE("Unbinding  " << get_status());
+	for (std::size_t i = 0; i < explicit_dependencies + implicit_dependencies; i++) {
+		if (dependencies[i]) {
+			TRACE("Removing   " << dependencies[i]->to_string() << " from dependencies of " << to_string());
+			dependencies[i]->remove_dependent(*this);
+		}
+	}
+	dependencies.erase(std::begin(dependencies),
+					   std::begin(dependencies) + explicit_dependencies + implicit_dependencies);
+	explicit_dependencies = implicit_dependencies = 0;
+}
+
 void prop::Property_link::operator=(Property_link &&other) {
 	assert_status();
 	other.assert_status();
@@ -285,8 +299,9 @@ prop::Property_link::~Property_link() {
 				continue;
 			}
 			if (dependent_dependency.is_required()) {
+				TRACE("Removing   " << to_string() << " from required dependencies of " << dependent.get_name());
 				dependent.unbind();
-				TRACE("Removed    " << to_string() << " from required dependencies of " << dependent.get_name());
+				dependent_index--;
 				update_needed = false;
 				break; //all dependents and dependencies are gone
 			}
@@ -327,19 +342,10 @@ void prop::swap(Property_link &lhs, Property_link &rhs) {
 	struct Tmp final : Property_link {
 		Tmp()
 			: Property_link(prop::type_name<Tmp>()) {}
-		std::string_view type() const override {
-			return prop::type_name<Tmp>();
-		}
-		std::string value_string() const override {
-			return "Tmp";
-		}
-		bool has_source() const override {
-			return false;
-		}
-		void update() override {}
 	} static sentinel;
 
 	auto replace = [](Property_link &pb_old, Property_link &pb_new) {
+		std::swap(pb_old.custom_name, pb_new.custom_name);
 		assert(pb_new.dependencies.empty());
 		assert(pb_new.explicit_dependencies == 0);
 		assert(pb_new.implicit_dependencies == 0);
@@ -454,8 +460,8 @@ void prop::Property_link::print_extended_status(const prop::Extended_status_data
 							esd.output << prop::Color::white << '!';
 						}
 						esd.output << dep->to_string();
-						esd.output << prop::Color::static_text << "{" << dep->displayed_value()
-								   << prop::Color::static_text << "}";
+						esd.output << prop::Color::static_text << "{" << prop::Color::variable_value
+								   << dep->displayed_value() << prop::Color::static_text << "}";
 					} else {
 						esd.output << prop::Color::address_highlight << "nullptr";
 					}
@@ -479,11 +485,15 @@ void prop::Property_link::print_extended_status(const prop::Extended_status_data
 			   << value_string() << "\n";
 	esd.output << indent << prop::Color::static_text << "           Bound: " << prop::Color::variable_value
 			   << (has_source() ? "Yes" : "No") << "\n";
-	esd.output << indent << prop::Color::static_text << "           Explicit dependencies: " << prop::Color::reset;
+	esd.output << indent << prop::Color::static_text
+			   << std::format("{:12} explicit dependencies: ", explicit_dependencies) << prop::Color::reset;
 	print_dep(get_explicit_dependencies());
-	esd.output << indent << prop::Color::static_text << "           Implicit dependencies: " << prop::Color::reset;
+	esd.output << indent << prop::Color::static_text
+			   << std::format("{:12} implicit dependencies: ", implicit_dependencies) << prop::Color::reset;
 	print_dep(get_implicit_dependencies());
-	esd.output << indent << prop::Color::static_text << "           Dependents: " << prop::Color::reset;
+	esd.output << indent << prop::Color::static_text
+			   << std::format("{:12} dependents: ", dependencies.size() - explicit_dependencies - implicit_dependencies)
+			   << prop::Color::reset;
 	print_dep(get_dependents());
 }
 

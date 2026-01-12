@@ -604,7 +604,7 @@ TEST_CASE("Quoted string property", "[Property]") {
 }
 
 TEST_CASE("Updates inside updates", "[Property]") {
-	std::cout << std::string('\n', 20);
+	std::cout << std::string(20, '\n');
 	prop::Property p1 = 1;
 	p1.custom_name = "p1";
 	prop::Property<int> p2;
@@ -658,7 +658,7 @@ TEST_CASE("Updates inside updates", "[Property]") {
 		REQUIRE(pi3.is_dependent_on(pi2));
 		REQUIRE(pi2.is_dependent_on(pi1));
 	}
-	auto tl = prop::Tracking_list<prop::Property<int>>::of(pi1, pi2, pi3);
+	auto tl = prop::Tracking_list<prop::Property<int>>::of(/*p1, p2, p3, */ pi1, pi2, pi3);
 	tl.custom_name = "tl";
 	{
 		INFO(tl.get_status());
@@ -668,8 +668,12 @@ TEST_CASE("Updates inside updates", "[Property]") {
 	}
 	PROP_TRACER(tl).to_image();
 	auto{std::move(pi1)};
+	tl.print_status();
+	PROP_TRACER(tl).to_image();
 	auto{std::move(pi2)};
+	PROP_TRACER(tl).to_image();
 	auto{std::move(pi3)};
+	PROP_TRACER(tl).to_image();
 	{
 		INFO(tl.get_status());
 		REQUIRE(tl[0] == nullptr);

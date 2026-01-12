@@ -356,6 +356,9 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 				//		continue;
 				//	}
 				//}
+				if (dep == nullptr) {
+					continue;
+				}
 				Command _{dot_name(dep) + " -> " + dot_name(link) + (dep.is_required() ? "" : "[style=dashed]")};
 			}
 		}
