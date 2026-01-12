@@ -34,7 +34,7 @@ prop::Vertical_layout::Vertical_layout()
 				min_width = std::max(min_width, min_size.width);
 				min_height += min_size.height;
 				max_width = std::min(max_width, max_size.width);
-				max_height += max_size.height;
+				max_height = std::add_sat(max_height, max_size.height);
 				child->position = Rect{
 					.top = ypos,
 					.left = 0,
