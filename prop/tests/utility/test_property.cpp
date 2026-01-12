@@ -604,7 +604,6 @@ TEST_CASE("Quoted string property", "[Property]") {
 }
 
 TEST_CASE("Updates inside updates", "[Property]") {
-	std::cout << std::string(20, '\n');
 	prop::Property p1 = 1;
 	p1.custom_name = "p1";
 	prop::Property<int> p2;
@@ -666,14 +665,9 @@ TEST_CASE("Updates inside updates", "[Property]") {
 		REQUIRE(tl.is_explicit_dependent_of(pi2));
 		REQUIRE(tl.is_explicit_dependent_of(pi3));
 	}
-	PROP_TRACER(tl).to_image();
 	auto{std::move(pi1)};
-	tl.print_status();
-	PROP_TRACER(tl).to_image();
 	auto{std::move(pi2)};
-	PROP_TRACER(tl).to_image();
 	auto{std::move(pi3)};
-	PROP_TRACER(tl).to_image();
 	{
 		INFO(tl.get_status());
 		REQUIRE(tl[0] == nullptr);
@@ -690,11 +684,14 @@ TEST_CASE("Void properties", "[Property]") {
 	pv = [&pi] { pi.get(); };
 	prop::Property<int> counter;
 	counter.custom_name = "counter";
-	counter = [&pv](int &value) {
+	REQUIRE(prop::Property_link::get_current_binding() == nullptr);
+	counter = [&pv, &counter](int &value) {
+		REQUIRE(prop::Property_link::get_current_binding() == &counter);
 		pv.get();
 		value++;
 		return prop::Updater_result::changed;
 	};
+	REQUIRE(prop::Property_link::get_current_binding() == nullptr);
 	{
 		INFO(pv.get_status());
 		INFO(counter.get_status());
@@ -702,7 +699,9 @@ TEST_CASE("Void properties", "[Property]") {
 		REQUIRE(pv.is_dependent_on(pi));
 		REQUIRE(counter == 1);
 	}
+	REQUIRE(prop::Property_link::get_current_binding() == nullptr);
 	pi++;
+	REQUIRE(prop::Property_link::get_current_binding() == nullptr);
 	{
 		INFO(pv.get_status());
 		INFO(counter.get_status());
@@ -720,7 +719,8 @@ TEST_CASE("Void properties", "[Property]") {
 	}
 	prop::Property pi2 = 1;
 	pi2.custom_name = "pi2";
-	pv = [&pi, &pi2] {
+	pv = [&pi, &pi2, &pv] {
+		REQUIRE(prop::Property_link::get_current_binding() == &pv);
 		pi.get();
 		pi2.get();
 	};

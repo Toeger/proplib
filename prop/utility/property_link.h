@@ -42,11 +42,13 @@ namespace prop {
 
 		private:
 		std::vector<prop::Required_pointer<Property_link>> data;
+		std::size_t current_index;
 	};
 
 	class Property_link {
 		public:
 		using Property_pointer = prop::Required_pointer<Property_link>;
+		static inline std::ostream *debug_output;
 
 		virtual std::string_view type() const;
 		virtual std::string value_string() const;
@@ -177,10 +179,6 @@ namespace prop {
 
 #ifdef PROPERTY_NAMES
 		std::string custom_name;
-		std::string get_name() const {
-			assert_status();
-			return to_string();
-		}
 #endif
 		~Property_link();
 
