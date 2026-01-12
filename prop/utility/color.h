@@ -126,15 +126,3 @@ inline constexpr prop::Color prop::Color::blue{{.rgb = 0x0000FF}};
 inline constexpr prop::Color prop::Color::navy{{.rgb = 0x000080}};
 inline constexpr prop::Color prop::Color::fuchsia{{.rgb = 0xFF00FF}};
 inline constexpr prop::Color prop::Color::purple{{.rgb = 0x800080}};
-
-inline prop::Color prop::Color::static_text = prop::Color::silver;
-inline prop::Color prop::Color::type = prop::Color::olive;
-inline prop::Color prop::Color::type_highlight = prop::Color::yellow;
-inline prop::Color prop::Color::variable_name = prop::Color::lime;
-inline prop::Color prop::Color::variable_value = prop::Color::white;
-inline prop::Color prop::Color::address = prop::Color::purple;
-inline prop::Color prop::Color::address_highlight = prop::Color::fuchsia;
-inline prop::Color prop::Color::file = prop::Color::aqua;
-inline prop::Color prop::Color::path = prop::Color::teal;
-inline prop::Color prop::Color::function_name = prop::Color::aqua;
-inline prop::Color prop::Color::function_type = prop::Color::teal;

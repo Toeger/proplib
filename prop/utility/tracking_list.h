@@ -126,7 +126,12 @@ namespace prop {
 			std::string result;
 			const char *sep = "";
 			for (std::size_t i = 0; i < std::size(dependencies); i++) {
-				result += sep + dependencies[i]->to_string();
+				if (auto &dep = dependencies[i]) {
+					result += sep + dep->to_string();
+				} else {
+					result += sep + std::format("{:ansi}nullptr{:ansi}", prop::Color::address_highlight,
+												prop::Color::static_text);
+				}
 				sep = ", ";
 			}
 			return result;
