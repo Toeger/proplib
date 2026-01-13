@@ -499,15 +499,15 @@ void prop::Property_link::print_extended_status(const prop::Extended_status_data
 			   << value_string() << "\n";
 	esd.output << indent << prop::Color::static_text << "           Bound: " << prop::Color::variable_value
 			   << (has_source() ? "Yes" : "No") << "\n";
-	esd.output << indent << prop::Color::static_text
-			   << std::format("{:12} explicit dependencies: ", explicit_dependencies) << prop::Color::reset;
+	esd.output << indent << prop::Color::variable_value << std::format("{:12}", explicit_dependencies)
+			   << prop::Color::static_text << " explicit dependencies: " << prop::Color::static_text;
 	print_dep(get_explicit_dependencies());
-	esd.output << indent << prop::Color::static_text
-			   << std::format("{:12} implicit dependencies: ", implicit_dependencies) << prop::Color::reset;
+	esd.output << indent << prop::Color::variable_value << std::format("{:12}", implicit_dependencies)
+			   << prop::Color::static_text << " implicit dependencies: " << prop::Color::static_text;
 	print_dep(get_implicit_dependencies());
-	esd.output << indent << prop::Color::static_text
-			   << std::format("{:12} dependents: ", dependencies.size() - explicit_dependencies - implicit_dependencies)
-			   << prop::Color::reset;
+	esd.output << indent << prop::Color::variable_value
+			   << std::format("{:12}", dependencies.size() - explicit_dependencies - implicit_dependencies)
+			   << prop::Color::static_text << " dependents: " << prop::Color::static_text;
 	print_dep(get_dependents());
 }
 
