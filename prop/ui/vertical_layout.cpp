@@ -71,9 +71,8 @@ void prop::Vertical_layout::draw(Canvas context) const {
 void prop::Vertical_layout::set_name(std::string_view name) {
 	name_updater = {
 		[name_ = std::string{name.data(), name.size()}](decltype(children) &children_) {
-			std::size_t counter;
-			counter = 0;
-			for (auto &child : const_cast<std::remove_cvref_t<decltype(children.get())> &>(children_.get())) {
+			std::size_t counter = 0;
+			for (auto &child : children_.get()) {
 				child->set_name(name_ + ".children[" + std::to_string(counter++) + "]");
 			}
 		},
@@ -103,8 +102,10 @@ void prop::Vertical_layout::trace(Dependency_tracer &dependency_tracer) const {
 #define PROP_X(X) PROP_TRACE(dependency_tracer, X)
 	(PROP_VERTICAL_LAYOUT_PROPERTY_MEMBERS);
 #undef PROP_X
-	for (auto &child : children.get()) {
-		dependency_tracer.trace(*child);
+	for (std::size_t i = 0; i < std::size(children.get()); i++) {
+		auto &child = *children[i];
+		child.custom_name = std::format("{}.children[{}]", custom_name.empty() ? "Vertical_layout" : custom_name, i);
+		dependency_tracer.trace(child);
 	}
 	prop::Widget::trace(dependency_tracer);
 }

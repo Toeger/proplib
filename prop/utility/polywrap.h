@@ -62,13 +62,10 @@ namespace prop {
 		Polywrap &operator=(Polywrap &&other);
 		Polywrap &operator=(prop::detail::Settable<Polywrap<T>> auto &&u);
 
-		T *get();
-		const T *get() const;
-		operator T *();
-		operator const T *() const;
+		T *get() const;
+		operator T *() const;
 		explicit operator bool() const;
-		T *operator->();
-		const T *operator->() const;
+		T *operator->() const;
 
 		void set(prop::detail::Compatible_polywrap_value<T> auto &&v);
 		void set(prop::detail::Compatible_polywrap_pointer<T> auto &&p);
@@ -222,13 +219,8 @@ namespace prop {
 	}
 
 	template <class T>
-	T *Polywrap<T>::get() {
+	T *Polywrap<T>::get() const {
 		static_assert(not std::is_reference_v<T>);
-		return value_ptr.get();
-	}
-
-	template <class T>
-	const T *Polywrap<T>::get() const {
 		return value_ptr.get();
 	}
 
@@ -238,12 +230,7 @@ namespace prop {
 	}
 
 	template <class T>
-	T *Polywrap<T>::operator->() {
-		return value_ptr.get();
-	}
-
-	template <class T>
-	const T *Polywrap<T>::operator->() const {
+	T *Polywrap<T>::operator->() const {
 		return value_ptr.get();
 	}
 
@@ -314,12 +301,7 @@ namespace prop {
 	}
 
 	template <class T>
-	Polywrap<T>::operator T *() {
-		return get();
-	}
-
-	template <class T>
-	Polywrap<T>::operator const T *() const {
+	Polywrap<T>::operator T *() const {
 		return get();
 	}
 } // namespace prop
