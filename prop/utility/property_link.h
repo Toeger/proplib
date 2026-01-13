@@ -118,6 +118,10 @@ namespace prop {
 
 		std::string to_string() const;
 
+#ifdef PROPERTY_NAMES
+		std::string custom_name;
+#endif
+
 		protected:
 		void operator=(const Property_link &) = delete;
 		void operator=(Property_link &&other);
@@ -185,11 +189,6 @@ namespace prop {
 			return std::span{dependencies}.subspan(explicit_dependencies + implicit_dependencies);
 		}
 
-		//Stable_list get_stable_dependents() const;
-
-#ifdef PROPERTY_NAMES
-		std::string custom_name;
-#endif
 		~Property_link();
 
 		private:

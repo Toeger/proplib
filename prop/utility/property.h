@@ -3,7 +3,8 @@
 #include "property_details.h"
 #include "raii.h"
 #include "utility.h"
-#include <string>
+#include <algorithm>
+#include <format>
 #include <string_view>
 
 namespace prop {
@@ -73,6 +74,22 @@ namespace prop {
 	};
 
 	namespace detail {
+		template <std::size_t size>
+		struct String_literal {
+			consteval String_literal(const char (&str)[size]) {
+				std::copy_n(str, size, value);
+			}
+			char value[size];
+		};
+		template <std::size_t size>
+		String_literal(const char (&)[size]) -> String_literal<size>; //suppress -Wctad-maybe-unsupported
+
+		template <class T, String_literal s = "{}">
+		concept is_formattable = requires {
+			requires std::formattable<T, char>;
+			typename std::integral_constant<int, (std::format_string<T>(s.value), 1)>;
+		};
+
 		template <class T>
 		concept Streamable = requires(std::ostream &os, const T &t) { os << t; };
 		template <class T>
@@ -85,6 +102,8 @@ namespace prop {
 					return os << magic_enum::enum_name(value) << '=' << +std::to_underlying(value);
 				} else if constexpr (Streamable<T>) {
 					return os << std::boolalpha << value;
+				} else if constexpr (is_formattable<T>) {
+					return os << std::format("{}", value);
 				} else {
 					return os << prop::type_name<T>() << '@' << &value;
 				}
