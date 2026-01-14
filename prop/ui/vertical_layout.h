@@ -29,9 +29,8 @@ namespace prop {
 		friend void swap(Vertical_layout &lhs, Vertical_layout &rhs);
 		template <class... Args>
 		void set_children(Args &&...args);
-#ifdef PROPERTY_NAMES
 		void set_name(std::string_view name) override;
-		prop::Property<void> name_updater;
+#ifdef PROPERTY_NAMES
 		Vertical_layout(std::string_view name);
 		template <class... Children>
 		Vertical_layout(std::string_view name, Children &&...children_)
@@ -51,7 +50,8 @@ namespace prop {
 		template <class... Args, std::size_t... indexes>
 		static void add_children(std::vector<prop::Polywrap<prop::Widget>> &container, std::index_sequence<indexes...>,
 								 Args &&...args);
-		prop::Property<void> child_positioners;
+		prop::Property<void> child_positioner;
+		prop::Property<void> name_updater;
 	};
 } // namespace prop
 

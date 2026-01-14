@@ -9,10 +9,10 @@
 #endif
 
 #define PROP_VERTICAL_LAYOUT_PROPERTY_MEMBERS                                                                          \
-	PROP_X(name_updater), PROP_X(children), PROP_X(alignment), PROP_X(child_positioners)
+	PROP_X(name_updater), PROP_X(children), PROP_X(alignment), PROP_X(child_positioner)
 
 prop::Vertical_layout::Vertical_layout()
-	: child_positioners{[self_pointer = prop::track(this)] mutable {
+	: child_positioner{[self_pointer = prop::track(this)] mutable {
 		//return;
 		self_pointer->children.apply([&self = *self_pointer](std::vector<prop::Polywrap<prop::Widget>> &children_) {
 			if (children_.empty()) {
@@ -46,8 +46,18 @@ prop::Vertical_layout::Vertical_layout()
 			self.min_size = prop::Size{min_width, min_height};
 			self.max_size = prop::Size{max_width, max_height};
 		});
-	}} {
-	assert(child_positioners.is_dependent_on(children));
+	}}
+	, name_updater{
+		  [this](decltype(children) &children_) {
+			  std::size_t counter = 0;
+			  for (auto &child : children_.get()) {
+				  child->set_name(custom_name + ".children[" + std::to_string(counter++) + "]");
+			  }
+		  },
+		  children,
+	  } {
+	assert(child_positioner.is_dependent_on(children));
+	custom_name = std::format("<{}>", prop::type_name<std::remove_cvref_t<decltype(*this)>>());
 }
 
 prop::Vertical_layout::Vertical_layout(Vertical_layout &&other) noexcept {
@@ -69,19 +79,11 @@ void prop::Vertical_layout::draw(Canvas context) const {
 
 #ifdef PROPERTY_NAMES
 void prop::Vertical_layout::set_name(std::string_view name) {
-	name_updater = {
-		[name_ = std::string{name.data(), name.size()}](decltype(children) &children_) {
-			std::size_t counter = 0;
-			for (auto &child : children_.get()) {
-				child->set_name(name_ + ".children[" + std::to_string(counter++) + "]");
-			}
-		},
-		children,
-	};
-#define PROP_X(MEMBER) MEMBER.custom_name = std::string{name.data(), name.size()} + "." + #MEMBER
+#define PROP_X(MEMBER) MEMBER.custom_name = std::string{name} + "." + #MEMBER
 	(PROP_VERTICAL_LAYOUT_PROPERTY_MEMBERS);
 #undef PROP_X
 	prop::Widget::set_name(std::move(name));
+	name_updater.update();
 }
 
 prop::Vertical_layout::Vertical_layout(std::string_view name) {
@@ -104,7 +106,6 @@ void prop::Vertical_layout::trace(Dependency_tracer &dependency_tracer) const {
 #undef PROP_X
 	for (std::size_t i = 0; i < std::size(children.get()); i++) {
 		auto &child = *children[i];
-		child.custom_name = std::format("{}.children[{}]", custom_name.empty() ? "Vertical_layout" : custom_name, i);
 		dependency_tracer.trace(child);
 	}
 	prop::Widget::trace(dependency_tracer);

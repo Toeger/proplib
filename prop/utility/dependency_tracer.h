@@ -76,6 +76,7 @@ namespace prop {
 			std::string_view type;
 			std::vector<Member_data> members;
 			std::vector<const prop::Widget *> children;
+			const Property_link *link{};
 		};
 		struct Widget_data_container {
 			Widget_data &operator[](std::string_view type) {
@@ -93,6 +94,9 @@ namespace prop {
 			}
 			std::size_t size() const {
 				return data.size();
+			}
+			bool is_empty() const {
+				return !data.size();
 			}
 			Widget_data &front() {
 				assert(not data.empty());
@@ -128,7 +132,9 @@ namespace prop {
 				: previous_object{tracer.current_widget}
 				, dependency_tracer{&tracer} {
 				assert(tracer.object_data.contains(&widget));
-				tracer.current_widget = &tracer.object_data[&widget].widget_data[prop::type_name<Widget>()];
+				tracer.current_widget =
+					&tracer.object_data[&widget].widget_data[prop::type_name<std::remove_cvref_t<Widget>>()];
+				tracer.current_widget->link = &widget;
 			}
 			Make_current(const Make_current &) = delete;
 			~Make_current() {
@@ -193,7 +199,7 @@ namespace prop {
 							object_name = name;
 						}
 					}
-				} else {
+				} else { //not a widget
 					auto [it, inserted] = object_data.insert({
 						&p,
 						{
@@ -216,6 +222,13 @@ namespace prop {
 								add("", dep);
 							}
 						}
+					} else if (current_widget and it->second.parent == nullptr) {
+						it->second.parent = current_widget;
+						current_widget->members.push_back({
+							.name = name,
+							.data = it->first,
+						});
+						it->second.name = name;
 					}
 				}
 			} else {

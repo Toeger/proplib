@@ -253,14 +253,13 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 		Command _{"fontname=\"FiraCode-Medium\""};
 
 		for (auto &[link, data] : object_data) {
-			if (data.parent) {
-				continue;
-			}
-			if (data.widget_data.size()) {
-				Block _{dot_name(link), "[", "];"};
+			if (data.widget_data.size()) { //is a widget
+				auto &widget_link = link;
+				Block _{dot_name(widget_link), "[", "];"};
 				Command _{"shape=plaintext"};
 				Block _{"label =", "<", ">"};
-				HTML_tag _{"table", "border='1' cellborder='0' cellspacing='1' bgcolor='#" + color_code(link) + "'"};
+				HTML_tag _{"table",
+						   "border='1' cellborder='0' cellspacing='1' bgcolor='#" + color_code(widget_link) + "'"};
 				{
 					HTML_tag _{"tr"};
 					HTML_tag _{"td", "", bold("Type")};
@@ -286,7 +285,7 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 						{
 							HTML_tag _{"td"};
 							HTML_tag{"font", std::format("color='#{:hex}'", prop::Color::address),
-									 bold(html_encode(prop::color_address(link)))};
+									 bold(html_encode(prop::color_address(widget_link)))};
 						}
 					}
 					for (auto &member : base->members) {
@@ -318,7 +317,10 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 						}
 					}
 				}
-			} else {
+			} else { //is not a widget
+				if (data.parent) {
+					continue;
+				}
 				Block _{dot_name(link), "[", "];"};
 				Command _{"shape=rect"};
 				const auto value = link->displayed_value();
@@ -346,46 +348,18 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 				Command _{"style=\"filled\""};
 				Command _{"fillcolor=\"#" + color_code(link) + "\""};
 			}
+		}
+		for (auto &[link, data] : object_data) {
 			for (auto &dep : link->get_dependencies()) {
-				//if (auto pit = properties.find(address); pit != std::end(properties) && pit->second.widget) {
-				//	if (auto dit = properties.find(dependent);
-				//		dit != std::end(properties) && dit->second.widget == pit->second.widget) {
-				//		//same widget
-				//		Command _{dot_property_name(address) + " -> " + dot_property_name(dependent) +
-				//				  " [color=\"red\" style=\"bold\"]"};
-				//		continue;
-				//		static int i = 1;
-				//		const auto color = i == 1 ? "red" : "red";
-				//		if (i == 1) {
-				//			Command _{"dummy [shape=circle,width=.01,height=.01,label=\"\"]"};
-				//			Command _{std::format("{} -> {} [color=\"{}\" style=\"bold\" arrowhead=none]",
-				//								  dot_property_name(address), "dummy", color)};
-				//		}
-				//		Command _{std::format("{} -> {} [color=\"{}\" style=\"bold\"]", "dummy",
-				//							  dot_property_name(dependent), color)};
-				//		Command _{std::format("{{rank=same {} {}}}", "dummy", dot_property_name(address))};
-				//		i++;
-				//		continue;
-				//	}
-				//}
 				if (dep == nullptr) {
 					continue;
 				}
-				Command _{dot_name(dep) + " -> " + dot_name(link) + (dep.is_required() ? "" : "[style=dashed]")};
+				Command _{std::format("{} -> {} [style=\"{}\"]",
+									  dot_name(dep, object_data.at(dep).parent ? Alignment::right : Alignment::none),
+									  dot_name(link, data.parent ? Alignment::right : Alignment::none),
+									  dep.is_required() ? "bold" : "dashed")};
 			}
 		}
-
-#if DELETE_LATER
-		//arrows between widgets
-		for (auto &[address, common_data] : widgets) {
-			for (auto &base : std::views::reverse(common_data.bases)) {
-				for (auto &child : base.children) {
-					Command _{
-						std::format("{} -> {} [style=\"bold\" color=\"purple\"]", dot_name(address), dot_name(child))};
-				}
-			}
-		}
-#endif
 	}
 	file.close();
 	const auto file_path = output_path.string();
@@ -396,10 +370,11 @@ void prop::Dependency_tracer::to_image(std::filesystem::path output_path) const 
 }
 
 std::string prop::Dependency_tracer::dot_name(const Property_link *link, prop::Alignment alignment) const {
+	assert(alignment <= center);
 	if (alignment > center) {
 		alignment = none;
 	}
-	const char *direction[] = {
+	constexpr auto direction = std::to_array({
 		"",	   //none,
 		":w",  //left,
 		":e",  //right,
@@ -416,14 +391,13 @@ std::string prop::Dependency_tracer::dot_name(const Property_link *link, prop::A
 		":w",  //center_left,
 		":e",  //center_right,
 		":c",  //center,
-	};
+	});
 	if (auto pit = object_data.find(link); pit != std::end(object_data)) {
 		auto &data = pit->second;
-		if (data.parent) {
-			return std::format("widget_{}:property_{}{}", prop::to_string(data.parent), prop::to_string(link),
-							   direction[alignment]);
-		}
-		return "property_" + prop::to_string(link);
+		const std::string parentage =
+			data.widget_data.is_empty() and data.parent ? dot_name(data.parent->link, none) + ":" : "";
+		const std::string_view type = data.widget_data.size() ? "widget" : "property";
+		return std::format("{}{}_{}{}", parentage, type, prop::to_string(link), direction[alignment]);
 	}
 	return "unknown_" + prop::to_string(link);
 }
