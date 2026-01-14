@@ -18,6 +18,15 @@
 
 namespace prop {
 	namespace detail {
+		template <class T>
+		std::move_only_function<prop::Updater_result(prop::Property<T> &,
+													 std::span<const prop::Property_link::Property_pointer>)>
+		get_binding_function(T *);
+		std::move_only_function<prop::Updater_result(std::span<const prop::Property_link::Property_pointer>)>
+		get_binding_function(void *);
+		template <class T>
+		using binding_function_t = decltype(get_binding_function(std::declval<T *>()));
+
 		template <class T, class U = T>
 		concept is_equal_comparable_v = requires(const T &t, const U &u) {
 			//TODO: handle containers and tuple-likes
@@ -330,9 +339,7 @@ namespace prop {
 
 		template <class T, class Function, class... Properties, std::size_t... indexes>
 			requires(not std::is_same_v<T, void>)
-		std::move_only_function<prop::Updater_result(
-			prop::Property<T> &, std::span<const Property_link::Property_pointer> explicit_dependencies)>
-		create_explicit_caller(Function &&function, std::index_sequence<indexes...>) {
+		detail::binding_function_t<T> create_explicit_caller(Function &&function, std::index_sequence<indexes...>) {
 			return [source = std::forward<Function>(function)](
 					   prop::Property<T> &p,
 					   std::span<const Property_link::Property_pointer> explicit_dependencies) mutable
@@ -389,8 +396,7 @@ namespace prop {
 
 		template <class T, class Function, class... Properties, std::size_t... indexes>
 			requires(std::is_same_v<T, void>)
-		std::move_only_function<prop::Updater_result(std::span<const Property_link::Property_pointer>)>
-		create_explicit_caller(Function &&function, std::index_sequence<indexes...>) {
+		detail::binding_function_t<void> create_explicit_caller(Function &&function, std::index_sequence<indexes...>) {
 			return [source = std::forward<Function>(function)](
 					   std::span<const Property_link::Property_pointer> explicit_dependencies) mutable {
 				using Args_list = prop::Callable_info_for<Function>::Params;
@@ -488,9 +494,7 @@ namespace prop {
 #undef PROP_ACTUALLY_PROPERTIES
 
 		template <class T>
-		std::move_only_function<prop::Updater_result(prop::Property<T> &,
-													 std::span<const Property_link::Property_pointer>)>
-		make_direct_update_function(Generator_function<T> auto &&f) {
+		detail::binding_function_t<T> make_direct_update_function(Generator_function<T> auto &&f) {
 			return [source = std::forward<decltype(f)>(f)](prop::Property<T> &t,
 														   std::span<const Property_link::Property_pointer>) mutable {
 				auto value = source();

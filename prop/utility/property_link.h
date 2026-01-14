@@ -286,9 +286,8 @@ namespace prop {
 
 		template <class T, class Function, class... Properties, std::size_t... indexes>
 			requires(not std::is_same_v<T, void>)
-		friend std::move_only_function<prop::Updater_result(
-			prop::Property<T> &, std::span<const Property_link::Property_pointer> explicit_dependencies)>
-		prop::detail::create_explicit_caller(Function &&function, std::index_sequence<indexes...>);
+		friend detail::binding_function_t<T> prop::detail::create_explicit_caller(Function &&function,
+																				  std::index_sequence<indexes...>);
 
 		friend prop::Implicit_dependency_list;
 	};
