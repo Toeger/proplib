@@ -232,8 +232,8 @@ namespace Dot {
 				value >>= 1;
 			}
 		}
-		value = rgb[min_base_index] << 16 | rgb[(min_base_index + 1) % 3] << 8 | rgb[(min_base_index + 2) % 3];
-		return (std::stringstream{} << std::hex << value).str();
+		return std::format("{:02x}{:02x}{:02x}", rgb[min_base_index], rgb[(min_base_index + 1) % 3],
+						   rgb[(min_base_index + 2) % 3]);
 	}
 } // namespace Dot
 

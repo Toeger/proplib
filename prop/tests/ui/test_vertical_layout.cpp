@@ -5,14 +5,12 @@
 #include <catch2/catch_all.hpp>
 
 TEST_CASE("Apply width to reference children", "[Vertical_layout]") {
-	prop::Property_link::Output_setter _{std::cout};
 	prop::Widget w1, w2;
 	w1.set_name("w1");
 	w2.set_name("w2");
 	prop::Vertical_layout vl{&w1, &w2};
 	vl.set_name("vl");
-	auto trace = PROP_TRACER(vl, w1, w2);
-	trace.to_image();
+	PROP_TRACER(vl, w1, w2).to_image();
 	vl.position.apply()->right = 100;
 	REQUIRE(vl.position->right == 100);
 	REQUIRE(w1.position->right == vl.position->right);

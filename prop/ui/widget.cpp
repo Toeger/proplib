@@ -66,4 +66,5 @@ void prop::swap(Widget &lhs, Widget &rhs) {
 #define PROP_X(MEMBER) prop::utility::swap(lhs.MEMBER, rhs.MEMBER)
 	(PROP_WIDGET_PROPERTY_MEMBERS);
 #undef PROP_X
+	prop::utility::swap(static_cast<prop::Property_link &>(lhs), static_cast<prop::Property_link &>(rhs));
 }
