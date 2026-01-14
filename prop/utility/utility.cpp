@@ -5,7 +5,7 @@ std::string prop::color_type(std::string type) {
 		size_t start_pos = 0;
 		while ((start_pos = type.find("> >", start_pos)) != std::string::npos) {
 			type.replace(start_pos, 3, ">>");
-			start_pos += 2;
+			start_pos += 1;
 		}
 	}
 	enum class Highlight { highlighted, not_highlighted, unknown };
