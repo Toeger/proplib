@@ -51,11 +51,11 @@ namespace prop {
 		//TODO: Do better at picking the correct screen
 		auto &window_screen = screens[0u];
 		if constexpr (screen_unit_type == Screen_unit_type::x_millimeters) {
-			return window_screen.width_pixels / window_screen.x_dpi * 25.4;
+			return window_screen.x_dpi / 25.4;
 		} else if constexpr (screen_unit_type == Screen_unit_type::y_millimeters) {
-			return window_screen.height_pixels / window_screen.y_dpi * 25.4;
+			return window_screen.y_dpi / 25.4;
 		} else if constexpr (screen_unit_type == Screen_unit_type::points) {
-			return window_screen.height_pixels / window_screen.y_dpi / 72;
+			return window_screen.y_dpi / 72;
 		} else if constexpr (screen_unit_type == Screen_unit_type::text_sizes) {
 			return prop::detail::get_default_font_size();
 		} else if constexpr (screen_unit_type == Screen_unit_type::screen_width_percents) {
