@@ -41,14 +41,7 @@ prop::Button &prop::Button::operator=(Button &&other) noexcept {
 prop::Button::~Button() = default;
 
 void prop::Button::draw(Canvas canvas) const {
-	{	//draw frame
-		//sf::RectangleShape rect{sf::Vector2f(width, height)};
-		//rect.setPosition(x, y);
-		//rect.setOutlineColor(sf::Color::Black);
-		//rect.setOutlineThickness(1);
-		//rect.setFillColor(sf::Color::Green);
-		//canvas.window.draw(rect);
-	}
+	canvas.draw_rect(position, prop::Color::red);
 
 	{ //draw text
 		canvas.draw_text(text.get(), font);

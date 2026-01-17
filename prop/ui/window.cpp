@@ -34,6 +34,14 @@ prop::Window::Window(Parameters &&parameters)
 		  .title = title.get(),
 		  .window = this,
 	  })} {
+	if (widget) {
+		widget->get()->position = prop::Rect<>{
+			.top = 0,
+			.left = 0,
+			.bottom = static_cast<PROP_SCREEN_UNIT_PRECISION>(size->height),
+			.right = static_cast<PROP_SCREEN_UNIT_PRECISION>(size->width),
+		};
+	}
 	//auto widget_updater = get_widget_updater(*this);
 	//widget_updater();
 }
@@ -55,6 +63,14 @@ prop::Window &prop::Window::operator=(prop::Window &&other) noexcept {
 #undef PROP_X
 	platform_window_ = std::move(other.platform_window_);
 	return *this;
+}
+
+void prop::Window::draw(Canvas canvas) const {
+	if (not widget) {
+		//TODO: fill canvas?
+		return;
+	}
+	widget.get()->draw(canvas.sub_canvas_for(*widget.get()));
 }
 
 prop::platform::Window &prop::Window::platform_window() const {

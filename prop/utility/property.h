@@ -180,17 +180,21 @@ namespace prop {
 		Property<T> &operator=(const T &t)
 			requires std::assignable_from<T &, const T &>
 		{
-			unbind();
-			value = t;
-			write_notify();
+			if (not detail::is_equal(t, value)) {
+				unbind();
+				value = t;
+				write_notify();
+			}
 			return *this;
 		}
 		Property<T> &operator=(T &&t)
 			requires std::assignable_from<T &, T &&>
 		{
-			unbind();
-			value = std::move(t);
-			write_notify();
+			if (not detail::is_equal(t, value)) {
+				unbind();
+				value = std::move(t);
+				write_notify();
+			}
 			return *this;
 		}
 		Property<T> &operator=(Property<T> &&other) {
@@ -200,9 +204,11 @@ namespace prop {
 			return *this;
 		}
 		Property<T> &operator=(const Property<T> &other) {
-			unbind();
-			value = other.value;
-			write_notify();
+			if (not detail::is_equal(other.value, value)) {
+				unbind();
+				value = other.value;
+				write_notify();
+			}
 			return *this;
 		}
 		template <class U>
@@ -700,8 +706,10 @@ namespace prop {
 	Property<T> &Property<T>::operator=(U &&u)
 		requires std::is_assignable_v<T &, U &&>
 	{
-		value = std::forward<U>(u);
-		write_notify();
+		if (not detail::is_equal(u, value)) {
+			value = std::forward<U>(u);
+			write_notify();
+		}
 		return *this;
 	}
 
@@ -755,11 +763,7 @@ namespace prop {
 
 	template <class T>
 	void Property<T>::set(T t) {
-		unbind();
-		if (!detail::is_equal(value, t)) {
-			Write_notifier wn{this};
-			value = std::move(t);
-		}
+		*this = std::move(t);
 	}
 
 	template <class T>

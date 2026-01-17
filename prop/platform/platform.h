@@ -40,6 +40,7 @@ namespace prop {
 		namespace canvas {
 			void draw_text(Canvas_context &canvas_context, const prop::Rect<> &rect, std::string_view text,
 						   const Font &font);
+			void draw_rect(Canvas_context &canvas_context, prop::Rect<> rect, prop::Color color, float width_px);
 			int text_height(const prop::Font &font);
 			prop::Size<> text_size(std::string_view text, const Font &font);
 

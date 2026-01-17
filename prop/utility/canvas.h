@@ -20,6 +20,7 @@ namespace prop {
 		Canvas(prop::platform::Canvas_context &canvas_context_, int width_, int height_);
 		void draw_text(std::string_view text);
 		void draw_text(std::string_view text, prop::Font font_);
+		void draw_rect(prop::Rect<> rect, prop::Color color, prop::Pixels width = prop::Pixels{1});
 		Canvas sub_canvas_for(const prop::Widget &widget);
 		prop::Font font;
 

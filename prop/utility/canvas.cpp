@@ -20,6 +20,10 @@ void prop::Canvas::draw_text(std::string_view text, Font font_) {
 	prop::platform::canvas::draw_text(*canvas_context, prop::Rect<>(rect), text, font_);
 }
 
+void prop::Canvas::draw_rect(prop::Rect<> rect_, Color color, prop::Pixels width) {
+	prop::platform::canvas::draw_rect(*canvas_context, rect_, color, width.amount);
+}
+
 prop::Canvas prop::Canvas::sub_canvas_for(const prop::Widget &widget) {
 	const auto wrect = static_cast<prop::Rect<int>>(widget.position.get());
 	prop::Canvas canvas{{

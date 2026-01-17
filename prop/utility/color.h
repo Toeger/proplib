@@ -55,6 +55,10 @@ namespace prop {
 		std::uint8_t b{};
 		std::uint8_t a{};
 
+		constexpr std::uint32_t to_rgba() const {
+			return r << 24 | g << 16 | b << 8 | a;
+		}
+
 		//web colors
 		static const Color white, silver, gray, black, red, maroon, yellow, olive, lime, green, aqua, teal, blue, navy,
 			fuchsia, purple;

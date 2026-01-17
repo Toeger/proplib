@@ -24,6 +24,8 @@ namespace prop {
 		Window(Window &&other) noexcept;
 		Window &operator=(Window &&other) noexcept;
 
+		void draw(prop::Canvas canvas) const;
+
 		prop::platform::Window &platform_window() const;
 
 		Property<prop::Size<int>> size;

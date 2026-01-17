@@ -3,6 +3,7 @@
 #include "prop/utility/canvas.h"
 #include "prop/utility/utility.h"
 
+#include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Window/Event.hpp>
@@ -43,7 +44,7 @@ struct SFML_window : prop::platform::Window {
 		if (auto &wp = window->widget.get()) {
 			prop::platform::Canvas_context canvas_context{sfml_window};
 			prop::Canvas canvas{canvas_context, window->size->width, window->size->height};
-			window->widget.get()->draw(canvas.sub_canvas_for(*window->widget.get()));
+			window->draw(canvas);
 		}
 		sfml_window.display();
 		return true;
@@ -105,6 +106,16 @@ void prop::platform::canvas::draw_text(Canvas_context &canvas_context, const pro
 	canvas_context.window.draw(sftext);
 }
 
+void prop::platform::canvas::draw_rect(Canvas_context &canvas_context, prop::Rect<> rect, prop::Color color,
+									   float width_px) {
+	sf::RectangleShape sfrect{sf::Vector2f(rect.width(), rect.height())};
+	sfrect.setPosition(rect.left, rect.top);
+	sfrect.setOutlineColor(sf::Color{color.to_rgba()});
+	sfrect.setOutlineThickness(width_px);
+	sfrect.setFillColor(sf::Color::Transparent);
+	canvas_context.window.draw(sfrect);
+}
+
 prop::Size<> prop::platform::canvas::text_size(std::string_view text, const Font &font) {
 	sf::Font sffont;
 	if (not sffont.loadFromFile(font.name)) {
@@ -135,7 +146,7 @@ prop::Size<> prop::platform::canvas::text_size(std::string_view text, const Font
 #if __unix__
 #include "platform_xrandr_screen.h"
 std::vector<prop::platform::Screen> prop::platform::get_screens(prop::platform::Get_screens_strategy strategy) {
-	auto screens = get_xandr_screens();
+	auto raw_screens = get_xandr_screens();
 	switch (strategy) {
 		case prop::platform::Get_screens_strategy::compatibility:
 			//TODO
@@ -143,12 +154,12 @@ std::vector<prop::platform::Screen> prop::platform::get_screens(prop::platform::
 		case prop::platform::Get_screens_strategy::correctness:
 			break;
 		case prop::platform::Get_screens_strategy::fixed_96_DPI:
-			for (auto &screen : screens) {
+			for (auto &screen : raw_screens) {
 				screen.x_dpi = screen.y_dpi = 96;
 			}
 			break;
 	}
-	return screens;
+	return raw_screens;
 }
 #else
 #error
