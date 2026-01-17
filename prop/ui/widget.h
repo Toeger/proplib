@@ -17,11 +17,11 @@ namespace prop {
 	class Widget : public prop::Property_link {
 		public:
 		struct Parameters {
-			Property<prop::Rect> position;
+			Property<prop::Rect<>> position;
 			Property<bool> visible = true;
-			Property<prop::Size> min_size = prop::Size{0, 0};
-			Property<prop::Size> max_size = prop::Size::max;
-			Property<prop::Size> preferred_size = prop::Size{0, 0};
+			Property<prop::Size<>> min_size = prop::Size<>{0, 0};
+			Property<prop::Size<>> max_size = prop::Size<>::max;
+			Property<prop::Size<>> preferred_size = prop::Size<>{0, 0};
 		};
 		Widget();
 		Widget(Parameters &&);
@@ -37,15 +37,15 @@ namespace prop {
 #endif
 		friend void swap(Widget &lhs, Widget &rhs);
 
-		Property<prop::Rect> position;
+		Property<prop::Rect<>> position;
 		Property<bool> visible = true;
-		const Property<prop::Size> &get_min_size() const {
+		const Property<prop::Size<>> &get_min_size() const {
 			return min_size;
 		}
-		const Property<prop::Size> &get_max_size() const {
+		const Property<prop::Size<>> &get_max_size() const {
 			return max_size;
 		}
-		const Property<prop::Size> &get_preferred_size() const {
+		const Property<prop::Size<>> &get_preferred_size() const {
 			return preferred_size;
 		}
 
@@ -54,9 +54,9 @@ namespace prop {
 		}
 
 		protected:
-		prop::Property<prop::Size> min_size;
-		prop::Property<prop::Size> max_size;
-		prop::Property<prop::Size> preferred_size;
+		prop::Property<prop::Size<>> min_size;
+		prop::Property<prop::Size<>> max_size;
+		prop::Property<prop::Size<>> preferred_size;
 
 		prop::Signal<int, int> left_clicked;
 		prop::Signal<int, int> right_clicked;

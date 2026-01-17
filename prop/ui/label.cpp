@@ -28,6 +28,7 @@ prop::Label::Label(Parameters parameters)
 		assert(not self->font->name.empty());
 		return prop::platform::canvas::text_size(self->text, self->font);
 	};
+	min_size = [this] -> prop::Size<> { return preferred_size; };
 }
 
 prop::Label::Label(Label &&other) noexcept {

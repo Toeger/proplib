@@ -8,6 +8,10 @@
 #include <string_view>
 #endif
 
+#ifndef PROP_SCREEN_UNIT_PRECISION
+#define PROP_SCREEN_UNIT_PRECISION std::float_t
+#endif
+
 #define PROP_VERTICAL_LAYOUT_PROPERTY_MEMBERS                                                                          \
 	PROP_X(name_updater), PROP_X(children), PROP_X(alignment), PROP_X(child_positioner)
 
@@ -16,17 +20,17 @@ prop::Vertical_layout::Vertical_layout()
 		//return;
 		self_pointer->children.apply([&self = *self_pointer](std::vector<prop::Polywrap<prop::Widget>> &children_) {
 			if (children_.empty()) {
-				self.min_size = prop::Size{0, 0};
-				self.max_size = prop::Size::max;
-				self.preferred_size = prop::Size{0, 0};
+				self.min_size = prop::Size<>{0, 0};
+				self.max_size = prop::Size<>::max;
+				self.preferred_size = prop::Size<>{0, 0};
 				return;
 			}
-			int min_width = 0;
-			int min_height = 0;
-			int max_width = 0;
-			int max_height = 0;
-			int ypos = 0;
-			const int width = self.position->width();
+			PROP_SCREEN_UNIT_PRECISION min_width = 0;
+			PROP_SCREEN_UNIT_PRECISION min_height = 0;
+			PROP_SCREEN_UNIT_PRECISION max_width = 0;
+			PROP_SCREEN_UNIT_PRECISION max_height = 0;
+			PROP_SCREEN_UNIT_PRECISION ypos = 0;
+			const PROP_SCREEN_UNIT_PRECISION width = self.position->width();
 			for (auto &child : children_) {
 				//TODO: Don't just go with minimum size, instead take actual size into account and spread leftover space across widgets
 				const auto &min_size = child->get_min_size().get();
@@ -34,8 +38,8 @@ prop::Vertical_layout::Vertical_layout()
 				min_width = std::max(min_width, min_size.width);
 				min_height += min_size.height;
 				max_width = std::min(max_width, max_size.width);
-				max_height = std::add_sat(max_height, max_size.height);
-				child->position = Rect{
+				max_height += max_size.height;
+				child->position = Rect<>{
 					.top = ypos,
 					.left = 0,
 					.bottom = ypos + min_size.height,

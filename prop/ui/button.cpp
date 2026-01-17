@@ -1,6 +1,7 @@
 #include "button.h"
 #include "prop/utility/canvas.h"
 #include "prop/utility/dependency_tracer.h"
+#include "prop/utility/tracking_pointer.h"
 #include "prop/utility/utility.h"
 
 #include <boost/pfr/tuple_size.hpp>
@@ -21,6 +22,11 @@ prop::Button::Button(Parameters &&parameters)
 			}
 		});
 	}
+	preferred_size = [self = prop::track(this)] {
+		assert(not self->font->name.empty());
+		return prop::platform::canvas::text_size(self->text, self->font);
+	};
+	min_size = [this] -> prop::Size<> { return preferred_size; };
 }
 
 prop::Button::Button(Button &&other) noexcept {

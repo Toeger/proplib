@@ -4,11 +4,11 @@
 #include <string_view>
 #include <vector>
 
+#include "prop/utility/rect.h"
+
 namespace prop {
 	class Window;
 	class Font;
-	struct Rect;
-	struct Size;
 	class Color;
 
 	namespace platform {
@@ -38,9 +38,10 @@ namespace prop {
 
 		struct Canvas_context;
 		namespace canvas {
-			void draw_text(Canvas_context &canvas_context, const Rect &rect, std::string_view text, const Font &font);
+			void draw_text(Canvas_context &canvas_context, const prop::Rect<> &rect, std::string_view text,
+						   const Font &font);
 			int text_height(const prop::Font &font);
-			prop::Size text_size(std::string_view text, const Font &font);
+			prop::Size<> text_size(std::string_view text, const Font &font);
 
 		} // namespace canvas
 

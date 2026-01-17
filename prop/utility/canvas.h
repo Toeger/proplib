@@ -13,8 +13,8 @@ namespace prop {
 	}
 
 	class Canvas {
-		Rect rect;
-		Canvas(Rect rect_, prop::platform::Canvas_context &canvas_context_);
+		Rect<int> rect;
+		Canvas(Rect<int> rect_, prop::platform::Canvas_context &canvas_context_);
 
 		public:
 		Canvas(prop::platform::Canvas_context &canvas_context_, int width_, int height_);

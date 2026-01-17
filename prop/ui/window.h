@@ -15,7 +15,7 @@ namespace prop {
 	class Window {
 		public:
 		struct Parameters {
-			Property<prop::Size> size = prop::Size{800, 600};
+			Property<prop::Size<int>> size = prop::Size<int>{800, 600};
 			Property<std::string> title = "";
 			Property<prop::Polywrap<prop::Widget>> widget;
 		};
@@ -26,7 +26,7 @@ namespace prop {
 
 		prop::platform::Window &platform_window() const;
 
-		Property<prop::Size> size;
+		Property<prop::Size<int>> size;
 		Property<std::string> title;
 		Property<prop::Polywrap<prop::Widget>> widget;
 

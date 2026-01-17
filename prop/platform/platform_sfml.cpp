@@ -76,7 +76,7 @@ void prop::platform::Window::exec() {
 	}
 }
 
-void prop::platform::canvas::draw_text(Canvas_context &canvas_context, const Rect &rect, std::string_view text,
+void prop::platform::canvas::draw_text(Canvas_context &canvas_context, const prop::Rect<> &rect, std::string_view text,
 									   const prop::Font &font) {
 	sf::Font sffont;
 	if (not sffont.loadFromFile(font.name)) {
@@ -105,7 +105,7 @@ void prop::platform::canvas::draw_text(Canvas_context &canvas_context, const Rec
 	canvas_context.window.draw(sftext);
 }
 
-prop::Size prop::platform::canvas::text_size(std::string_view text, const Font &font) {
+prop::Size<> prop::platform::canvas::text_size(std::string_view text, const Font &font) {
 	sf::Font sffont;
 	if (not sffont.loadFromFile(font.name)) {
 		throw prop::Io_error{"Failed opening file \"" + font.name + "\""};
@@ -129,7 +129,7 @@ prop::Size prop::platform::canvas::text_size(std::string_view text, const Font &
 	}
 	sftext.setStyle(style);
 	const auto &sfrect = sftext.getLocalBounds();
-	return {.width = static_cast<int>(sfrect.width), .height = static_cast<int>(sfrect.height)};
+	return {.width = sfrect.width, .height = sfrect.height};
 }
 
 #if __unix__

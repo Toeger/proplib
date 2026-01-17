@@ -60,13 +60,16 @@ TEST_CASE("Screen units Dimensions") {
 TEST_CASE("Screen dimensions") {
 	int screen_count{};
 	for (auto &screen : prop::platform::get_screens()) {
-		std::print("Screen {} with resolution {}x{} and dpi {}x{}\n", ++screen_count, screen.width_pixels,
-				   screen.height_pixels, screen.x_dpi, screen.y_dpi);
+		std::println("Screen {} with resolution {}x{} and dpi {}x{} and size {}x{}", screen_count++,
+					 prop::Pixels(screen.width_pixels), prop::Pixels(screen.height_pixels), screen.x_dpi, screen.y_dpi,
+					 prop::X_millimeters{prop::Pixels(screen.width_pixels)},
+					 prop::Y_millimeters{prop::Pixels(screen.height_pixels)});
 	}
 	std::cout << "1xmm = " << prop::Pixels{1_xmm} << "\n1ymm = " << prop::Pixels{1_ymm} << "\n";
 	std::cout << prop::X_millimeters{1_px} << 'x' << prop::Y_millimeters{1_px} << '\n';
 	std::println("1xmm = {}\n1ymm = {}", prop::Pixels{1_xmm}, prop::Pixels{1_ymm});
 	std::println("1pt = {}", prop::Pixels{1_pt});
+	std::println("12pt = {}", prop::Pixels{12_pt});
 }
 
 #if __GNUG__

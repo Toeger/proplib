@@ -51,5 +51,5 @@ int main() {
 		.title = "Prop Demo",
 		.widget = &layout,
 	}};
-	w.exec();
+	prop::Window::exec();
 }
